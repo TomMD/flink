@@ -81,11 +81,13 @@ import kafka.server.KafkaServer;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 
+import javax.annotation.Nullable;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -1128,7 +1130,7 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBaseWithFlink {
 	 * Test producing and consuming into multiple topics.
 	 * @throws Exception
 	 */
-	public void runProduceConsumeMultipleTopics() throws Exception {
+	public void runProduceConsumeMultipleTopicsWithLegacySerializer() throws Exception {
 		final int numTopics = 5;
 		final int numElements = 20;
 
@@ -1167,6 +1169,99 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBaseWithFlink {
 		});
 
 		Tuple2WithTopicSchema schema = new Tuple2WithTopicSchema(env.getConfig());
+
+		Properties props = new Properties();
+		props.putAll(standardProps);
+		props.putAll(secureProps);
+		kafkaServer.produceIntoKafka(stream, "dummy", schema, props, null);
+
+		env.execute("Write to topics");
+
+		// run second job consuming from multiple topics
+		env = StreamExecutionEnvironment.getExecutionEnvironment();
+		env.getConfig().disableSysoutLogging();
+
+		stream = env.addSource(kafkaServer.getConsumer(topics, schema, props));
+
+		stream.flatMap(new FlatMapFunction<Tuple3<Integer, Integer, String>, Integer>() {
+			Map<String, Integer> countPerTopic = new HashMap<>(numTopics);
+			@Override
+			public void flatMap(Tuple3<Integer, Integer, String> value, Collector<Integer> out) throws Exception {
+				Integer count = countPerTopic.get(value.f2);
+				if (count == null) {
+					count = 1;
+				} else {
+					count++;
+				}
+				countPerTopic.put(value.f2, count);
+
+				// check map:
+				for (Map.Entry<String, Integer> el: countPerTopic.entrySet()) {
+					if (el.getValue() < numElements) {
+						break; // not enough yet
+					}
+					if (el.getValue() > numElements) {
+						throw new RuntimeException("There is a failure in the test. I've read " +
+								el.getValue() + " from topic " + el.getKey());
+					}
+				}
+				// we've seen messages from all topics
+				throw new SuccessException();
+			}
+		}).setParallelism(1);
+
+		tryExecute(env, "Count elements from the topics");
+
+		// delete all topics again
+		for (int i = 0; i < numTopics; i++) {
+			final String topic = "topic-" + i;
+			deleteTestTopic(topic);
+		}
+	}
+
+	/**
+	 * Test producing and consuming into multiple topics.
+	 * @throws Exception
+	 */
+	public void runProduceConsumeMultipleTopicsWithKafkaSerializer() throws Exception {
+		final int numTopics = 5;
+		final int numElements = 20;
+
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		env.getConfig().disableSysoutLogging();
+
+		// create topics with content
+		final List<String> topics = new ArrayList<>();
+		for (int i = 0; i < numTopics; i++) {
+			final String topic = "topic-" + i;
+			topics.add(topic);
+			// create topic
+			createTestTopic(topic, i + 1 /*partitions*/, 1);
+		}
+
+		// before FLINK-6078 the RemoteExecutionEnvironment set the parallelism to 1 as well
+		env.setParallelism(1);
+
+		// run first job, producing into all topics
+		DataStream<Tuple3<Integer, Integer, String>> stream = env.addSource(new RichParallelSourceFunction<Tuple3<Integer, Integer, String>>() {
+
+			@Override
+			public void run(SourceContext<Tuple3<Integer, Integer, String>> ctx) throws Exception {
+				int partition = getRuntimeContext().getIndexOfThisSubtask();
+
+				for (int topicId = 0; topicId < numTopics; topicId++) {
+					for (int i = 0; i < numElements; i++) {
+						ctx.collect(new Tuple3<>(partition, i, "topic-" + topicId));
+					}
+				}
+			}
+
+			@Override
+			public void cancel() {
+			}
+		});
+
+		TestDeSerializer schema = new TestDeSerializer(env.getConfig());
 
 		Properties props = new Properties();
 		props.putAll(standardProps);
@@ -2241,5 +2336,49 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBaseWithFlink {
 		public String getTargetTopic(Tuple3<Integer, Integer, String> element) {
 			return element.f2;
 		}
+	}
+
+	private static class TestDeSerializer implements KafkaDeserializationSchema<Tuple3<Integer, Integer, String>>,
+			KafkaSerializationSchema<Tuple3<Integer, Integer, String>> {
+
+		private final TypeSerializer<Tuple2<Integer, Integer>> ts;
+
+		public TestDeSerializer(ExecutionConfig ec) {
+			ts = TypeInformation.of(new TypeHint<Tuple2<Integer, Integer>>(){}).createSerializer(ec);
+		}
+
+		@Override
+		public TypeInformation<Tuple3<Integer, Integer, String>> getProducedType() {
+			return TypeInformation.of(new TypeHint<Tuple3<Integer, Integer, String>>(){});
+		}
+
+
+		@Override
+		public Tuple3<Integer, Integer, String> deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
+			DataInputView in = new DataInputViewStreamWrapper(new ByteArrayInputStream(record.value()));
+			Tuple2<Integer, Integer> t2 = ts.deserialize(in);
+			return new Tuple3<>(t2.f0, t2.f1, record.topic());
+		}
+
+		@Override
+		public boolean isEndOfStream(Tuple3<Integer, Integer, String> nextElement) {
+			return false;
+		}
+
+		@Override
+		public ProducerRecord<byte[], byte[]> serialize(
+				Tuple3<Integer, Integer, String> element, @Nullable Long timestamp) {
+			ByteArrayOutputStream by = new ByteArrayOutputStream();
+			DataOutputView out = new DataOutputViewStreamWrapper(by);
+			try {
+				ts.serialize(new Tuple2<>(element.f0, element.f1), out);
+			} catch (IOException e) {
+				throw new RuntimeException("Error" , e);
+			}
+			byte[] serializedValue = by.toByteArray();
+
+			return new ProducerRecord<>(element.f2, serializedValue);
+		}
+
 	}
 }

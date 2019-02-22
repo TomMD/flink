@@ -348,32 +348,41 @@ public class FlinkKafkaProducer010<T> extends FlinkKafkaProducer09<T> {
 
 	@Override
 	public void invoke(T value, Context context) throws Exception {
-
+		// propagate asynchronous errors
 		checkErroneous();
 
-		byte[] serializedKey = schema.serializeKey(value);
-		byte[] serializedValue = schema.serializeValue(value);
-		String targetTopic = schema.getTargetTopic(value);
-		if (targetTopic == null) {
-			targetTopic = defaultTopicId;
-		}
-
-		Long timestamp = null;
-		if (this.writeTimestampToKafka) {
-			timestamp = context.timestamp();
-		}
-
 		ProducerRecord<byte[], byte[]> record;
-		int[] partitions = topicPartitionsMap.get(targetTopic);
-		if (null == partitions) {
-			partitions = getPartitionsByTopic(targetTopic, producer);
-			topicPartitionsMap.put(targetTopic, partitions);
-		}
-		if (flinkKafkaPartitioner == null) {
-			record = new ProducerRecord<>(targetTopic, null, timestamp, serializedKey, serializedValue);
+
+		if (schema instanceof KeyedSerializationSchema) {
+			KeyedSerializationSchema<T> keyedSchema = (KeyedSerializationSchema<T>) schema;
+
+			byte[] serializedKey = keyedSchema.serializeKey(value);
+			byte[] serializedValue = keyedSchema.serializeValue(value);
+			String targetTopic = keyedSchema.getTargetTopic(value);
+			if (targetTopic == null) {
+				targetTopic = defaultTopicId;
+			}
+
+			int[] partitions = this.topicPartitionsMap.get(targetTopic);
+			if (null == partitions) {
+				partitions = getPartitionsByTopic(targetTopic, producer);
+				this.topicPartitionsMap.put(targetTopic, partitions);
+			}
+
+			if (flinkKafkaPartitioner == null) {
+				record = new ProducerRecord<>(targetTopic, serializedKey, serializedValue);
+			} else {
+				record = new ProducerRecord<>(
+						targetTopic,
+						flinkKafkaPartitioner.partition(value, serializedKey, serializedValue, targetTopic, partitions),
+						serializedKey,
+						serializedValue);
+			}
+
 		} else {
-			record = new ProducerRecord<>(targetTopic, flinkKafkaPartitioner.partition(value, serializedKey, serializedValue, targetTopic, partitions), timestamp, serializedKey, serializedValue);
+			record = schema.serialize(value, null);
 		}
+
 		if (flushOnCheckpoint) {
 			synchronized (pendingRecordsLock) {
 				pendingRecords++;
