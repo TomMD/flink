@@ -64,6 +64,11 @@ public class MesosTaskManagerParameters {
 		.defaultValue(0)
 		.withDescription(Description.builder().text("Disk space to assign to the Mesos workers in MB.").build());
 
+	public static final ConfigOption<Integer> MESOS_RM_TASKS_NETWORK_MB_PER_SEC =
+		key("mesos.resourcemanager.tasks.networkBandwidth")
+			.defaultValue(0)
+			.withDescription(Description.builder().text("Network bandwidth to assign to the Mesos workers in MB per sec").build());
+
 	public static final ConfigOption<Double> MESOS_RM_TASKS_CPUS =
 		key("mesos.resourcemanager.tasks.cpus")
 		.defaultValue(0.0)
@@ -152,6 +157,8 @@ public class MesosTaskManagerParameters {
 
 	private final int disk;
 
+	private final int network;
+
 	private final ContainerType containerType;
 
 	private final Option<String> containerImageName;
@@ -178,6 +185,7 @@ public class MesosTaskManagerParameters {
 			double cpus,
 			int gpus,
 			int disk,
+			int network,
 			ContainerType containerType,
 			Option<String> containerImageName,
 			ContaineredTaskManagerParameters containeredParameters,
@@ -193,6 +201,7 @@ public class MesosTaskManagerParameters {
 		this.cpus = cpus;
 		this.gpus = gpus;
 		this.disk = disk;
+		this.network = network;
 		this.containerType = Preconditions.checkNotNull(containerType);
 		this.containerImageName = Preconditions.checkNotNull(containerImageName);
 		this.containeredParameters = Preconditions.checkNotNull(containeredParameters);
@@ -225,6 +234,13 @@ public class MesosTaskManagerParameters {
 	 */
 	public int disk() {
 		return disk;
+	}
+
+	/**
+	 * Get the network bandwidth in MB to use for the TaskManager Process.
+	 */
+	public int network() {
+		return network;
 	}
 
 	/**
@@ -353,6 +369,8 @@ public class MesosTaskManagerParameters {
 
 		int disk = flinkConfig.getInteger(MESOS_RM_TASKS_DISK_MB);
 
+		int network = flinkConfig.getInteger(MESOS_RM_TASKS_NETWORK_MB_PER_SEC);
+
 		// parse the containerization parameters
 		String imageName = flinkConfig.getString(MESOS_RM_CONTAINER_IMAGE_NAME);
 
@@ -398,6 +416,7 @@ public class MesosTaskManagerParameters {
 			cpus,
 			gpus,
 			disk,
+			network,
 			containerType,
 			Option.apply(imageName),
 			containeredParameters,
