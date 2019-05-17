@@ -32,6 +32,7 @@ import org.apache.flink.client.program.PackagedProgramUtils;
 import org.apache.flink.client.program.ProgramInvocationException;
 import org.apache.flink.client.program.ProgramMissingJobException;
 import org.apache.flink.client.program.ProgramParametrizationException;
+import org.apache.flink.client.python.PythonDriver;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
@@ -185,8 +186,10 @@ public class CliFrontend {
 			return;
 		}
 
-		if (runOptions.getJarFilePath() == null) {
-			throw new CliArgsException("The program JAR file was not specified.");
+		// the job is not a Java job or a Python job.
+		if (!(runOptions.isJava() || runOptions.isPython())) {
+			throw new CliArgsException("The program should be specified a JAR file " +
+				"or a python file(or module)");
 		}
 
 		final PackagedProgram program;
@@ -771,22 +774,32 @@ public class CliFrontend {
 		String jarFilePath = options.getJarFilePath();
 		List<URL> classpaths = options.getClasspaths();
 
-		if (jarFilePath == null) {
-			throw new IllegalArgumentException("The program JAR file was not specified.");
+		// the job is not a Java job or a Python job.
+		if (!(options.isJava() || options.isPython())) {
+			throw new IllegalArgumentException("The program should be specified a JAR file " +
+				"or a python file(or module)");
 		}
 
-		File jarFile = new File(jarFilePath);
+		File jarFile = null;
+		// If the job is java job, it should be checked whether jar file exists.
+		if (options.isJava()) {
+			jarFile = new File(jarFilePath);
 
-		// Check if JAR file exists
-		if (!jarFile.exists()) {
-			throw new FileNotFoundException("JAR file does not exist: " + jarFile);
-		}
-		else if (!jarFile.isFile()) {
-			throw new FileNotFoundException("JAR file is not a file: " + jarFile);
+			// Check if JAR file exists
+			if (!jarFile.exists()) {
+				throw new FileNotFoundException("JAR file does not exist: " + jarFile);
+			}
+			else if (!jarFile.isFile()) {
+				throw new FileNotFoundException("JAR file is not a file: " + jarFile);
+			}
 		}
 
 		// Get assembler class
 		String entryPointClass = options.getEntryPointClassName();
+		// If the job is a python job, the entry point class is PythonDriver.
+		if (entryPointClass == null && options.isPython()) {
+			entryPointClass = PythonDriver.class.getCanonicalName();
+		}
 
 		PackagedProgram program = entryPointClass == null ?
 				new PackagedProgram(jarFile, classpaths, programArgs) :
