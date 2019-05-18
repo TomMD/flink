@@ -28,7 +28,6 @@ import org.apache.flink.configuration.TaskManagerOptions;
 import org.apache.flink.core.fs.FileSystemSafetyNet;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.core.fs.SafetyNetCloseableRegistry;
-import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.accumulators.AccumulatorRegistry;
 import org.apache.flink.runtime.blob.BlobCacheService;
 import org.apache.flink.runtime.blob.PermanentBlobKey;
@@ -365,14 +364,6 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 
 		final String taskNameWithSubtaskAndId = taskNameWithSubtask + " (" + executionId + ')';
 
-		// add metrics for buffers
-		final MetricGroup buffersGroup = metrics.getIOMetricGroup().addGroup("buffers");
-
-		// similar to MetricUtils.instantiateNetworkMetrics() but inside this IOMetricGroup
-		final MetricGroup networkGroup = metrics.getIOMetricGroup().addGroup("Network");
-		final MetricGroup outputGroup = networkGroup.addGroup("Output");
-		final MetricGroup inputGroup = networkGroup.addGroup("Input");
-
 		// produced intermediate result partitions
 		this.producedPartitions = networkEnvironment.createResultPartitionWriters(
 			taskNameWithSubtaskAndId,
@@ -381,8 +372,7 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 			this,
 			resultPartitionConsumableNotifier,
 			resultPartitionDeploymentDescriptors,
-			outputGroup,
-			buffersGroup);
+			metrics.getIOMetricGroup());
 
 		// consumed intermediate result partitions
 		this.inputGates = networkEnvironment.createInputGates(
@@ -391,9 +381,11 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 			this,
 			inputGateDeploymentDescriptors,
 			metrics.getIOMetricGroup(),
-			inputGroup,
-			buffersGroup,
 			metrics.getIOMetricGroup().getNumBytesInCounter());
+
+		// we will have to check type of shuffle service later whether it is NetworkEnvironment
+		//noinspection deprecation
+		network.registerLegacyNetworkMetrics(metrics.getIOMetricGroup(), producedPartitions, inputGates);
 
 		this.inputGatesById = new HashMap<>();
 		for (SingleInputGate inputGate : inputGates) {

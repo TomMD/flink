@@ -27,11 +27,13 @@ import org.apache.flink.runtime.deployment.InputGateDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
+import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.io.network.buffer.BufferPool;
 import org.apache.flink.runtime.io.network.buffer.NetworkBufferPool;
 import org.apache.flink.runtime.io.network.metrics.InputBufferPoolUsageGauge;
 import org.apache.flink.runtime.io.network.metrics.InputBuffersGauge;
 import org.apache.flink.runtime.io.network.metrics.InputChannelMetrics;
+import org.apache.flink.runtime.io.network.metrics.InputChannelMetrics.InputChannelMetricsWithLegacy;
 import org.apache.flink.runtime.io.network.metrics.InputGateMetrics;
 import org.apache.flink.runtime.io.network.metrics.OutputBufferPoolUsageGauge;
 import org.apache.flink.runtime.io.network.metrics.OutputBuffersGauge;
@@ -42,6 +44,7 @@ import org.apache.flink.runtime.io.network.partition.ResultPartition;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionConsumableNotifier;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionManager;
+import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
 import org.apache.flink.runtime.io.network.partition.consumer.SingleInputGate;
 import org.apache.flink.runtime.taskexecutor.TaskExecutor;
 import org.apache.flink.runtime.taskmanager.NetworkEnvironmentConfiguration;
@@ -256,8 +259,7 @@ public class NetworkEnvironment {
 			TaskActions taskActions,
 			ResultPartitionConsumableNotifier partitionConsumableNotifier,
 			Collection<ResultPartitionDeploymentDescriptor> resultPartitionDeploymentDescriptors,
-			MetricGroup outputGroup,
-			MetricGroup buffersGroup) {
+			MetricGroup parentGroup) {
 		synchronized (lock) {
 			Preconditions.checkState(!isShutdown, "The NetworkEnvironment has already been shut down.");
 
@@ -278,7 +280,8 @@ public class NetworkEnvironment {
 					rpdd.sendScheduleOrUpdateConsumersMessage());
 			}
 
-			registerOutputMetrics(outputGroup, buffersGroup, resultPartitions);
+			parentGroup = parentGroup.addGroup("Network");
+			registerOutputMetrics(parentGroup.addGroup("Output"), parentGroup.addGroup("buffers"), resultPartitions);
 			return resultPartitions;
 		}
 	}
@@ -289,13 +292,14 @@ public class NetworkEnvironment {
 			TaskActions taskActions,
 			Collection<InputGateDeploymentDescriptor> inputGateDeploymentDescriptors,
 			MetricGroup parentGroup,
-			MetricGroup inputGroup,
-			MetricGroup buffersGroup,
 			Counter numBytesInCounter) {
 		synchronized (lock) {
 			Preconditions.checkState(!isShutdown, "The NetworkEnvironment has already been shut down.");
 
-			InputChannelMetrics inputChannelMetrics = new InputChannelMetrics(parentGroup);
+			MetricGroup networkGroup = parentGroup.addGroup("Network");
+			@SuppressWarnings("deprecation")
+			InputChannelMetrics inputChannelMetrics = new InputChannelMetricsWithLegacy(networkGroup, parentGroup);
+
 			SingleInputGate[] inputGates = new SingleInputGate[inputGateDeploymentDescriptors.size()];
 			int counter = 0;
 			for (InputGateDeploymentDescriptor igdd : inputGateDeploymentDescriptors) {
@@ -310,7 +314,7 @@ public class NetworkEnvironment {
 					numBytesInCounter);
 			}
 
-			registerInputMetrics(inputGroup, buffersGroup, inputGates);
+			registerInputMetrics(networkGroup.addGroup("Input"), networkGroup.addGroup("buffers"), inputGates);
 			return inputGates;
 		}
 	}
@@ -329,6 +333,31 @@ public class NetworkEnvironment {
 		}
 		buffersGroup.gauge(METRIC_INPUT_QUEUE_LENGTH, new InputBuffersGauge(inputGates));
 		buffersGroup.gauge(METRIC_INPUT_POOL_USAGE, new InputBufferPoolUsageGauge(inputGates));
+	}
+
+	/**
+	 * Registers legacy network metric groups before shuffle service refactoring.
+	 *
+	 * <p>Registers legacy metric groups if shuffle service implementation is original default one.
+	 *
+	 * @deprecated should be removed in future
+	 */
+	@SuppressWarnings("DeprecatedIsStillUsed")
+	@Deprecated
+	public void registerLegacyNetworkMetrics(
+			MetricGroup metricGroup,
+			ResultPartitionWriter[] producedPartitions,
+			InputGate[] inputGates) {
+		// add metrics for buffers
+		final MetricGroup buffersGroup = metricGroup.addGroup("buffers");
+
+		// similar to MetricUtils.instantiateNetworkMetrics() but inside this IOMetricGroup
+		final MetricGroup networkGroup = metricGroup.addGroup("Network");
+		final MetricGroup outputGroup = networkGroup.addGroup("Output");
+		final MetricGroup inputGroup = networkGroup.addGroup("Input");
+
+		registerOutputMetrics(outputGroup, buffersGroup, (ResultPartition[]) producedPartitions);
+		registerInputMetrics(inputGroup, buffersGroup, (SingleInputGate[]) inputGates);
 	}
 
 	public void start() throws IOException {

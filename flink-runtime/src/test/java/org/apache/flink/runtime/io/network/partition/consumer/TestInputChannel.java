@@ -18,7 +18,6 @@
 
 package org.apache.flink.runtime.io.network.partition.consumer;
 
-import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.event.TaskEvent;
 import org.apache.flink.runtime.io.network.api.EndOfPartitionEvent;
 import org.apache.flink.runtime.io.network.api.serialization.EventSerializer;
@@ -53,7 +52,7 @@ public class TestInputChannel extends InputChannel {
 	private boolean isReleased = false;
 
 	TestInputChannel(SingleInputGate inputGate, int channelIndex) {
-		super(inputGate, channelIndex, new ResultPartitionID(), 0, 0, new SimpleCounter(), new SimpleCounter());
+		super(inputGate, channelIndex, new ResultPartitionID(), 0, 0, m -> {}, m -> {});
 	}
 
 	public TestInputChannel read(Buffer buffer) throws IOException, InterruptedException {
