@@ -19,6 +19,8 @@
 package org.apache.flink.runtime.state;
 
 import org.apache.flink.configuration.CheckpointingOptions;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.HighAvailabilityOptions;
 import org.apache.flink.core.fs.FileSystem;
@@ -62,6 +64,16 @@ public class StateBackendLoadingTest {
 	@Test
 	public void testNoStateBackendDefined() throws Exception {
 		assertNull(StateBackendLoader.loadStateBackendFromConfig(new Configuration(), cl, null));
+	}
+
+	@Test
+	public void testJira() throws Exception {
+		Configuration configuration = new Configuration();
+		configuration.setString(backendKey, "rocksdb");
+
+		assertNull(StateBackendLoader.loadStateBackendFromConfig(configuration, cl, null));
+
+
 	}
 
 	@Test
@@ -210,6 +222,32 @@ public class StateBackendLoadingTest {
 		final MemoryStateBackend memBackend = (MemoryStateBackend) loadedBackend;
 		assertEquals(expectedCheckpointPath, memBackend.getCheckpointPath());
 		assertEquals(expectedSavepointPath, memBackend.getSavepointPath());
+	}
+
+	/**
+	 * Validates that user custom configuration from code should override the flink-conf.yaml.
+	 * @throws Exception
+	 */
+	@Test
+	public void testReconfiguredMemoryStateBackend() throws Exception {
+		MemoryStateBackend backend = new MemoryStateBackend();
+		Configuration config1 = new Configuration();
+		config1.setString("key1", "v1");
+		backend = backend.configure(config1, cl);
+
+		Configuration configFromConfFile = new Configuration();
+		configFromConfFile.setString("key1", "v2");
+
+		StateBackend loadedBackend = StateBackendLoader.fromApplicationOrConfigOrDefault(backend, configFromConfFile, cl, null);
+
+		assertTrue(loadedBackend instanceof MemoryStateBackend);
+		final MemoryStateBackend memBackend = (MemoryStateBackend) loadedBackend;
+
+		ConfigOption<String> key1 = ConfigOptions
+			.key("key1")
+			.defaultValue("v0");
+
+		assertEquals("v1", memBackend.getConfigure().getString(key1));
 	}
 
 	// ------------------------------------------------------------------------
