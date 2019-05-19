@@ -67,16 +67,6 @@ public class StateBackendLoadingTest {
 	}
 
 	@Test
-	public void testJira() throws Exception {
-		Configuration configuration = new Configuration();
-		configuration.setString(backendKey, "rocksdb");
-
-		assertNull(StateBackendLoader.loadStateBackendFromConfig(configuration, cl, null));
-
-
-	}
-
-	@Test
 	public void testInstantiateMemoryBackendByDefault() throws Exception {
 		StateBackend backend =
 				StateBackendLoader.fromApplicationOrConfigOrDefault(null, new Configuration(), cl, null);
