@@ -18,6 +18,7 @@
 package org.apache.flink.table.plan.util
 
 import org.apache.flink.api.common.typeinfo.{TypeInformation, Types}
+import org.apache.flink.table.JLong
 import org.apache.flink.table.`type`.InternalTypes._
 import org.apache.flink.table.`type`.{DecimalType, InternalType, InternalTypes, TypeConverters}
 import org.apache.flink.table.api.{TableConfig, TableConfigOptions, TableException}
@@ -26,7 +27,7 @@ import org.apache.flink.table.calcite.{FlinkTypeFactory, FlinkTypeSystem}
 import org.apache.flink.table.dataformat.BaseRow
 import org.apache.flink.table.dataview.DataViewUtils.useNullSerializerForStateViewFieldsFromAccType
 import org.apache.flink.table.dataview.{DataViewSpec, MapViewSpec}
-import org.apache.flink.table.expressions.{FieldReferenceExpression, ProctimeAttribute, RexNodeConverter, RowtimeAttribute, WindowEnd, WindowStart}
+import org.apache.flink.table.expressions.{FieldReferenceExpression, ProctimeAttribute, RexNodeConverter, RowtimeAttribute, ValueLiteralExpression, WindowEnd, WindowStart}
 import org.apache.flink.table.functions.aggfunctions.DeclarativeAggregateFunction
 import org.apache.flink.table.functions.sql.{FlinkSqlOperatorTable, SqlConcatAggFunction, SqlFirstLastValueAggFunction}
 import org.apache.flink.table.functions.utils.AggSqlFunction
@@ -705,5 +706,13 @@ object AggregateUtil extends Enumeration {
 
   def isTimeIntervalType(intervalType: TypeInformation[_]): Boolean = {
     intervalType == TimeIntervalTypeInfo.INTERVAL_MILLIS
+  }
+
+  def extractTimeIntervalValue(literal: ValueLiteralExpression): JLong = {
+    if (isTimeIntervalType(literal.getType)) {
+      literal.getValue.asInstanceOf[JLong]
+    } else {
+      throw new IllegalArgumentException()
+    }
   }
 }

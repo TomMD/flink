@@ -248,7 +248,7 @@ object FlinkBatchRuleSets {
     */
   private val LOGICAL_CONVERTERS: RuleSet = RuleSets.ofList(
     FlinkLogicalAggregate.BATCH_CONVERTER,
-    FlinkLogicalOverWindow.CONVERTER,
+    FlinkLogicalOverAggregate.CONVERTER,
     FlinkLogicalCalc.CONVERTER,
     FlinkLogicalCorrelate.CONVERTER,
     FlinkLogicalJoin.CONVERTER,
@@ -310,7 +310,7 @@ object FlinkBatchRuleSets {
     BatchExecNestedLoopJoinRule.INSTANCE,
     BatchExecSingleRowJoinRule.INSTANCE,
     BatchExecCorrelateRule.INSTANCE,
-    BatchExecOverWindowAggRule.INSTANCE,
+    BatchExecOverAggregateRule.INSTANCE,
     BatchExecWindowAggregateRule.INSTANCE,
     BatchExecLookupJoinRule.SNAPSHOT_ON_TABLESCAN,
     BatchExecLookupJoinRule.SNAPSHOT_ON_CALC_TABLESCAN,
