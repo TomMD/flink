@@ -18,10 +18,14 @@
 
 package org.apache.flink.runtime.io.network.partition;
 
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.runtime.event.AbstractEvent;
 import org.apache.flink.runtime.executiongraph.IntermediateResultPartition;
+import org.apache.flink.runtime.io.network.api.serialization.EventSerializer;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.io.network.buffer.Buffer;
+import org.apache.flink.runtime.io.network.buffer.BufferBuilder;
 import org.apache.flink.runtime.io.network.buffer.BufferConsumer;
 import org.apache.flink.runtime.io.network.buffer.BufferPool;
 import org.apache.flink.runtime.io.network.buffer.BufferPoolOwner;
@@ -188,7 +192,7 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 		return subpartitions.length;
 	}
 
-	@Override
+	@VisibleForTesting
 	public BufferProvider getBufferProvider() {
 		return bufferPool;
 	}
@@ -219,20 +223,27 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 	// ------------------------------------------------------------------------
 
 	@Override
+	public void broadcastEvents(AbstractEvent event) throws IOException {
+		try (BufferConsumer eventBufferConsumer = EventSerializer.toBufferConsumer(event)) {
+			for (int index = 0; index < subpartitions.length; index++) {
+				// Retain the buffer so that it can be recycled by each sub partition
+				addBufferConsumer(eventBufferConsumer.copy(), index);
+			}
+		}
+	}
+
+	@Override
+	public BufferBuilder requestBufferBuilder(int subpartitionIndex) throws IOException, InterruptedException {
+		checkInProduceState();
+
+		BufferBuilder bufferBuilder = bufferPool.requestBufferBuilderBlocking();
+		addBufferConsumer(bufferBuilder.createBufferConsumer(), subpartitionIndex);
+		return bufferBuilder;
+	}
+
+	@VisibleForTesting
 	public void addBufferConsumer(BufferConsumer bufferConsumer, int subpartitionIndex) throws IOException {
-		checkNotNull(bufferConsumer);
-
-		ResultSubpartition subpartition;
-		try {
-			checkInProduceState();
-			subpartition = subpartitions[subpartitionIndex];
-		}
-		catch (Exception ex) {
-			bufferConsumer.close();
-			throw ex;
-		}
-
-		if (subpartition.add(bufferConsumer)) {
+		if (subpartitions[subpartitionIndex].add(bufferConsumer)) {
 			notifyPipelinedConsumers();
 		}
 	}

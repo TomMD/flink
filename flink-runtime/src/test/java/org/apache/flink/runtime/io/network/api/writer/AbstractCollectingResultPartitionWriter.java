@@ -18,7 +18,10 @@
 
 package org.apache.flink.runtime.io.network.api.writer;
 
+import org.apache.flink.runtime.event.AbstractEvent;
+import org.apache.flink.runtime.io.network.api.serialization.EventSerializer;
 import org.apache.flink.runtime.io.network.buffer.Buffer;
+import org.apache.flink.runtime.io.network.buffer.BufferBuilder;
 import org.apache.flink.runtime.io.network.buffer.BufferConsumer;
 import org.apache.flink.runtime.io.network.buffer.BufferProvider;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
@@ -48,11 +51,6 @@ public abstract class AbstractCollectingResultPartitionWriter implements ResultP
 	}
 
 	@Override
-	public BufferProvider getBufferProvider() {
-		return bufferProvider;
-	}
-
-	@Override
 	public ResultPartitionID getPartitionId() {
 		return new ResultPartitionID();
 	}
@@ -68,10 +66,21 @@ public abstract class AbstractCollectingResultPartitionWriter implements ResultP
 	}
 
 	@Override
-	public synchronized void addBufferConsumer(BufferConsumer bufferConsumer, int targetChannel) throws IOException {
+	public void broadcastEvents(AbstractEvent event) throws IOException {
+		try (BufferConsumer eventBufferConsumer = EventSerializer.toBufferConsumer(event)) {
+			bufferConsumers.add(eventBufferConsumer.copy());
+		}
+	}
+
+	@Override
+	public synchronized BufferBuilder requestBufferBuilder(int targetChannel) throws IOException, InterruptedException {
 		checkState(targetChannel < getNumberOfSubpartitions());
-		bufferConsumers.add(bufferConsumer);
+
+		BufferBuilder bufferBuilder = bufferProvider.requestBufferBuilderBlocking();
+		bufferConsumers.add(bufferBuilder.createBufferConsumer());
 		processBufferConsumers();
+
+		return bufferBuilder;
 	}
 
 	private void processBufferConsumers() throws IOException {

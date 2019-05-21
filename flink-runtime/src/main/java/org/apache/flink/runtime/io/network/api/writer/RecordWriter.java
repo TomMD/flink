@@ -22,11 +22,9 @@ import org.apache.flink.core.io.IOReadableWritable;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.event.AbstractEvent;
-import org.apache.flink.runtime.io.network.api.serialization.EventSerializer;
 import org.apache.flink.runtime.io.network.api.serialization.RecordSerializer;
 import org.apache.flink.runtime.io.network.api.serialization.SpanningRecordSerializer;
 import org.apache.flink.runtime.io.network.buffer.BufferBuilder;
-import org.apache.flink.runtime.io.network.buffer.BufferConsumer;
 import org.apache.flink.runtime.metrics.groups.TaskIOMetricGroup;
 import org.apache.flink.util.XORShiftRandom;
 
@@ -193,17 +191,14 @@ public class RecordWriter<T extends IOReadableWritable> {
 	}
 
 	public void broadcastEvent(AbstractEvent event) throws IOException {
-		try (BufferConsumer eventBufferConsumer = EventSerializer.toBufferConsumer(event)) {
-			for (int targetChannel = 0; targetChannel < numberOfChannels; targetChannel++) {
-				tryFinishCurrentBufferBuilder(targetChannel);
+		for (int targetChannel = 0; targetChannel < numberOfChannels; targetChannel++) {
+			tryFinishCurrentBufferBuilder(targetChannel);
+		}
 
-				// Retain the buffer so that it can be recycled by each channel of targetPartition
-				targetPartition.addBufferConsumer(eventBufferConsumer.copy(), targetChannel);
-			}
+		targetPartition.broadcastEvents(event);
 
-			if (flushAlways) {
-				flushAll();
-			}
+		if (flushAlways) {
+			flushAll();
 		}
 	}
 
@@ -253,9 +248,8 @@ public class RecordWriter<T extends IOReadableWritable> {
 	private BufferBuilder requestNewBufferBuilder(int targetChannel) throws IOException, InterruptedException {
 		checkState(!bufferBuilders[targetChannel].isPresent() || bufferBuilders[targetChannel].get().isFinished());
 
-		BufferBuilder bufferBuilder = targetPartition.getBufferProvider().requestBufferBuilderBlocking();
+		BufferBuilder bufferBuilder = targetPartition.requestBufferBuilder(targetChannel);
 		bufferBuilders[targetChannel] = Optional.of(bufferBuilder);
-		targetPartition.addBufferConsumer(bufferBuilder.createBufferConsumer(), targetChannel);
 		return bufferBuilder;
 	}
 
