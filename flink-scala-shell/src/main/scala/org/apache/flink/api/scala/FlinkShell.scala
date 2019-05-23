@@ -58,9 +58,6 @@ object FlinkShell {
     taskManagerMemory: Option[String] = None
   )
 
-  /** Buffered reader to substitute input in test */
-  var bufferedReader: Option[BufferedReader] = None
-
   def main(args: Array[String]) {
     val parser = new scopt.OptionParser[Config]("start-scala-shell.sh") {
       head("Flink Scala Shell")
@@ -133,7 +130,7 @@ object FlinkShell {
 
     // parse arguments
     parser.parse(args, Config()) match {
-      case Some(config) => startShell(config)
+      case Some(config) => startShell(config, None, new JPrintWriter(scala.Console.out, true))
       case _ => println("Could not parse program arguments")
     }
   }
@@ -161,6 +158,8 @@ object FlinkShell {
         if (config.host.isEmpty || config.port.isEmpty) {
           throw new IllegalArgumentException("<host> or <port> is not specified!")
         }
+        configuration.setString(JobManagerOptions.ADDRESS, config.host.get)
+        configuration.setInteger(JobManagerOptions.PORT, config.port.get)
         (config.host.get, config.port.get,
           new RestClusterClient(configuration, "RestClusterClient"))
 
@@ -184,9 +183,9 @@ object FlinkShell {
     }
   }
 
-  def startShell(config: Config): Unit = {
-    println("Starting Flink Shell:")
-
+  def createFlinkILoop(config: Config,
+                       in: Option[BufferedReader],
+                       out: JPrintWriter): FlinkILoop = {
     // load global configuration
     val confDirPath = config.configDir match {
       case Some(confDir) => confDir
@@ -196,36 +195,31 @@ object FlinkShell {
     val configDirectory = new File(confDirPath)
     val configuration = GlobalConfiguration.loadConfiguration(configDirectory.getAbsolutePath)
 
-    val (repl, clusterClient) = try {
+    try {
       val (host, port, clusterClient) = fetchConnectionInfo(configuration, config)
       val conf = clusterClient.getFlinkConfiguration
-
       println(s"\nConnecting to Flink cluster (host: $host, port: $port).\n")
-      val repl = bufferedReader match {
-        case Some(reader) =>
-          val out = new StringWriter()
-          new FlinkILoop(host, port, conf, config.externalJars, reader, new JPrintWriter(out))
-        case None =>
-          new FlinkILoop(host, port, conf, config.externalJars)
-      }
-
-      (repl, clusterClient)
+      new FlinkILoop(host, port, conf, config.externalJars, clusterClient, in,
+        new JPrintWriter(out))
     } catch {
       case e: IllegalArgumentException =>
         println(s"Error: ${e.getMessage}")
         sys.exit()
     }
+  }
 
+  def startShell(config: Config, in: Option[BufferedReader], out: JPrintWriter): Unit = {
+    println("Starting Flink Shell:")
+
+    val flinkILoop = createFlinkILoop(config, in, out)
     val settings = new Settings()
     settings.usejavacp.value = true
     settings.Yreplsync.value = true
 
     try {
-      repl.process(settings)
+      flinkILoop.process(settings)
     } finally {
-      repl.closeInterpreter()
-      clusterClient.shutDownCluster()
-      clusterClient.shutdown();
+      flinkILoop.closeInterpreter()
     }
 
     println(" good bye ..")
