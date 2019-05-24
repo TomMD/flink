@@ -33,8 +33,6 @@ import java.util.Queue;
  */
 public class MockInputGate extends InputGate {
 
-	private final int pageSize;
-
 	private final int numberOfChannels;
 
 	private final Queue<BufferOrEvent> bufferOrEvents;
@@ -43,25 +41,12 @@ public class MockInputGate extends InputGate {
 
 	private int closedChannels;
 
-	private final String owningTaskName;
-
-	public MockInputGate(int pageSize, int numberOfChannels, List<BufferOrEvent> bufferOrEvents) {
-		this(pageSize, numberOfChannels, bufferOrEvents, "MockTask");
-	}
-
-	public MockInputGate(int pageSize, int numberOfChannels, List<BufferOrEvent> bufferOrEvents, String owningTaskName) {
-		this.pageSize = pageSize;
+	public MockInputGate(int numberOfChannels, List<BufferOrEvent> bufferOrEvents) {
 		this.numberOfChannels = numberOfChannels;
 		this.bufferOrEvents = new ArrayDeque<BufferOrEvent>(bufferOrEvents);
 		this.closed = new boolean[numberOfChannels];
-		this.owningTaskName = owningTaskName;
 
 		isAvailable = AVAILABLE;
-	}
-
-	@Override
-	public int getPageSize() {
-		return pageSize;
 	}
 
 	@Override
@@ -71,11 +56,6 @@ public class MockInputGate extends InputGate {
 	@Override
 	public int getNumberOfInputChannels() {
 		return numberOfChannels;
-	}
-
-	@Override
-	public String getOwningTaskName() {
-		return owningTaskName;
 	}
 
 	@Override

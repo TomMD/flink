@@ -31,6 +31,7 @@ public class TaskInfo {
 
 	private final String taskName;
 	private final String taskNameWithSubtasks;
+	private final String taskNameWithSubtaskAndId;
 	private final String allocationIDAsString;
 	private final int maxNumberOfParallelSubtasks;
 	private final int indexOfSubtask;
@@ -45,6 +46,8 @@ public class TaskInfo {
 		int attemptNumber) {
 		this(
 			taskName,
+			taskName + " (" + (indexOfSubtask + 1) + '/' + numberOfParallelSubtasks + ')',
+			taskName + " (" + (indexOfSubtask + 1) + '/' + numberOfParallelSubtasks + ')',
 			maxNumberOfParallelSubtasks,
 			indexOfSubtask,
 			numberOfParallelSubtasks,
@@ -54,6 +57,8 @@ public class TaskInfo {
 
 	public TaskInfo(
 		String taskName,
+		String taskNameWithSubtasks,
+		String taskNameWithSubtaskAndId,
 		int maxNumberOfParallelSubtasks,
 		int indexOfSubtask,
 		int numberOfParallelSubtasks,
@@ -67,11 +72,12 @@ public class TaskInfo {
 		checkArgument(indexOfSubtask < numberOfParallelSubtasks, "Task index must be less than parallelism.");
 		checkArgument(attemptNumber >= 0, "Attempt number must be a non-negative number.");
 		this.taskName = checkNotNull(taskName, "Task Name must not be null.");
+		this.taskNameWithSubtasks = checkNotNull(taskNameWithSubtasks);
+		this.taskNameWithSubtaskAndId = checkNotNull(taskNameWithSubtaskAndId);
 		this.maxNumberOfParallelSubtasks = maxNumberOfParallelSubtasks;
 		this.indexOfSubtask = indexOfSubtask;
 		this.numberOfParallelSubtasks = numberOfParallelSubtasks;
 		this.attemptNumber = attemptNumber;
-		this.taskNameWithSubtasks = taskName + " (" + (indexOfSubtask + 1) + '/' + numberOfParallelSubtasks + ')';
 		this.allocationIDAsString = checkNotNull(allocationIDAsString);
 	}
 
@@ -130,6 +136,15 @@ public class TaskInfo {
 	 */
 	public String getTaskNameWithSubtasks() {
 		return this.taskNameWithSubtasks;
+	}
+
+	/**
+	 * Returns the name of the task, appended with the subtask indicator and execution attempt id.
+	 *
+	 * @return The name of the task, with subtask indicator and execution id.
+	 */
+	public String getTaskNameWithSubtaskAndId() {
+		return taskNameWithSubtaskAndId;
 	}
 
 	/**

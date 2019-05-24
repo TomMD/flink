@@ -137,12 +137,6 @@ public class UnionInputGate extends InputGate {
 	}
 
 	@Override
-	public String getOwningTaskName() {
-		// all input gates have the same owning task
-		return inputGates[0].getOwningTaskName();
-	}
-
-	@Override
 	public boolean isFinished() {
 		for (InputGate inputGate : inputGates) {
 			if (!inputGate.isFinished()) {
@@ -262,19 +256,6 @@ public class UnionInputGate extends InputGate {
 		for (InputGate inputGate : inputGates) {
 			inputGate.sendTaskEvent(event);
 		}
-	}
-
-	@Override
-	public int getPageSize() {
-		int pageSize = -1;
-		for (InputGate gate : inputGates) {
-			if (pageSize == -1) {
-				pageSize = gate.getPageSize();
-			} else if (gate.getPageSize() != pageSize) {
-				throw new IllegalStateException("Found input gates with different page sizes.");
-			}
-		}
-		return pageSize;
 	}
 
 	@Override

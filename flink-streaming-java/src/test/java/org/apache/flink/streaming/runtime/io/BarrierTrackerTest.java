@@ -49,14 +49,12 @@ import static org.mockito.Mockito.verify;
  */
 public class BarrierTrackerTest {
 
-	private static final int PAGE_SIZE = 512;
-
 	@Test
 	public void testSingleChannelNoBarriers() {
 		try {
 			BufferOrEvent[] sequence = { createBuffer(0), createBuffer(0), createBuffer(0) };
 
-			MockInputGate gate = new MockInputGate(PAGE_SIZE, 1, Arrays.asList(sequence));
+			MockInputGate gate = new MockInputGate(1, Arrays.asList(sequence));
 			BarrierTracker tracker = new BarrierTracker(gate);
 
 			for (BufferOrEvent boe : sequence) {
@@ -80,7 +78,7 @@ public class BarrierTrackerTest {
 					createBuffer(1), createBuffer(1), createBuffer(2)
 			};
 
-			MockInputGate gate = new MockInputGate(PAGE_SIZE, 4, Arrays.asList(sequence));
+			MockInputGate gate = new MockInputGate(4, Arrays.asList(sequence));
 			BarrierTracker tracker = new BarrierTracker(gate);
 
 			for (BufferOrEvent boe : sequence) {
@@ -109,7 +107,7 @@ public class BarrierTrackerTest {
 					createBuffer(0)
 			};
 
-			MockInputGate gate = new MockInputGate(PAGE_SIZE, 1, Arrays.asList(sequence));
+			MockInputGate gate = new MockInputGate(1, Arrays.asList(sequence));
 			BarrierTracker tracker = new BarrierTracker(gate);
 
 			CheckpointSequenceValidator validator =
@@ -144,7 +142,7 @@ public class BarrierTrackerTest {
 					createBuffer(0)
 			};
 
-			MockInputGate gate = new MockInputGate(PAGE_SIZE, 1, Arrays.asList(sequence));
+			MockInputGate gate = new MockInputGate(1, Arrays.asList(sequence));
 			BarrierTracker tracker = new BarrierTracker(gate);
 
 			CheckpointSequenceValidator validator =
@@ -188,7 +186,7 @@ public class BarrierTrackerTest {
 					createBuffer(0)
 			};
 
-			MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+			MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 			BarrierTracker tracker = new BarrierTracker(gate);
 
 			CheckpointSequenceValidator validator =
@@ -236,7 +234,7 @@ public class BarrierTrackerTest {
 					createBuffer(0)
 			};
 
-			MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+			MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 			BarrierTracker tracker = new BarrierTracker(gate);
 
 			CheckpointSequenceValidator validator =
@@ -320,7 +318,7 @@ public class BarrierTrackerTest {
 					createBuffer(1), createBuffer(0), createBuffer(2)
 			};
 
-			MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+			MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 			BarrierTracker tracker = new BarrierTracker(gate);
 
 			CheckpointSequenceValidator validator =
@@ -356,7 +354,7 @@ public class BarrierTrackerTest {
 				createBuffer(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 1, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(1, Arrays.asList(sequence));
 		BarrierTracker tracker = new BarrierTracker(gate);
 
 		// negative values mean an expected cancellation call!
@@ -412,7 +410,7 @@ public class BarrierTrackerTest {
 				createBuffer(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierTracker tracker = new BarrierTracker(gate);
 
 		// negative values mean an expected cancellation call!
@@ -450,7 +448,7 @@ public class BarrierTrackerTest {
 			createBuffer(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierTracker tracker = new BarrierTracker(gate);
 		AbstractInvokable statefulTask = mock(AbstractInvokable.class);
 

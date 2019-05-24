@@ -88,7 +88,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(0, PAGE_SIZE), createEndOfPartition(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 1, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(1, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		for (BufferOrEvent boe : sequence) {
@@ -116,7 +116,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(1, PAGE_SIZE), createEndOfPartition(1), createBuffer(2, PAGE_SIZE), createEndOfPartition(2)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 4, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(4, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		for (BufferOrEvent boe : sequence) {
@@ -147,7 +147,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(0, PAGE_SIZE), createEndOfPartition(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 1, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(1, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		ValidatingCheckpointHandler handler = new ValidatingCheckpointHandler();
@@ -205,7 +205,7 @@ public abstract class BarrierBufferTestBase {
 			createEndOfPartition(0), createEndOfPartition(1), createEndOfPartition(2)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		ValidatingCheckpointHandler handler = new ValidatingCheckpointHandler();
@@ -306,7 +306,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(2, PAGE_SIZE), createEndOfPartition(2), createBuffer(0, PAGE_SIZE), createEndOfPartition(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		ValidatingCheckpointHandler handler = new ValidatingCheckpointHandler();
@@ -389,7 +389,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(0, PAGE_SIZE), createEndOfPartition(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		ValidatingCheckpointHandler handler = new ValidatingCheckpointHandler();
@@ -489,7 +489,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(0, PAGE_SIZE), createEndOfPartition(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		AbstractInvokable toNotify = mock(AbstractInvokable.class);
@@ -581,7 +581,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(0, PAGE_SIZE), createEndOfPartition(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		ValidatingCheckpointHandler handler = new ValidatingCheckpointHandler();
@@ -678,7 +678,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(0, PAGE_SIZE), createEndOfPartition(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		// checkpoint 1
@@ -741,7 +741,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(2, PAGE_SIZE), createEndOfPartition(2), createBuffer(0, PAGE_SIZE), createEndOfPartition(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		ValidatingCheckpointHandler handler = new ValidatingCheckpointHandler();
@@ -801,7 +801,7 @@ public abstract class BarrierBufferTestBase {
 			createEndOfPartition(3)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 4, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(4, Arrays.asList(sequence));
 
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
@@ -861,7 +861,7 @@ public abstract class BarrierBufferTestBase {
 			createEndOfPartition(0)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		// data after first checkpoint
@@ -903,7 +903,7 @@ public abstract class BarrierBufferTestBase {
 			createBuffer(0, PAGE_SIZE)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 1, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(1, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		AbstractInvokable toNotify = mock(AbstractInvokable.class);
@@ -966,7 +966,7 @@ public abstract class BarrierBufferTestBase {
 			/* 37 */ createBuffer(0, PAGE_SIZE)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		AbstractInvokable toNotify = mock(AbstractInvokable.class);
@@ -1059,7 +1059,7 @@ public abstract class BarrierBufferTestBase {
 			/* 16 */ createBuffer(0, PAGE_SIZE), createBuffer(1, PAGE_SIZE), createBuffer(2, PAGE_SIZE)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		AbstractInvokable toNotify = mock(AbstractInvokable.class);
@@ -1149,7 +1149,7 @@ public abstract class BarrierBufferTestBase {
 			/* 18 */ createBuffer(0, PAGE_SIZE), createBuffer(1, PAGE_SIZE), createBuffer(2, PAGE_SIZE)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		AbstractInvokable toNotify = mock(AbstractInvokable.class);
@@ -1233,7 +1233,7 @@ public abstract class BarrierBufferTestBase {
 			/* 16 */ createBuffer(0, PAGE_SIZE), createBuffer(1, PAGE_SIZE), createBuffer(2, PAGE_SIZE)
 		};
 
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
 		BarrierBuffer buffer = createBarrierHandler(gate);
 
 		AbstractInvokable toNotify = mock(AbstractInvokable.class);

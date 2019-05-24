@@ -76,8 +76,6 @@ public abstract class InputGate implements AutoCloseable {
 
 	public abstract int getNumberOfInputChannels();
 
-	public abstract String getOwningTaskName();
-
 	public abstract boolean isFinished();
 
 	public abstract void requestPartitions() throws IOException, InterruptedException;
@@ -97,8 +95,6 @@ public abstract class InputGate implements AutoCloseable {
 	public abstract Optional<BufferOrEvent> pollNextBufferOrEvent() throws IOException, InterruptedException;
 
 	public abstract void sendTaskEvent(TaskEvent event) throws IOException;
-
-	public abstract int getPageSize();
 
 	/**
 	 * @return a future that is completed if there are more records available. If there more records
