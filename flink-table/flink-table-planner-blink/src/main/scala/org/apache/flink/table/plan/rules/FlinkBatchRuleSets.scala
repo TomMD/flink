@@ -209,11 +209,10 @@ object FlinkBatchRuleSets {
     * This RuleSet is a sub-set of [[LOGICAL_OPT_RULES]].
     */
   private val LOGICAL_RULES: RuleSet = RuleSets.ofList(
-    // aggregation and projection rules
-    AggregateProjectMergeRule.INSTANCE,
-    AggregateProjectPullUpConstantsRule.INSTANCE,
     // reorder sort and projection
     SortProjectTransposeRule.INSTANCE,
+    // remove unnecessary sort rule
+    SortRemoveRule.INSTANCE,
 
     // join rules
     FlinkJoinPushExpressionsRule.INSTANCE,
@@ -223,8 +222,12 @@ object FlinkBatchRuleSets {
     // convert non-all union into all-union + distinct
     UnionToDistinctRule.INSTANCE,
 
+    // aggregation and projection rules
+    AggregateProjectMergeRule.INSTANCE,
+    AggregateProjectPullUpConstantsRule.INSTANCE,
+
     // remove aggregation if it does not aggregate and input is already distinct
-    AggregateRemoveRule.INSTANCE,
+    FlinkAggregateRemoveRule.INSTANCE,
     // push aggregate through join
     FlinkAggregateJoinTransposeRule.EXTENDED,
     // aggregate union rule
@@ -236,11 +239,14 @@ object FlinkBatchRuleSets {
     AggregateReduceFunctionsRule.INSTANCE,
     WindowAggregateReduceFunctionsRule.INSTANCE,
 
+    // reduce group by columns
+    AggregateReduceGroupingRule.INSTANCE,
+    // reduce useless aggCall
+    PruneAggregateCallRule.PROJECT_ON_AGGREGATE,
+    PruneAggregateCallRule.CALC_ON_AGGREGATE,
+
     // expand grouping sets
     DecomposeGroupingSetsRule.INSTANCE,
-
-    // remove unnecessary sort rule
-    SortRemoveRule.INSTANCE,
 
     // rank rules
     FlinkLogicalRankRule.CONSTANT_RANGE_INSTANCE,
