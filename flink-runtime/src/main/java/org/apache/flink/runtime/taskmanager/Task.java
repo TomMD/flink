@@ -598,7 +598,7 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 
 			LOG.info("Registering task at network: {}.", this);
 
-			setupPartionsAndGates(producedPartitions, inputGates);
+			setupPartitionsAndGates(producedPartitions, inputGates);
 
 			for (ResultPartition partition : producedPartitions) {
 				taskEventDispatcher.registerPartition(partition.getPartitionId());
@@ -828,7 +828,7 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 	}
 
 	@VisibleForTesting
-	public static void setupPartionsAndGates(
+	public static void setupPartitionsAndGates(
 		ResultPartitionWriter[] producedPartitions, InputGate[] inputGates) throws IOException {
 
 		for (ResultPartitionWriter partition : producedPartitions) {
