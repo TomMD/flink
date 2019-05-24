@@ -41,6 +41,8 @@ abstract class ArtifactMessageParameters extends MessageParameters {
 
 	final ProgramArgQueryParameter programArgQueryParameter = new ProgramArgQueryParameter();
 
+	final DependentArtifactIdQueryParameter dependentArtifactIdQueryParameter = new DependentArtifactIdQueryParameter();
+
 	@Override
 	public Collection<MessagePathParameter<?>> getPathParameters() {
 		return Collections.singletonList(artifactIdPathParameter);
@@ -52,6 +54,7 @@ abstract class ArtifactMessageParameters extends MessageParameters {
 			programArgsQueryParameter,
 			programArgQueryParameter,
 			entryClassQueryParameter,
-			parallelismQueryParameter));
+			parallelismQueryParameter,
+			dependentArtifactIdQueryParameter));
 	}
 }

@@ -47,7 +47,7 @@ public class ArtifactRunRequestBody extends ArtifactRequestBody {
 	private String savepointPath;
 
 	public ArtifactRunRequestBody() {
-		this(null, null, null, null, null, null, null);
+		this(null, null, null, null, null, null, null, null);
 	}
 
 	@JsonCreator
@@ -56,10 +56,11 @@ public class ArtifactRunRequestBody extends ArtifactRequestBody {
 			@Nullable @JsonProperty(FIELD_NAME_PROGRAM_ARGUMENTS) String programArguments,
 			@Nullable @JsonProperty(FIELD_NAME_PROGRAM_ARGUMENTS_LIST) List<String> programArgumentsList,
 			@Nullable @JsonProperty(FIELD_NAME_PARALLELISM) Integer parallelism,
+			@Nullable @JsonProperty(FIELD_NAME_DEPENDENT_ARTIFACT_ID) String dependentArtifactId,
 			@Nullable @JsonProperty(FIELD_NAME_JOB_ID) JobID jobId,
 			@Nullable @JsonProperty(FIELD_NAME_ALLOW_NON_RESTORED_STATE) Boolean allowNonRestoredState,
 			@Nullable @JsonProperty(FIELD_NAME_SAVEPOINT_PATH) String savepointPath) {
-		super(entryClassName, programArguments, programArgumentsList, parallelism, jobId);
+		super(entryClassName, programArguments, programArgumentsList, parallelism, dependentArtifactId, jobId);
 		this.allowNonRestoredState = allowNonRestoredState;
 		this.savepointPath = savepointPath;
 	}

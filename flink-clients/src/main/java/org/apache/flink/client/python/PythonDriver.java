@@ -18,6 +18,7 @@
 
 package org.apache.flink.client.python;
 
+import org.apache.flink.client.program.OptimizerPlanEnvironment;
 import org.apache.flink.core.fs.Path;
 
 import org.slf4j.Logger;
@@ -70,6 +71,10 @@ public class PythonDriver {
 			}
 		} catch (Throwable e) {
 			LOG.error("Run python process failed", e);
+
+			// throw ProgramAbortException if the caller is interested in the program plan,
+			// there is no harm to throw ProgramAbortException even if it is not the case.
+			throw new OptimizerPlanEnvironment.ProgramAbortException();
 		} finally {
 			gatewayServer.shutdown();
 		}

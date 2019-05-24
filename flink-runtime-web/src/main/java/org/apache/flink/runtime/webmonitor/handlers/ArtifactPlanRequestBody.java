@@ -35,7 +35,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ArtifactPlanRequestBody extends ArtifactRequestBody {
 	ArtifactPlanRequestBody() {
-		super(null, null, null, null, null);
+		super(null, null, null, null, null, null);
 	}
 
 	@JsonCreator
@@ -44,7 +44,8 @@ public class ArtifactPlanRequestBody extends ArtifactRequestBody {
 		@Nullable @JsonProperty(FIELD_NAME_PROGRAM_ARGUMENTS) String programArguments,
 		@Nullable @JsonProperty(FIELD_NAME_PROGRAM_ARGUMENTS_LIST) List<String> programArgumentsList,
 		@Nullable @JsonProperty(FIELD_NAME_PARALLELISM) Integer parallelism,
+		@Nullable @JsonProperty(FIELD_NAME_DEPENDENT_ARTIFACT_ID) String dependentArtifactId,
 		@Nullable @JsonProperty(FIELD_NAME_JOB_ID) JobID jobId) {
-		super(entryClassName, programArguments, programArgumentsList, parallelism, jobId);
+		super(entryClassName, programArguments, programArgumentsList, parallelism, dependentArtifactId, jobId);
 	}
 }

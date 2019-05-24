@@ -44,6 +44,7 @@ public abstract class ArtifactRequestBody implements RequestBody {
 	static final String FIELD_NAME_PROGRAM_ARGUMENTS = "programArgs";
 	static final String FIELD_NAME_PROGRAM_ARGUMENTS_LIST = "programArgsList";
 	static final String FIELD_NAME_PARALLELISM = "parallelism";
+	static final String FIELD_NAME_DEPENDENT_ARTIFACT_ID = "dependentArtifactId";
 	static final String FIELD_NAME_JOB_ID = "jobId";
 
 	@JsonProperty(FIELD_NAME_ENTRY_CLASS)
@@ -62,6 +63,10 @@ public abstract class ArtifactRequestBody implements RequestBody {
 	@Nullable
 	private Integer parallelism;
 
+	@JsonProperty(FIELD_NAME_DEPENDENT_ARTIFACT_ID)
+	@Nullable
+	private String dependentArtifactId;
+
 	@JsonProperty(FIELD_NAME_JOB_ID)
 	@JsonDeserialize(using = JobIDDeserializer.class)
 	@JsonSerialize(using = JobIDSerializer.class)
@@ -69,7 +74,7 @@ public abstract class ArtifactRequestBody implements RequestBody {
 	private JobID jobId;
 
 	ArtifactRequestBody() {
-		this(null, null, null, null, null);
+		this(null, null, null, null, null, null);
 	}
 
 	@JsonCreator
@@ -78,11 +83,13 @@ public abstract class ArtifactRequestBody implements RequestBody {
 		@Nullable @JsonProperty(FIELD_NAME_PROGRAM_ARGUMENTS) String programArguments,
 		@Nullable @JsonProperty(FIELD_NAME_PROGRAM_ARGUMENTS_LIST) List<String> programArgumentsList,
 		@Nullable @JsonProperty(FIELD_NAME_PARALLELISM) Integer parallelism,
+		@Nullable @JsonProperty(FIELD_NAME_DEPENDENT_ARTIFACT_ID) String dependentArtifactId,
 		@Nullable @JsonProperty(FIELD_NAME_JOB_ID) JobID jobId) {
 		this.entryClassName = entryClassName;
 		this.programArguments = programArguments;
 		this.programArgumentsList = programArgumentsList;
 		this.parallelism = parallelism;
+		this.dependentArtifactId = dependentArtifactId;
 		this.jobId = jobId;
 	}
 
@@ -108,6 +115,12 @@ public abstract class ArtifactRequestBody implements RequestBody {
 	@JsonIgnore
 	public Integer getParallelism() {
 		return parallelism;
+	}
+
+	@Nullable
+	@JsonIgnore
+	public String getDependentArtifactId() {
+		return dependentArtifactId;
 	}
 
 	@Nullable

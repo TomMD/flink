@@ -32,6 +32,7 @@ import org.apache.flink.runtime.rest.messages.MessageParameters;
 import org.apache.flink.runtime.webmonitor.handlers.ArtifactIdPathParameter;
 import org.apache.flink.runtime.webmonitor.handlers.ArtifactRequestBody;
 import org.apache.flink.runtime.webmonitor.handlers.ArtifactRunHandler;
+import org.apache.flink.runtime.webmonitor.handlers.DependentArtifactIdQueryParameter;
 import org.apache.flink.runtime.webmonitor.handlers.EntryClassQueryParameter;
 import org.apache.flink.runtime.webmonitor.handlers.ParallelismQueryParameter;
 import org.apache.flink.runtime.webmonitor.handlers.ProgramArgQueryParameter;
@@ -44,6 +45,7 @@ import org.slf4j.Logger;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -71,13 +73,36 @@ public class ArtifactHandlerUtils {
 		private final String entryClass;
 		private final List<String> programArgs;
 		private final int parallelism;
+		private final Path dependentArtifactFile;
 		private final JobID jobId;
 
-		private ArtifactHandlerContext(Path artifactFile, String entryClass, List<String> programArgs, int parallelism, JobID jobId) {
+		private ArtifactHandlerContext(Path artifactFile, String entryClass, List<String> programArgs, int parallelism, Path dependentArtifactFile, JobID jobId) {
 			this.artifactFile = artifactFile;
-			this.entryClass = entryClass;
-			this.programArgs = programArgs;
+			String artifactFileName = artifactFile.getFileName().toString();
+			if (artifactFileName.endsWith(".py") ||
+				artifactFileName.endsWith(".zip") ||
+				artifactFileName.endsWith(".egg")) {
+				// sets the entry class to PythonDriver for Python jobs
+				this.entryClass = "org.apache.flink.client.python.PythonDriver";
+
+				List<String> list = new ArrayList<>();
+				if (artifactFileName.endsWith(".py")) {
+					list.add("py");
+					list.add(artifactFile.toFile().getAbsolutePath());
+					list.addAll(programArgs);
+				} else {
+					list.add("pym");
+					list.add(entryClass);
+					list.add("pyfs");
+					list.add(artifactFile.toFile().getAbsolutePath());
+				}
+				this.programArgs = list;
+			} else {
+				this.entryClass = entryClass;
+				this.programArgs = programArgs;
+			}
 			this.parallelism = parallelism;
+			this.dependentArtifactFile = dependentArtifactFile;
 			this.jobId = jobId;
 		}
 
@@ -110,7 +135,17 @@ public class ArtifactHandlerUtils {
 				null, // Delegate default job ID to actual JobGraph generation
 				log);
 
-			return new ArtifactHandlerContext(artifactFile, entryClass, programArgs, parallelism, jobId);
+			String dependentArtifact = fromRequestBodyOrQueryParameter(
+				emptyToNull(requestBody.getDependentArtifactId()),
+				() -> emptyToNull(getQueryParameter(request, DependentArtifactIdQueryParameter.class)),
+				null,
+				log);
+			Path dependentArtifactFile = null;
+			if (dependentArtifact != null) {
+				dependentArtifactFile = artifactDir.resolve(dependentArtifact);
+			}
+
+			return new ArtifactHandlerContext(artifactFile, entryClass, programArgs, parallelism, dependentArtifactFile, jobId);
 		}
 
 		public JobGraph toJobGraph(Configuration configuration) {
@@ -119,9 +154,22 @@ public class ArtifactHandlerUtils {
 					String.format("Artifact file %s does not exist", artifactFile), HttpResponseStatus.BAD_REQUEST));
 			}
 
+			File jarFile = null;
+			if (artifactFile.getFileName().toString().endsWith(".jar")) {
+				// the artifact is Java
+				jarFile = artifactFile.toFile();
+			} else if (dependentArtifactFile != null) {
+				// the artifact is Python
+				if (!Files.exists(dependentArtifactFile)) {
+					throw new CompletionException(new RestHandlerException(
+						String.format("Artifact file %s does not exist", dependentArtifactFile), HttpResponseStatus.BAD_REQUEST));
+				}
+				jarFile = dependentArtifactFile.toFile();
+			}
+
 			try {
 				final PackagedProgram packagedProgram = new PackagedProgram(
-					artifactFile.toFile(),
+					jarFile,
 					entryClass,
 					programArgs.toArray(new String[0]));
 				return PackagedProgramUtils.createJobGraph(packagedProgram, configuration, parallelism, jobId);

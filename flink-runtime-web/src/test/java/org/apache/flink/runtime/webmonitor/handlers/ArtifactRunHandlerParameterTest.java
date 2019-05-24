@@ -124,6 +124,7 @@ public class ArtifactRunHandlerParameterTest
 			getProgramArgsList(programArgsParType),
 			PARALLELISM,
 			null,
+			null,
 			ALLOW_NON_RESTORED_STATE_QUERY,
 			RESTORE_PATH
 		);
@@ -131,7 +132,7 @@ public class ArtifactRunHandlerParameterTest
 
 	@Override
 	ArtifactRunRequestBody getJarRequestBodyWithJobId(JobID jobId) {
-		return new ArtifactRunRequestBody(null, null, null, null, jobId, null, null);
+		return new ArtifactRunRequestBody(null, null, null, null, null, jobId, null, null);
 	}
 
 	@Override

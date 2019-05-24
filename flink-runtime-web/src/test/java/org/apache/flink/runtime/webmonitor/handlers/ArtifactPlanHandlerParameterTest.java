@@ -106,12 +106,13 @@ public class ArtifactPlanHandlerParameterTest
 			getProgramArgsString(programArgsParType),
 			getProgramArgsList(programArgsParType),
 			PARALLELISM,
+			null,
 			null);
 	}
 
 	@Override
 	ArtifactPlanRequestBody getJarRequestBodyWithJobId(JobID jobId) {
-		return new ArtifactPlanRequestBody(null, null, null, null, jobId);
+		return new ArtifactPlanRequestBody(null, null, null, null, null, jobId);
 	}
 
 	@Override

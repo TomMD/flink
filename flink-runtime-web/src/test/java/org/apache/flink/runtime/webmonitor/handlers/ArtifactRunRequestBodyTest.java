@@ -42,6 +42,7 @@ public class ArtifactRunRequestBodyTest extends RestRequestMarshallingTestBase<A
 			"world",
 			Arrays.asList("boo", "far"),
 			4,
+			"abc",
 			new JobID(),
 			true,
 			"foo/bar"
@@ -56,6 +57,7 @@ public class ArtifactRunRequestBodyTest extends RestRequestMarshallingTestBase<A
 		assertEquals(expected.getProgramArguments(), actual.getProgramArguments());
 		assertEquals(expected.getProgramArgumentsList(), actual.getProgramArgumentsList());
 		assertEquals(expected.getParallelism(), actual.getParallelism());
+		assertEquals(expected.getDependentArtifactId(), actual.getDependentArtifactId());
 		assertEquals(expected.getJobId(), actual.getJobId());
 		assertEquals(expected.getAllowNonRestoredState(), actual.getAllowNonRestoredState());
 		assertEquals(expected.getSavepointPath(), actual.getSavepointPath());
