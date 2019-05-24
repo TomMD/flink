@@ -311,8 +311,13 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 		Preconditions.checkArgument(0 <= attemptNumber, "The attempt number must be positive.");
 		Preconditions.checkArgument(0 <= targetSlotNumber, "The target slot number must be positive.");
 
+		this.taskNameWithSubtask = taskInformation.getTaskName() +
+			" (" + (subtaskIndex + 1) + '/' + taskInformation.getNumberOfSubtasks() + ')';
+		final String taskNameWithSubtaskAndId = taskNameWithSubtask + " (" + executionAttemptID + ')';
 		this.taskInfo = new TaskInfo(
 				taskInformation.getTaskName(),
+				taskNameWithSubtask,
+				taskNameWithSubtaskAndId,
 				taskInformation.getMaxNumberOfSubtaks(),
 				subtaskIndex,
 				taskInformation.getNumberOfSubtasks(),
@@ -323,7 +328,6 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 		this.vertexId = taskInformation.getJobVertexId();
 		this.executionId  = Preconditions.checkNotNull(executionAttemptID);
 		this.allocationId = Preconditions.checkNotNull(slotAllocationId);
-		this.taskNameWithSubtask = taskInfo.getTaskNameWithSubtasks();
 		this.jobConfiguration = jobInformation.getJobConfiguration();
 		this.taskConfiguration = taskInformation.getTaskConfiguration();
 		this.requiredJarFiles = jobInformation.getRequiredJarFileBlobKeys();
@@ -359,8 +363,6 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 		this.executor = Preconditions.checkNotNull(executor);
 
 		// create the reader and writer structures
-
-		final String taskNameWithSubtaskAndId = taskNameWithSubtask + " (" + executionId + ')';
 
 		// add metrics for buffers
 		final MetricGroup buffersGroup = metrics.getIOMetricGroup().addGroup("buffers");
