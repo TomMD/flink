@@ -52,10 +52,8 @@ import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.util.StringUtils;
 
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
-import org.apache.hadoop.hive.metastore.RetryingMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
@@ -67,10 +65,12 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
-import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
+import org.apache.hadoop.hive.ql.io.StorageFormatDescriptor;
+import org.apache.hadoop.hive.ql.io.StorageFormatFactory;
+import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,6 +90,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class HiveCatalog implements Catalog {
 	private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 	private static final String DEFAULT_DB = "default";
+	private static final StorageFormatFactory storageFormatFactory = new StorageFormatFactory();
+	private static final String DEFAULT_HIVE_TABLE_STORAGE_FORMAT = "TextFile";
 
 	// Prefix used to distinguish properties created by Hive and Flink,
 	// as Hive metastore has its own properties created upon table creation and migration between different versions of metastore.
@@ -133,23 +135,10 @@ public class HiveCatalog implements Catalog {
 		return hiveConf;
 	}
 
-	private static IMetaStoreClient getMetastoreClient(HiveConf hiveConf) {
-		try {
-			return RetryingMetaStoreClient.getProxy(
-				hiveConf,
-				null,
-				null,
-				HiveMetaStoreClient.class.getName(),
-				true);
-		} catch (MetaException e) {
-			throw new CatalogException("Failed to create Hive metastore client", e);
-		}
-	}
-
 	@Override
 	public void open() throws CatalogException {
 		if (client == null) {
-			client = getMetastoreClient(hiveConf);
+			client = HMSClientFactory.create(hiveConf);
 			LOG.info("Connected to Hive metastore");
 		}
 
@@ -534,9 +523,9 @@ public class HiveCatalog implements Catalog {
 	}
 
 	private  static Table instantiateHiveTable(ObjectPath tablePath, CatalogBaseTable table) {
-		Table hiveTable = new Table();
-		hiveTable.setDbName(tablePath.getDatabaseName());
-		hiveTable.setTableName(tablePath.getObjectName());
+		// let Hive set default parameters for us, e.g. serialization.format
+		Table hiveTable = org.apache.hadoop.hive.ql.metadata.Table.getEmptyTable(tablePath.getDatabaseName(),
+			tablePath.getObjectName());
 		hiveTable.setCreateTime((int) (System.currentTimeMillis() / 1000));
 
 		Map<String, String> properties = new HashMap<>(table.getProperties());
@@ -551,9 +540,8 @@ public class HiveCatalog implements Catalog {
 		// Hive table's StorageDescriptor
 		// TODO: This is very basic Hive table.
 		//  [FLINK-11479] Add input/output format and SerDeLib information for Hive tables.
-		StorageDescriptor sd = new StorageDescriptor();
-		hiveTable.setSd(sd);
-		sd.setSerdeInfo(new SerDeInfo(null, null, new HashMap<>()));
+		StorageDescriptor sd = hiveTable.getSd();
+		setStorageFormat(sd, properties);
 
 		List<FieldSchema> allColumns = HiveTableUtil.createHiveColumns(table.getSchema());
 
@@ -588,6 +576,17 @@ public class HiveCatalog implements Catalog {
 		}
 
 		return hiveTable;
+	}
+
+	private static void setStorageFormat(StorageDescriptor sd, Map<String, String> properties) {
+		// TODO: simply use text format for now
+		String storageFormatName = DEFAULT_HIVE_TABLE_STORAGE_FORMAT;
+		StorageFormatDescriptor sfDescriptor = storageFormatFactory.get(storageFormatName);
+		checkArgument(sfDescriptor != null, "Unknown storage format " + storageFormatName);
+		sd.setInputFormat(sfDescriptor.getInputFormat());
+		sd.setOutputFormat(sfDescriptor.getOutputFormat());
+		String serdeLib = sfDescriptor.getSerde();
+		sd.getSerdeInfo().setSerializationLib(serdeLib != null ? serdeLib : LazySimpleSerDe.class.getName());
 	}
 
 	/**
