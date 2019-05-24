@@ -18,8 +18,11 @@
 package org.apache.flink.streaming.util.serialization;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.streaming.connectors.kafka.KafkaSerializationSchema;
 
-import java.io.Serializable;
+import org.apache.kafka.clients.producer.ProducerRecord;
+
+import javax.annotation.Nullable;
 
 /**
  * The serialization schema describes how to turn a data object into a different serialized
@@ -27,9 +30,12 @@ import java.io.Serializable;
  * to them in a specific format (for example as byte strings).
  *
  * @param <T> The type to be serialized.
+ *
+ * @deprecated Use {@link KafkaSerializationSchema}.
  */
+@Deprecated
 @PublicEvolving
-public interface KeyedSerializationSchema<T> extends Serializable {
+public interface KeyedSerializationSchema<T> extends KafkaSerializationSchema<T> {
 
 	/**
 	 * Serializes the key of the incoming element to a byte array
@@ -55,4 +61,9 @@ public interface KeyedSerializationSchema<T> extends Serializable {
 	 * @return null or the target topic
 	 */
 	String getTargetTopic(T element);
+
+	@Override
+	default ProducerRecord<byte[], byte[]> serialize(T element, @Nullable Long timestamp) {
+		throw new RuntimeException("This method must not be used on a KeyedSerializationSchema.");
+	}
 }

@@ -33,6 +33,7 @@ import org.apache.flink.streaming.connectors.kafka.partitioner.FlinkKafkaDelegat
 import org.apache.flink.streaming.connectors.kafka.partitioner.FlinkKafkaPartitioner;
 import org.apache.flink.streaming.util.serialization.KeyedSerializationSchema;
 import org.apache.flink.util.NetUtils;
+import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.SerializableObject;
 
 import org.apache.kafka.clients.producer.Callback;
@@ -92,7 +93,7 @@ public abstract class FlinkKafkaProducerBase<IN> extends RichSinkFunction<IN> im
 	 * (Serializable) SerializationSchema for turning objects used with Flink into.
 	 * byte[] for Kafka.
 	 */
-	protected final KeyedSerializationSchema<IN> schema;
+	protected final KafkaSerializationSchema<IN> schema;
 
 	/**
 	 * User-provided partitioner for assigning an object to a Kafka partition for each topic.
@@ -139,10 +140,15 @@ public abstract class FlinkKafkaProducerBase<IN> extends RichSinkFunction<IN> im
 	 * @param producerConfig Configuration properties for the KafkaProducer. 'bootstrap.servers.' is the only required argument.
 	 * @param customPartitioner A serializable partitioner for assigning messages to Kafka partitions. Passing null will use Kafka's partitioner.
 	 */
-	public FlinkKafkaProducerBase(String defaultTopicId, KeyedSerializationSchema<IN> serializationSchema, Properties producerConfig, FlinkKafkaPartitioner<IN> customPartitioner) {
+	public FlinkKafkaProducerBase(String defaultTopicId, KafkaSerializationSchema<IN> serializationSchema, Properties producerConfig, FlinkKafkaPartitioner<IN> customPartitioner) {
 		requireNonNull(defaultTopicId, "TopicID not set");
 		requireNonNull(serializationSchema, "serializationSchema not set");
 		requireNonNull(producerConfig, "producerConfig not set");
+		if (customPartitioner != null) {
+			Preconditions.checkArgument(
+					serializationSchema instanceof KeyedSerializationSchema,
+					"Customer partitioner can only be used when using a KeyedSerializationSchema or SerializationSchema.");
+		}
 		ClosureCleaner.clean(customPartitioner, true);
 		ClosureCleaner.ensureSerializable(serializationSchema);
 
@@ -278,33 +284,43 @@ public abstract class FlinkKafkaProducerBase<IN> extends RichSinkFunction<IN> im
 	 * 		The incoming data
 	 */
 	@Override
+	@SuppressWarnings("deprecated")
 	public void invoke(IN next, Context context) throws Exception {
 		// propagate asynchronous errors
 		checkErroneous();
 
-		byte[] serializedKey = schema.serializeKey(next);
-		byte[] serializedValue = schema.serializeValue(next);
-		String targetTopic = schema.getTargetTopic(next);
-		if (targetTopic == null) {
-			targetTopic = defaultTopicId;
-		}
-
-		int[] partitions = this.topicPartitionsMap.get(targetTopic);
-		if (null == partitions) {
-			partitions = getPartitionsByTopic(targetTopic, producer);
-			this.topicPartitionsMap.put(targetTopic, partitions);
-		}
-
 		ProducerRecord<byte[], byte[]> record;
-		if (flinkKafkaPartitioner == null) {
-			record = new ProducerRecord<>(targetTopic, serializedKey, serializedValue);
+
+		if (schema instanceof KeyedSerializationSchema) {
+			KeyedSerializationSchema<IN> keyedSchema = (KeyedSerializationSchema<IN>) schema;
+
+			byte[] serializedKey = keyedSchema.serializeKey(next);
+			byte[] serializedValue = keyedSchema.serializeValue(next);
+			String targetTopic = keyedSchema.getTargetTopic(next);
+			if (targetTopic == null) {
+				targetTopic = defaultTopicId;
+			}
+
+			int[] partitions = this.topicPartitionsMap.get(targetTopic);
+			if (null == partitions) {
+				partitions = getPartitionsByTopic(targetTopic, producer);
+				this.topicPartitionsMap.put(targetTopic, partitions);
+			}
+
+			if (flinkKafkaPartitioner == null) {
+				record = new ProducerRecord<>(targetTopic, serializedKey, serializedValue);
+			} else {
+				record = new ProducerRecord<>(
+						targetTopic,
+						flinkKafkaPartitioner.partition(next, serializedKey, serializedValue, targetTopic, partitions),
+						serializedKey,
+						serializedValue);
+			}
+
 		} else {
-			record = new ProducerRecord<>(
-					targetTopic,
-					flinkKafkaPartitioner.partition(next, serializedKey, serializedValue, targetTopic, partitions),
-					serializedKey,
-					serializedValue);
+			record = schema.serialize(next, context.timestamp());
 		}
+
 		if (flushOnCheckpoint) {
 			synchronized (pendingRecordsLock) {
 				pendingRecords++;

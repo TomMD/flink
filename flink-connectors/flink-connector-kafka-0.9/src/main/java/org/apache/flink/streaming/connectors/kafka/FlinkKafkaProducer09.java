@@ -24,7 +24,6 @@ import org.apache.flink.streaming.connectors.kafka.partitioner.FlinkFixedPartiti
 import org.apache.flink.streaming.connectors.kafka.partitioner.FlinkKafkaDelegatePartitioner;
 import org.apache.flink.streaming.connectors.kafka.partitioner.FlinkKafkaPartitioner;
 import org.apache.flink.streaming.connectors.kafka.partitioner.KafkaPartitioner;
-import org.apache.flink.streaming.util.serialization.KeyedSerializationSchema;
 
 import javax.annotation.Nullable;
 
@@ -127,7 +126,7 @@ public class FlinkKafkaProducer09<IN> extends FlinkKafkaProducerBase<IN> {
 	 * Kafka partition).
 	 *
 	 * <p>To use a custom partitioner, please use
-	 * {@link #FlinkKafkaProducer09(String, KeyedSerializationSchema, Properties, FlinkKafkaPartitioner)} instead.
+	 * {@link #FlinkKafkaProducer09(String, KafkaSerializationSchema, Properties, FlinkKafkaPartitioner)} instead.
 	 *
 	 * @param brokerList
 	 *			Comma separated addresses of the brokers
@@ -136,7 +135,7 @@ public class FlinkKafkaProducer09<IN> extends FlinkKafkaProducerBase<IN> {
 	 * @param serializationSchema
 	 * 			User defined serialization schema supporting key/value messages
 	 */
-	public FlinkKafkaProducer09(String brokerList, String topicId, KeyedSerializationSchema<IN> serializationSchema) {
+	public FlinkKafkaProducer09(String brokerList, String topicId, KafkaSerializationSchema<IN> serializationSchema) {
 		this(topicId, serializationSchema, getPropertiesFromBrokerList(brokerList), new FlinkFixedPartitioner<IN>());
 	}
 
@@ -150,7 +149,7 @@ public class FlinkKafkaProducer09<IN> extends FlinkKafkaProducerBase<IN> {
 	 * Kafka partition).
 	 *
 	 * <p>To use a custom partitioner, please use
-	 * {@link #FlinkKafkaProducer09(String, KeyedSerializationSchema, Properties, FlinkKafkaPartitioner)} instead.
+	 * {@link #FlinkKafkaProducer09(String, KafkaSerializationSchema, Properties, FlinkKafkaPartitioner)} instead.
 	 *
 	 * @param topicId
 	 * 			ID of the Kafka topic.
@@ -159,17 +158,17 @@ public class FlinkKafkaProducer09<IN> extends FlinkKafkaProducerBase<IN> {
 	 * @param producerConfig
 	 * 			Properties with the producer configuration.
 	 */
-	public FlinkKafkaProducer09(String topicId, KeyedSerializationSchema<IN> serializationSchema, Properties producerConfig) {
+	public FlinkKafkaProducer09(String topicId, KafkaSerializationSchema<IN> serializationSchema, Properties producerConfig) {
 		this(topicId, serializationSchema, producerConfig, new FlinkFixedPartitioner<IN>());
 	}
 
 	/**
 	 * Creates a FlinkKafkaProducer for a given topic. The sink produces its input to
-	 * the topic. It accepts a keyed {@link KeyedSerializationSchema} and possibly a custom {@link FlinkKafkaPartitioner}.
+	 * the topic. It accepts a keyed {@link KafkaSerializationSchema} and possibly a custom {@link FlinkKafkaPartitioner}.
 	 *
 	 * <p>If a partitioner is not provided, written records will be partitioned by the attached key of each
-	 * record (as determined by {@link KeyedSerializationSchema#serializeKey(Object)}). If written records do not
-	 * have a key (i.e., {@link KeyedSerializationSchema#serializeKey(Object)} returns {@code null}), they
+	 * record (as determined by {@link KafkaSerializationSchema#serializeKey(Object)}). If written records do not
+	 * have a key (i.e., {@link KafkaSerializationSchema#serializeKey(Object)} returns {@code null}), they
 	 * will be distributed to Kafka partitions in a round-robin fashion.
 	 *
 	 * @param topicId The topic to write data to
@@ -177,13 +176,13 @@ public class FlinkKafkaProducer09<IN> extends FlinkKafkaProducerBase<IN> {
 	 * @param producerConfig Configuration properties for the KafkaProducer. 'bootstrap.servers.' is the only required argument.
 	 * @param customPartitioner A serializable partitioner for assigning messages to Kafka partitions.
 	 *                          If set to {@code null}, records will be partitioned by the key of each record
-	 *                          (determined by {@link KeyedSerializationSchema#serializeKey(Object)}). If the keys
+	 *                          (determined by {@link KafkaSerializationSchema#serializeKey(Object)}). If the keys
 	 *                          are {@code null}, then records will be distributed to Kafka partitions in a
 	 *                          round-robin fashion.
 	 */
 	public FlinkKafkaProducer09(
 			String topicId,
-			KeyedSerializationSchema<IN> serializationSchema,
+			KafkaSerializationSchema<IN> serializationSchema,
 			Properties producerConfig,
 			@Nullable FlinkKafkaPartitioner<IN> customPartitioner) {
 
@@ -221,10 +220,10 @@ public class FlinkKafkaProducer09<IN> extends FlinkKafkaProducerBase<IN> {
 	 *
 	 * @deprecated This is a deprecated constructor that does not correctly handle partitioning when
 	 *             producing to multiple topics. Use
-	 *             {@link #FlinkKafkaProducer09(String, KeyedSerializationSchema, Properties, FlinkKafkaPartitioner)} instead.
+	 *             {@link #FlinkKafkaProducer09(String, KafkaSerializationSchema, Properties, FlinkKafkaPartitioner)} instead.
 	 */
 	@Deprecated
-	public FlinkKafkaProducer09(String topicId, KeyedSerializationSchema<IN> serializationSchema, Properties producerConfig, KafkaPartitioner<IN> customPartitioner) {
+	public FlinkKafkaProducer09(String topicId, KafkaSerializationSchema<IN> serializationSchema, Properties producerConfig, KafkaPartitioner<IN> customPartitioner) {
 		super(topicId, serializationSchema, producerConfig, new FlinkKafkaDelegatePartitioner<>(customPartitioner));
 	}
 

@@ -151,7 +151,7 @@ public abstract class KafkaTestEnvironment {
 			FlinkKafkaPartitioner<T> partitioner);
 
 	public abstract <T> DataStreamSink<T> produceIntoKafka(DataStream<T> stream, String topic,
-														KeyedSerializationSchema<T> serSchema, Properties props,
+														KafkaSerializationSchema<T> serSchema, Properties props,
 														FlinkKafkaPartitioner<T> partitioner);
 
 	public abstract <T> DataStreamSink<T> writeToKafkaWithTimestamps(
