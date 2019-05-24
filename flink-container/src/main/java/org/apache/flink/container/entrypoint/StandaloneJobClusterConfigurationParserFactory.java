@@ -20,6 +20,10 @@ package org.apache.flink.container.entrypoint;
 
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.client.cli.CliFrontendParser;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.ConfigurationUtils;
+import org.apache.flink.configuration.GlobalConfiguration;
+import org.apache.flink.configuration.HighAvailabilityOptions;
 import org.apache.flink.runtime.entrypoint.FlinkParseException;
 import org.apache.flink.runtime.entrypoint.parser.ParserResultFactory;
 import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
@@ -43,7 +47,7 @@ import static org.apache.flink.runtime.entrypoint.parser.CommandLineOptions.REST
  */
 public class StandaloneJobClusterConfigurationParserFactory implements ParserResultFactory<StandaloneJobClusterConfiguration> {
 
-	static final JobID DEFAULT_JOB_ID = new JobID(0, 0);
+	static final JobID ZERO_JOB_ID = new JobID(0, 0);
 
 	private static final Option JOB_CLASS_NAME_OPTION = Option.builder("j")
 		.longOpt("job-classname")
@@ -82,7 +86,7 @@ public class StandaloneJobClusterConfigurationParserFactory implements ParserRes
 		final int restPort = getRestPort(commandLine);
 		final String hostname = commandLine.getOptionValue(HOST_OPTION.getOpt());
 		final SavepointRestoreSettings savepointRestoreSettings = CliFrontendParser.createSavepointRestoreSettings(commandLine);
-		final JobID jobId = getJobId(commandLine);
+		final JobID jobId = getJobId(commandLine, getGlobalConfiguration(configDir, dynamicProperties));
 		final String jobClassName = commandLine.getOptionValue(JOB_CLASS_NAME_OPTION.getOpt());
 
 		return new StandaloneJobClusterConfiguration(
@@ -105,10 +109,14 @@ public class StandaloneJobClusterConfigurationParserFactory implements ParserRes
 		}
 	}
 
-	private static JobID getJobId(CommandLine commandLine) throws FlinkParseException {
+	private static JobID getJobId(CommandLine commandLine, Configuration configuration) throws FlinkParseException {
 		String jobId = commandLine.getOptionValue(JOB_ID_OPTION.getOpt());
 		if (jobId == null) {
-			return DEFAULT_JOB_ID;
+			if (configuration.getString(HighAvailabilityOptions.HA_MODE, null) == null) {
+				return JobID.generate();
+			} else {
+				return ZERO_JOB_ID;
+			}
 		}
 		try {
 			return JobID.fromHexString(jobId);
@@ -119,5 +127,10 @@ public class StandaloneJobClusterConfigurationParserFactory implements ParserRes
 
 	private static FlinkParseException createFlinkParseException(Option option, Exception cause) {
 		return new FlinkParseException(String.format("Failed to parse '--%s' option", option.getLongOpt()), cause);
+	}
+
+	private Configuration getGlobalConfiguration(String configDir, Properties dynamicProperties) {
+		final Configuration dynamicConfiguration = ConfigurationUtils.createConfiguration(dynamicProperties);
+		return GlobalConfiguration.loadConfiguration(configDir, dynamicConfiguration);
 	}
 }

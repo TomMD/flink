@@ -20,6 +20,7 @@ package org.apache.flink.container.entrypoint;
 
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.configuration.GlobalConfiguration;
+import org.apache.flink.configuration.HighAvailabilityOptions;
 import org.apache.flink.runtime.entrypoint.FlinkParseException;
 import org.apache.flink.runtime.entrypoint.parser.CommandLineParser;
 import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
@@ -32,12 +33,14 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.Optional;
 import java.util.Properties;
 
-import static org.apache.flink.container.entrypoint.StandaloneJobClusterConfigurationParserFactory.DEFAULT_JOB_ID;
+import static org.apache.flink.container.entrypoint.StandaloneJobClusterConfigurationParserFactory.ZERO_JOB_ID;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,7 +80,8 @@ public class StandaloneJobClusterConfigurationParserFactoryTest extends TestLogg
 		final int restPort = 1234;
 		final String arg1 = "arg1";
 		final String arg2 = "arg2";
-		final String[] args = {"--configDir", confDirPath, "--webui-port", String.valueOf(restPort), "--job-classname", JOB_CLASS_NAME, String.format("-D%s=%s", key, value), arg1, arg2};
+		final JobID jobId = new JobID();
+		final String[] args = {"--configDir", confDirPath, "--webui-port", String.valueOf(restPort), "--job-id", jobId.toString(), "--job-classname", JOB_CLASS_NAME, String.format("-D%s=%s", key, value), arg1, arg2};
 
 		final StandaloneJobClusterConfiguration clusterConfiguration = commandLineParser.parse(args);
 
@@ -92,7 +96,28 @@ public class StandaloneJobClusterConfigurationParserFactoryTest extends TestLogg
 
 		assertThat(clusterConfiguration.getSavepointRestoreSettings(), is(equalTo(SavepointRestoreSettings.none())));
 
-		assertThat(clusterConfiguration.getJobId(), is(equalTo(DEFAULT_JOB_ID)));
+		assertThat(clusterConfiguration.getJobId(), is(equalTo(jobId)));
+	}
+
+	@Test
+	public void testJobIDDefaultsToRandomJobIdWithoutHA() throws FlinkParseException {
+		final String[] args = {"--configDir", confDirPath};
+
+		final StandaloneJobClusterConfiguration clusterConfiguration = commandLineParser.parse(args);
+
+		assertThat(clusterConfiguration.getJobId(), is(not(nullValue())));
+		assertThat(clusterConfiguration.getJobId(), is(not(equalTo(ZERO_JOB_ID))));
+	}
+
+	@Test
+	public void testJobIDDefaultsToZeroJobIdWithHA() throws FlinkParseException, FileNotFoundException {
+		final String[] args = {"--configDir", confDirPath};
+
+		final StandaloneJobClusterConfiguration clusterConfiguration = commandLineParser.parse(args);
+
+		configureHighAvailabilityGlobally();
+
+		assertThat(clusterConfiguration.getJobId(), is(not(equalTo(ZERO_JOB_ID))));
 	}
 
 	@Test
@@ -129,16 +154,6 @@ public class StandaloneJobClusterConfigurationParserFactoryTest extends TestLogg
 		assertThat(savepointRestoreSettings.restoreSavepoint(), is(true));
 		assertThat(savepointRestoreSettings.getRestorePath(), is(equalTo(restorePath)));
 		assertThat(savepointRestoreSettings.allowNonRestoredState(), is(true));
-	}
-
-	@Test
-	public void testSetJobIdManually() throws FlinkParseException {
-		final JobID jobId = new JobID();
-		final String[] args = {"--configDir", confDirPath, "--job-classname", "foobar", "--job-id", jobId.toString()};
-
-		final StandaloneJobClusterConfiguration standaloneJobClusterConfiguration = commandLineParser.parse(args);
-
-		assertThat(standaloneJobClusterConfiguration.getJobId(), is(equalTo(jobId)));
 	}
 
 	@Test
@@ -181,4 +196,9 @@ public class StandaloneJobClusterConfigurationParserFactoryTest extends TestLogg
 		assertThat(savepointRestoreSettings.allowNonRestoredState(), is(true));
 	}
 
+	private void configureHighAvailabilityGlobally() throws FileNotFoundException {
+		try (final PrintWriter pw = new PrintWriter(confFile)) {
+			pw.println(HighAvailabilityOptions.HA_MODE.key() + ": zookeeper");
+		}
+	}
 }
