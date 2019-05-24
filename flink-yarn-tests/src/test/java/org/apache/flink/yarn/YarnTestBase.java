@@ -24,8 +24,10 @@ import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.clusterframework.BootstrapTools;
 import org.apache.flink.test.util.TestBaseUtils;
+import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.TestLogger;
+import org.apache.flink.util.function.RunnableWithException;
 import org.apache.flink.yarn.cli.FlinkYarnSessionCli;
 
 import org.apache.commons.io.FileUtils;
@@ -162,8 +164,6 @@ public abstract class YarnTestBase extends TestLogger {
 
 	protected org.apache.flink.configuration.Configuration flinkConfiguration;
 
-	protected final boolean isNewMode = true;
-
 	static {
 		YARN_CONFIGURATION = new YarnConfiguration();
 		YARN_CONFIGURATION.setInt(YarnConfiguration.RM_SCHEDULER_MINIMUM_ALLOCATION_MB, 32);
@@ -198,7 +198,7 @@ public abstract class YarnTestBase extends TestLogger {
 	}
 
 	@Before
-	public void checkClusterEmpty() {
+	public void setupYarnClient() {
 		if (yarnClient == null) {
 			yarnClient = YarnClient.createYarnClient();
 			yarnClient.init(getYarnConfiguration());
@@ -212,30 +212,45 @@ public abstract class YarnTestBase extends TestLogger {
 	 * Sleep a bit between the tests (we are re-using the YARN cluster for the tests).
 	 */
 	@After
-	public void sleep() throws IOException, YarnException {
-		Deadline deadline = Deadline.now().plus(Duration.ofSeconds(10));
+	public void shutdownYarnClient() {
+		yarnClient.stop();
+	}
 
-		boolean isAnyJobRunning = yarnClient.getApplications().stream()
-			.anyMatch(YarnTestBase::isApplicationRunning);
-
-		while (deadline.hasTimeLeft() && isAnyJobRunning) {
-			try {
-				Thread.sleep(500);
-			} catch (InterruptedException e) {
-				Assert.fail("Should not happen");
-			}
-			isAnyJobRunning = yarnClient.getApplications().stream()
-				.anyMatch(YarnTestBase::isApplicationRunning);
+	protected void runTest(RunnableWithException test) {
+		Throwable testFailure = null;
+		try {
+			test.run();
+		} catch (Throwable t) {
+			testFailure = t;
 		}
 
-		if (isAnyJobRunning) {
-			final List<String> runningApps = yarnClient.getApplications().stream()
-				.filter(YarnTestBase::isApplicationRunning)
-				.map(app -> "App " + app.getApplicationId() + " is in state " + app.getYarnApplicationState() + '.')
-				.collect(Collectors.toList());
-			if (!runningApps.isEmpty()) {
-				Assert.fail("There is at least one application on the cluster that is not finished." + runningApps);
+		try {
+			Deadline deadline = Deadline.now().plus(Duration.ofSeconds(10));
+
+			boolean isAnyJobRunning = yarnClient.getApplications().stream()
+				.anyMatch(YarnTestBase::isApplicationRunning);
+
+			while (deadline.hasTimeLeft() && isAnyJobRunning) {
+				try {
+					Thread.sleep(500);
+				} catch (InterruptedException e) {
+					Assert.fail("Should not happen");
+				}
+				isAnyJobRunning = yarnClient.getApplications().stream()
+					.anyMatch(YarnTestBase::isApplicationRunning);
 			}
+
+			if (isAnyJobRunning) {
+				final List<String> runningApps = yarnClient.getApplications().stream()
+					.filter(YarnTestBase::isApplicationRunning)
+					.map(app -> "App " + app.getApplicationId() + " is in state " + app.getYarnApplicationState() + '.')
+					.collect(Collectors.toList());
+				if (!runningApps.isEmpty()) {
+					Assert.fail("There is at least one application on the cluster that is not finished." + runningApps);
+				}
+			}
+		} catch (Throwable t) {
+			throw new AssertionError(ExceptionUtils.firstOrSuppressed(t, testFailure));
 		}
 	}
 
