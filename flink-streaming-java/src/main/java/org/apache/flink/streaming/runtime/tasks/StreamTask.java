@@ -335,9 +335,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			// if the clock is not already set, then assign a default TimeServiceProvider
 			if (timerService == null) {
 				ThreadFactory timerThreadFactory = new DispatcherThreadFactory(TRIGGER_THREAD_GROUP,
-					"Time Trigger for " + getName(), getUserCodeClassLoader());
+					"Time Trigger for " + getName());
 
-				timerService = new SystemProcessingTimeService(this, getCheckpointLock(), timerThreadFactory);
+				timerService = new SystemProcessingTimeService(new TimerInvocationContext(), timerThreadFactory);
 			}
 
 			operatorChain = new OperatorChain<>(this, recordWriters);
@@ -1356,6 +1356,21 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		 */
 		public void actionsUnavailable() throws InterruptedException {
 			mailbox.putMail(actionUnavailableLetter);
+		}
+	}
+
+	private class TimerInvocationContext implements SystemProcessingTimeService.ScheduledCallbackExecutionContext {
+		@Override
+		public void invoke(ProcessingTimeCallback callback, long timestamp) throws InterruptedException {
+			mailbox.putMail(() -> {
+				synchronized (getCheckpointLock()) {
+					try {
+						callback.onProcessingTime(timestamp);
+					} catch (Throwable t) {
+						handleAsyncException("Caught exception while processing timer.", new TimerException(t));
+					}
+				}
+			});
 		}
 	}
 }
