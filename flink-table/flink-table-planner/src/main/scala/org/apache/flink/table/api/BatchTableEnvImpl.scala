@@ -33,7 +33,9 @@ import org.apache.flink.api.java.{DataSet, ExecutionEnvironment}
 import org.apache.flink.table.catalog.CatalogManager
 import org.apache.flink.table.descriptors.{BatchTableDescriptor, ConnectorDescriptor}
 import org.apache.flink.table.explain.PlanJsonParser
-import org.apache.flink.table.expressions.{Expression, TimeAttribute}
+import org.apache.flink.table.expressions.BuiltInFunctionDefinitions.TIME_ATTRIBUTES
+import org.apache.flink.table.expressions.{CallExpression, Expression}
+import org.apache.flink.table.operations.DataSetTableOperation
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.nodes.dataset.DataSetRel
 import org.apache.flink.table.plan.rules.FlinkRuleSets
@@ -41,6 +43,7 @@ import org.apache.flink.table.plan.schema._
 import org.apache.flink.table.runtime.MapRunner
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources.{BatchTableSource, TableSource}
+import org.apache.flink.table.typeutils.FieldInfoUtils.{calculateTableSchema, getFieldInfo, validateType}
 import org.apache.flink.types.Row
 
 /**
@@ -114,7 +117,7 @@ abstract class BatchTableEnvImpl(
               val enrichedTable = new TableSourceSinkTable(
                 Some(new BatchTableSourceTable(batchTableSource)),
                 table.tableSinkTable)
-              replaceRegisteredTable(name, enrichedTable)
+              replaceRegisteredTableSourceSinkInternal(name, enrichedTable)
           }
 
           // no table is registered
@@ -122,7 +125,7 @@ abstract class BatchTableEnvImpl(
             val newTable = new TableSourceSinkTable(
               Some(new BatchTableSourceTable(batchTableSource)),
               None)
-            registerTableInternal(name, newTable)
+            registerTableSourceSinkInternal(name, newTable)
         }
 
       // not a batch table source
@@ -194,7 +197,7 @@ abstract class BatchTableEnvImpl(
               val enrichedTable = new TableSourceSinkTable(
                 table.tableSourceTable,
                 Some(new TableSinkTable(configuredSink)))
-              replaceRegisteredTable(name, enrichedTable)
+              replaceRegisteredTableSourceSinkInternal(name, enrichedTable)
           }
 
           // no table is registered
@@ -202,7 +205,7 @@ abstract class BatchTableEnvImpl(
             val newTable = new TableSourceSinkTable(
               None,
               Some(new TableSinkTable(configuredSink)))
-            registerTableInternal(name, newTable)
+            registerTableSourceSinkInternal(name, newTable)
         }
 
       // not a batch table sink
@@ -310,50 +313,27 @@ abstract class BatchTableEnvImpl(
 
   def explain(table: Table): String = explain(table: Table, extended = false)
 
-  /**
-    * Registers a [[DataSet]] as a table under a given name in the [[TableEnvImpl]]'s catalog.
-    *
-    * @param name The name under which the table is registered in the catalog.
-    * @param dataSet The [[DataSet]] to register as table in the catalog.
-    * @tparam T the type of the [[DataSet]].
-    */
-  protected def registerDataSetInternal[T](name: String, dataSet: DataSet[T]): Unit = {
-
-    val (fieldNames, fieldIndexes) = getFieldInfo[T](dataSet.getType)
-    val dataSetTable = new DataSetTable[T](
-      dataSet,
-      fieldIndexes,
-      fieldNames
-    )
-    registerTableInternal(name, dataSetTable)
-  }
-
-  /**
-    * Registers a [[DataSet]] as a table under a given name with field names as specified by
-    * field expressions in the [[TableEnvImpl]]'s catalog.
-    *
-    * @param name The name under which the table is registered in the catalog.
-    * @param dataSet The [[DataSet]] to register as table in the catalog.
-    * @param fields The field expressions to define the field names of the table.
-    * @tparam T The type of the [[DataSet]].
-    */
-  protected def registerDataSetInternal[T](
-      name: String, dataSet: DataSet[T], fields: Array[Expression]): Unit = {
-
+  protected def asDataSetTableOperation[T](dataSet: DataSet[T], fields: Option[Array[Expression]])
+    : DataSetTableOperation[T] = {
     val inputType = dataSet.getType
-    val bridgedFields = fields.map(expressionBridge.bridge).toArray[Expression]
 
-    val (fieldNames, fieldIndexes) = getFieldInfo[T](
-      inputType,
-      bridgedFields)
+    val fieldsInfo = fields match {
+      case Some(f) =>
+        if (f.exists(f =>
+          f.isInstanceOf[CallExpression] &&
+            TIME_ATTRIBUTES.contains(f.asInstanceOf[CallExpression].getFunctionDefinition))) {
+          throw new ValidationException(
+            ".rowtime and .proctime time indicators are not allowed in a batch environment.")
+        }
 
-    if (bridgedFields.exists(_.isInstanceOf[TimeAttribute])) {
-      throw new ValidationException(
-        ".rowtime and .proctime time indicators are not allowed in a batch environment.")
+        getFieldInfo[T](inputType, f)
+      case None => getFieldInfo[T](inputType)
     }
 
-    val dataSetTable = new DataSetTable[T](dataSet, fieldIndexes, fieldNames)
-    registerTableInternal(name, dataSetTable)
+    val tableOperation = new DataSetTableOperation[T](dataSet,
+      fieldsInfo.getIndices,
+      calculateTableSchema(inputType, fieldsInfo.getIndices, fieldsInfo.getFieldNames))
+    tableOperation
   }
 
   /**
@@ -416,7 +396,7 @@ abstract class BatchTableEnvImpl(
       logicalPlan: RelNode,
       logicalType: RelDataType,
       queryConfig: BatchQueryConfig)(implicit tpe: TypeInformation[A]): DataSet[A] = {
-    TableEnvImpl.validateType(tpe)
+    validateType(tpe)
 
     logicalPlan match {
       case node: DataSetRel =>

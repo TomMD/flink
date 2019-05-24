@@ -17,17 +17,18 @@
  */
 package org.apache.flink.table.api.java
 
-import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.java.typeutils.{TupleTypeInfo, TypeExtractor}
-import org.apache.flink.api.java.tuple.{Tuple2 => JTuple2}
-import org.apache.flink.table.api._
-import org.apache.flink.table.functions.{AggregateFunction, TableAggregateFunction, TableFunction, UserDefinedAggregateFunction}
-import org.apache.flink.table.expressions.ExpressionParser
-import org.apache.flink.streaming.api.datastream.DataStream
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import _root_.java.lang.{Boolean => JBool}
 
+import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.java.tuple.{Tuple2 => JTuple2}
+import org.apache.flink.api.java.typeutils.{TupleTypeInfo, TypeExtractor}
+import org.apache.flink.streaming.api.datastream.DataStream
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
+import org.apache.flink.table.api._
 import org.apache.flink.table.catalog.CatalogManager
+import org.apache.flink.table.expressions.ExpressionParser
+import org.apache.flink.table.functions.{AggregateFunction, TableAggregateFunction, TableFunction, UserDefinedAggregateFunction}
+import org.apache.flink.table.typeutils.FieldInfoUtils
 
 import _root_.scala.collection.JavaConverters._
 
@@ -49,10 +50,7 @@ class StreamTableEnvImpl(
   with org.apache.flink.table.api.java.StreamTableEnvironment {
 
   override def fromDataStream[T](dataStream: DataStream[T]): Table = {
-
-    val name = createUniqueTableName()
-    registerDataStreamInternal(name, dataStream)
-    scan(name)
+    new TableImpl(this, asTableOperation(dataStream, None))
   }
 
   override def fromDataStream[T](dataStream: DataStream[T], fields: String): Table = {
@@ -60,26 +58,19 @@ class StreamTableEnvImpl(
       .parseExpressionList(fields).asScala
       .toArray
 
-    val name = createUniqueTableName()
-    registerDataStreamInternal(name, dataStream, exprs)
-    scan(name)
+    new TableImpl(this, asTableOperation(dataStream, Some(exprs)))
   }
 
   override def registerDataStream[T](name: String, dataStream: DataStream[T]): Unit = {
-
-    checkValidTableName(name)
-    registerDataStreamInternal(name, dataStream)
+    registerTable(name, fromDataStream(dataStream))
   }
 
   override def registerDataStream[T](
-    name: String, dataStream: DataStream[T], fields: String): Unit = {
-
-    val exprs = ExpressionParser
-      .parseExpressionList(fields).asScala
-      .toArray
-
-    checkValidTableName(name)
-    registerDataStreamInternal(name, dataStream, exprs)
+      name: String,
+      dataStream: DataStream[T],
+      fields: String)
+    : Unit = {
+    registerTable(name, fromDataStream(dataStream, fields))
   }
 
   override def toAppendStream[T](table: Table, clazz: Class[T]): DataStream[T] = {
@@ -95,7 +86,7 @@ class StreamTableEnvImpl(
       clazz: Class[T],
       queryConfig: StreamQueryConfig): DataStream[T] = {
     val typeInfo = TypeExtractor.createTypeInfo(clazz)
-    TableEnvImpl.validateType(typeInfo)
+    FieldInfoUtils.validateType(typeInfo)
     translate[T](table, queryConfig, updatesAsRetraction = false, withChangeFlag = false)(typeInfo)
   }
 
@@ -103,7 +94,7 @@ class StreamTableEnvImpl(
       table: Table,
       typeInfo: TypeInformation[T],
       queryConfig: StreamQueryConfig): DataStream[T] = {
-    TableEnvImpl.validateType(typeInfo)
+    FieldInfoUtils.validateType(typeInfo)
     translate[T](table, queryConfig, updatesAsRetraction = false, withChangeFlag = false)(typeInfo)
   }
 
@@ -127,7 +118,7 @@ class StreamTableEnvImpl(
       queryConfig: StreamQueryConfig): DataStream[JTuple2[JBool, T]] = {
 
     val typeInfo = TypeExtractor.createTypeInfo(clazz)
-    TableEnvImpl.validateType(typeInfo)
+    FieldInfoUtils.validateType(typeInfo)
     val resultType = new TupleTypeInfo[JTuple2[JBool, T]](Types.BOOLEAN, typeInfo)
     translate[JTuple2[JBool, T]](
       table,
@@ -141,7 +132,7 @@ class StreamTableEnvImpl(
       typeInfo: TypeInformation[T],
       queryConfig: StreamQueryConfig): DataStream[JTuple2[JBool, T]] = {
 
-    TableEnvImpl.validateType(typeInfo)
+    FieldInfoUtils.validateType(typeInfo)
     val resultTypeInfo = new TupleTypeInfo[JTuple2[JBool, T]](
       Types.BOOLEAN,
       typeInfo
