@@ -22,7 +22,8 @@ import java.io._
 
 import org.apache.flink.client.cli.{CliFrontend, CliFrontendParser}
 import org.apache.flink.client.deployment.ClusterDescriptor
-import org.apache.flink.client.program.ClusterClient
+import org.apache.flink.client.program.rest.RestClusterClient
+import org.apache.flink.client.program.{ClusterClient, MiniClusterClient}
 import org.apache.flink.configuration.{Configuration, GlobalConfiguration, JobManagerOptions}
 import org.apache.flink.runtime.akka.AkkaUtils
 import org.apache.flink.runtime.minicluster.{MiniCluster, MiniClusterConfiguration}
@@ -56,9 +57,6 @@ object FlinkShell {
     slots: Option[Int] = None,
     taskManagerMemory: Option[String] = None
   )
-
-  /** Buffered reader to substitute input in test */
-  var bufferedReader: Option[BufferedReader] = None
 
   def main(args: Array[String]) {
     val parser = new scopt.OptionParser[Config]("start-scala-shell.sh") {
@@ -132,7 +130,7 @@ object FlinkShell {
 
     // parse arguments
     parser.parse(args, Config()) match {
-      case Some(config) => startShell(config)
+      case Some(config) => startShell(config, None, new JPrintWriter(scala.Console.out, true))
       case _ => println("Could not parse program arguments")
     }
   }
@@ -140,7 +138,7 @@ object FlinkShell {
   def fetchConnectionInfo(
     configuration: Configuration,
     config: Config
-  ): (String, Int, Option[Either[MiniCluster , ClusterClient[_]]]) = {
+  ): (String, Int, ClusterClient[_]) = {
     config.executionMode match {
       case ExecutionMode.LOCAL => // Local mode
         val config = configuration
@@ -154,13 +152,16 @@ object FlinkShell {
         val port = cluster.getRestAddress.get.getPort
 
         println(s"\nStarting local Flink cluster (host: localhost, port: $port).\n")
-        ("localhost", port, Some(Left(cluster)))
+        ("localhost", port, new MiniClusterClient(config, cluster))
 
       case ExecutionMode.REMOTE => // Remote mode
         if (config.host.isEmpty || config.port.isEmpty) {
           throw new IllegalArgumentException("<host> or <port> is not specified!")
         }
-        (config.host.get, config.port.get, None)
+        configuration.setString(JobManagerOptions.ADDRESS, config.host.get)
+        configuration.setInteger(JobManagerOptions.PORT, config.port.get)
+        (config.host.get, config.port.get,
+          new RestClusterClient(configuration, "RestClusterClient"))
 
       case ExecutionMode.YARN => // YARN mode
         config.yarnConfig match {
@@ -182,9 +183,9 @@ object FlinkShell {
     }
   }
 
-  def startShell(config: Config): Unit = {
-    println("Starting Flink Shell:")
-
+  def createFlinkILoop(config: Config,
+                       in: Option[BufferedReader],
+                       out: JPrintWriter): FlinkILoop = {
     // load global configuration
     val confDirPath = config.configDir match {
       case Some(confDir) => confDir
@@ -194,45 +195,31 @@ object FlinkShell {
     val configDirectory = new File(confDirPath)
     val configuration = GlobalConfiguration.loadConfiguration(configDirectory.getAbsolutePath)
 
-    val (repl, cluster) = try {
-      val (host, port, cluster) = fetchConnectionInfo(configuration, config)
-      val conf = cluster match {
-        case Some(Left(_)) => configuration
-        case Some(Right(yarnCluster)) => yarnCluster.getFlinkConfiguration
-        case None => configuration
-      }
-
+    try {
+      val (host, port, clusterClient) = fetchConnectionInfo(configuration, config)
+      val conf = clusterClient.getFlinkConfiguration
       println(s"\nConnecting to Flink cluster (host: $host, port: $port).\n")
-      val repl = bufferedReader match {
-        case Some(reader) =>
-          val out = new StringWriter()
-          new FlinkILoop(host, port, conf, config.externalJars, reader, new JPrintWriter(out))
-        case None =>
-          new FlinkILoop(host, port, conf, config.externalJars)
-      }
-
-      (repl, cluster)
+      new FlinkILoop(host, port, conf, config.externalJars, clusterClient, in,
+        new JPrintWriter(out))
     } catch {
       case e: IllegalArgumentException =>
         println(s"Error: ${e.getMessage}")
         sys.exit()
     }
+  }
 
+  def startShell(config: Config, in: Option[BufferedReader], out: JPrintWriter): Unit = {
+    println("Starting Flink Shell:")
+
+    val flinkILoop = createFlinkILoop(config, in, out)
     val settings = new Settings()
     settings.usejavacp.value = true
     settings.Yreplsync.value = true
 
     try {
-      repl.process(settings)
+      flinkILoop.process(settings)
     } finally {
-      repl.closeInterpreter()
-      cluster match {
-        case Some(Left(miniCluster)) => miniCluster.close()
-        case Some(Right(yarnCluster)) =>
-          yarnCluster.shutDownCluster()
-          yarnCluster.shutdown()
-        case _ =>
-      }
+      flinkILoop.closeInterpreter()
     }
 
     println(" good bye ..")
@@ -275,15 +262,15 @@ object FlinkShell {
 
     val clusterSpecification = customCLI.getClusterSpecification(commandLine)
 
-    val cluster = clusterDescriptor.deploySessionCluster(clusterSpecification)
+    val clusterClient = clusterDescriptor.deploySessionCluster(clusterSpecification)
 
     val inetSocketAddress = AkkaUtils.getInetSocketAddressFromAkkaURL(
-      cluster.getClusterConnectionInfo.getAddress)
+      clusterClient.getClusterConnectionInfo.getAddress)
 
     val address = inetSocketAddress.getAddress.getHostAddress
     val port = inetSocketAddress.getPort
 
-    (address, port, Some(Right(cluster)))
+    (address, port, clusterClient)
   }
 
   def fetchDeployedYarnClusterInfo(
@@ -311,16 +298,16 @@ object FlinkShell {
 
     val clusterId = customCLI.getClusterId(commandLine)
 
-    val cluster = clusterDescriptor.retrieve(clusterId)
+    val clusterClient = clusterDescriptor.retrieve(clusterId)
 
-    if (cluster == null) {
+    if (clusterClient == null) {
       throw new RuntimeException("Yarn Cluster could not be retrieved.")
     }
 
     val jobManager = AkkaUtils.getInetSocketAddressFromAkkaURL(
-      cluster.getClusterConnectionInfo.getAddress)
+      clusterClient.getClusterConnectionInfo.getAddress)
 
-    (jobManager.getHostString, jobManager.getPort, None)
+    (jobManager.getHostString, jobManager.getPort, clusterClient)
   }
 
   def ensureYarnConfig(config: Config) = config.yarnConfig match {
