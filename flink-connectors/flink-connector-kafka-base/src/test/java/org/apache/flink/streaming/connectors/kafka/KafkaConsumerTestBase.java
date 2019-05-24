@@ -2352,7 +2352,6 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBaseWithFlink {
 			return TypeInformation.of(new TypeHint<Tuple3<Integer, Integer, String>>(){});
 		}
 
-
 		@Override
 		public Tuple3<Integer, Integer, String> deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
 			DataInputView in = new DataInputViewStreamWrapper(new ByteArrayInputStream(record.value()));
