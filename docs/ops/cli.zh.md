@@ -52,6 +52,22 @@ available.
 
         ./bin/flink run ./examples/batch/WordCount.jar
 
+-   提交一个Python作业:
+
+        ./bin/flink run -py WordCount.py
+
+-   提交一个Python Table的作业
+
+        ./bin/flink run -py WordCount.py -j <path/to/flink-table.jar>
+
+-   提交一个有多个依赖的Python作业:
+
+        ./bin/flink run -py WordCount.py -pyfs file:///user.txt,hdfs:///$namenode_address/jieba-0.39.zip
+
+-   提交一个有多个依赖的Python作业，Python作业的主入口通过pym选项指定:
+
+        ./bin/flink run -pym examples.wordcount -pyfs file:///examples.zip
+
 -   Run example program with arguments for input and result files:
 
         ./bin/flink run ./examples/batch/WordCount.jar \
@@ -251,6 +267,15 @@ Action "run" compiles and runs a program.
                                           program. Optional flag to override the
                                           default value specified in the
                                           configuration.
+     -py,--python <python-file>           指定Python的作业的入口，依赖的资源文件可以通过
+                                          `--pyFiles`进行指定。
+     -pyfs,--pyFiles <python-files>       指定Python作业依赖的一些自定义的python文件，
+                                          如果有多个文件，可以通过逗号(,)进行隔开。支持
+                                          各种格式的python资源文件，例如(.py/.egg/.zip)。
+                                          (例如:--pyFiles file:///tmp/myproject.zip
+                                          ,hdfs:///$namenode_address/jieba-0.39.zip)
+     -pym,--pyModule <python-module>      指定python程序的运行的模块入口，这个选项必须配合
+                                          `--pyFiles`一起进行使用。
      -q,--sysoutLogging                   If present, suppress logging output to
                                           standard out.
      -s,--fromSavepoint <savepointPath>   Path to a savepoint to restore the job

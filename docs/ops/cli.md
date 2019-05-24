@@ -52,6 +52,22 @@ available.
 
         ./bin/flink run ./examples/batch/WordCount.jar
 
+-   Run python program with no arguments:
+
+        ./bin/flink run -py WordCount.py
+
+-   Run python table program:
+
+        ./bin/flink run -py WordCount.py -j <path/to/flink-table.jar>
+
+-   Run python program with pyFiles:
+
+        ./bin/flink run -py WordCount.py -pyfs file:///user.txt,hdfs:///$namenode_address/jieba-0.39.zip
+
+-   Run python program with pyFiles and pyModule:
+
+        ./bin/flink run -pym examples.wordcount -pyfs file:///examples.zip
+
 -   Run example program with arguments for input and result files:
 
         ./bin/flink run ./examples/batch/WordCount.jar \
@@ -251,6 +267,19 @@ Action "run" compiles and runs a program.
                                           program. Optional flag to override the
                                           default value specified in the
                                           configuration.
+     -py,--python <python-file>           Python script with the program entry 
+                                          point.The dependent resources can be 
+                                          configured with the `--pyFiles` option.
+     -pyfs,--pyFiles <python-files>       Attach custom python files for job. 
+                                          Comma can be used as the separator to 
+                                          specify multiple files. The standard 
+                                          python resource file suffixes such as 
+                                          .py/.egg/.zip are all supported.
+                                          (eg:--pyFiles file:///tmp/myproject.zip
+                                          ,hdfs:///$namenode_address/jieba-0.39.zip)
+     -pym,--pyModule <python-module>      Python module with the program entry 
+                                          point. This option must be used in 
+                                          conjunction with ` --pyFiles`.                                                                                                                
      -q,--sysoutLogging                   If present, suppress logging output to
                                           standard out.
      -s,--fromSavepoint <savepointPath>   Path to a savepoint to restore the job

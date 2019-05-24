@@ -36,6 +36,9 @@ import static org.apache.flink.client.cli.CliFrontendParser.DETACHED_OPTION;
 import static org.apache.flink.client.cli.CliFrontendParser.JAR_OPTION;
 import static org.apache.flink.client.cli.CliFrontendParser.LOGGING_OPTION;
 import static org.apache.flink.client.cli.CliFrontendParser.PARALLELISM_OPTION;
+import static org.apache.flink.client.cli.CliFrontendParser.PYFILES_OPTION;
+import static org.apache.flink.client.cli.CliFrontendParser.PYMODULE_OPTION;
+import static org.apache.flink.client.cli.CliFrontendParser.PY_OPTION;
 import static org.apache.flink.client.cli.CliFrontendParser.SHUTDOWN_IF_ATTACHED_OPTION;
 import static org.apache.flink.client.cli.CliFrontendParser.YARN_DETACHED_OPTION;
 
@@ -62,17 +65,63 @@ public abstract class ProgramOptions extends CommandLineOptions {
 
 	private final SavepointRestoreSettings savepointSettings;
 
+	// Flag indicating whether the job is a Python job.
+	private final boolean isPython;
+
 	protected ProgramOptions(CommandLine line) throws CliArgsException {
 		super(line);
 
 		String[] args = line.hasOption(ARGS_OPTION.getOpt()) ?
-				line.getOptionValues(ARGS_OPTION.getOpt()) :
-				line.getArgs();
+			line.getOptionValues(ARGS_OPTION.getOpt()) :
+			line.getArgs();
+
+		isPython = line.hasOption(PY_OPTION.getOpt()) | line.hasOption(PYMODULE_OPTION.getOpt());
+		// If specified the option -py(--python)
+		if (line.hasOption(PY_OPTION.getOpt())) {
+			// Cannot use option -py and -pym simultaneously.
+			if (line.hasOption(PYMODULE_OPTION.getOpt())) {
+				throw new CliArgsException("Cannot use option -py and -pym simultaneously.");
+			}
+			// The args format is : py ${python.py} [optional]pyfs [optional]${py-files} [optional]other args.
+			// e.g. py wordcount.py
+			// e.g. py wordcount.py pyfs file:///AAA.py,hdfs:///BBB.py --input in.txt --output out.txt
+			String[] newArgs;
+			int argIndex;
+			if (line.hasOption(PYFILES_OPTION.getOpt())) {
+				newArgs = new String[args.length + 4];
+				newArgs[2] = PYFILES_OPTION.getOpt();
+				newArgs[3] = line.getOptionValue(PYFILES_OPTION.getOpt());
+				argIndex = 4;
+			} else {
+				newArgs = new String[args.length + 2];
+				argIndex = 2;
+			}
+			newArgs[0] = PY_OPTION.getOpt();
+			newArgs[1] = line.getOptionValue(PY_OPTION.getOpt());
+			System.arraycopy(args, 0, newArgs, argIndex, args.length);
+			args = newArgs;
+		}
+
+		// If specified the option -pym(--pyModule)
+		if (line.hasOption(PYMODULE_OPTION.getOpt())) {
+			// If you specify the option -pym, you should specify the option --pyFiles simultaneously.
+			if (!line.hasOption(PYFILES_OPTION.getOpt())) {
+				throw new CliArgsException("-pym must be used in conjunction with `--pyFiles`");
+			}
+			// The args format is pym ${py-module} pyfs ${py-files} [optional]other args.
+			// e.g. pym aaa.fun AAA.py, BBB.py
+			String[] newArgs = new String[args.length + 4];
+			newArgs[0] = PYMODULE_OPTION.getOpt();
+			newArgs[1] = line.getOptionValue(PYMODULE_OPTION.getOpt());
+			newArgs[2] = PYFILES_OPTION.getOpt();
+			newArgs[3] = line.getOptionValue(PYFILES_OPTION.getOpt());
+			System.arraycopy(args, 0, newArgs, 4, args.length);
+			args = newArgs;
+		}
 
 		if (line.hasOption(JAR_OPTION.getOpt())) {
 			this.jarFilePath = line.getOptionValue(JAR_OPTION.getOpt());
-		}
-		else if (args.length > 0) {
+		} else if (!isPython && args.length > 0) {
 			jarFilePath = args[0];
 			args = Arrays.copyOfRange(args, 1, args.length);
 		}
@@ -95,7 +144,7 @@ public abstract class ProgramOptions extends CommandLineOptions {
 		this.classpaths = classpaths;
 
 		this.entryPointClass = line.hasOption(CLASS_OPTION.getOpt()) ?
-				line.getOptionValue(CLASS_OPTION.getOpt()) : null;
+			line.getOptionValue(CLASS_OPTION.getOpt()) : null;
 
 		if (line.hasOption(PARALLELISM_OPTION.getOpt())) {
 			String parString = line.getOptionValue(PARALLELISM_OPTION.getOpt());
@@ -155,5 +204,15 @@ public abstract class ProgramOptions extends CommandLineOptions {
 
 	public SavepointRestoreSettings getSavepointRestoreSettings() {
 		return savepointSettings;
+	}
+
+	// Whether the job is a Java job.
+	public boolean isJava() {
+		return jarFilePath != null;
+	}
+
+	// Whether the job is a Python job.
+	public boolean isPython() {
+		return isPython;
 	}
 }

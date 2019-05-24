@@ -24,17 +24,19 @@ import org.apache.flink.runtime.rest.messages.MessageHeaders;
 import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * {@link MessageHeaders} for {@link JarRunHandler}.
+ * {@link MessageHeaders} for {@link ArtifactRunHandler}.
+ * @deprecated please, use {@link ArtifactRunHeaders}.
  */
-public class JarRunHeaders implements MessageHeaders<JarRunRequestBody, JarRunResponseBody, JarRunMessageParameters> {
+@Deprecated
+public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, ArtifactRunResponseBody, ArtifactRunMessageParameters> {
 
 	private static final JarRunHeaders INSTANCE = new JarRunHeaders();
 
 	private JarRunHeaders() {}
 
 	@Override
-	public Class<JarRunResponseBody> getResponseClass() {
-		return JarRunResponseBody.class;
+	public Class<ArtifactRunResponseBody> getResponseClass() {
+		return ArtifactRunResponseBody.class;
 	}
 
 	@Override
@@ -43,13 +45,13 @@ public class JarRunHeaders implements MessageHeaders<JarRunRequestBody, JarRunRe
 	}
 
 	@Override
-	public Class<JarRunRequestBody> getRequestClass() {
-		return JarRunRequestBody.class;
+	public Class<ArtifactRunRequestBody> getRequestClass() {
+		return ArtifactRunRequestBody.class;
 	}
 
 	@Override
-	public JarRunMessageParameters getUnresolvedMessageParameters() {
-		return new JarRunMessageParameters();
+	public ArtifactRunMessageParameters getUnresolvedMessageParameters() {
+		return new ArtifactRunMessageParameters();
 	}
 
 	@Override
@@ -59,7 +61,7 @@ public class JarRunHeaders implements MessageHeaders<JarRunRequestBody, JarRunRe
 
 	@Override
 	public String getTargetRestEndpointURL() {
-		return "/jars/:" + JarIdPathParameter.KEY + "/run";
+		return "/jars/:" + ArtifactIdPathParameter.KEY + "/run";
 	}
 
 	public static JarRunHeaders getInstance() {
@@ -68,7 +70,7 @@ public class JarRunHeaders implements MessageHeaders<JarRunRequestBody, JarRunRe
 
 	@Override
 	public String getDescription() {
-		return "Submits a job by running a jar previously uploaded via '" + JarUploadHeaders.URL + "'. " +
+		return "Submits a job by running a jar previously uploaded via '" + ArtifactUploadHeaders.URL + "'. " +
 			"Program arguments can be passed both via the JSON request (recommended) or query parameters.";
 	}
 }
