@@ -24,6 +24,7 @@ import org.apache.flink.configuration.NetworkEnvironmentOptions;
 import org.apache.flink.configuration.TaskManagerOptions;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
+import org.apache.flink.runtime.taskmanager.NetworkEnvironmentConfiguration;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 
@@ -53,12 +54,13 @@ public class InputProcessorUtil {
 					+ " must be positive or -1 (infinite)");
 			}
 
+			int pageSize = NetworkEnvironmentConfiguration.getPageSize(taskManagerConfig);
 			if (taskManagerConfig.getBoolean(NetworkEnvironmentOptions.NETWORK_CREDIT_MODEL)) {
 				barrierHandler = new BarrierBuffer(
-					inputGate, new CachedBufferBlocker(inputGate.getPageSize()), maxAlign, taskName);
+					inputGate, new CachedBufferBlocker(pageSize), maxAlign, taskName);
 			} else {
 				barrierHandler = new BarrierBuffer(
-					inputGate, new BufferSpiller(ioManager, inputGate.getPageSize()), maxAlign, taskName);
+					inputGate, new BufferSpiller(ioManager, pageSize), maxAlign, taskName);
 			}
 		} else if (checkpointMode == CheckpointingMode.AT_LEAST_ONCE) {
 			barrierHandler = new BarrierTracker(inputGate);

@@ -114,8 +114,8 @@ public class BarrierBufferAlignmentLimitTest {
 		};
 
 		// the barrier buffer has a limit that only 1000 bytes may be spilled in alignment
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
-		BarrierBuffer buffer = new BarrierBuffer(gate, new BufferSpiller(ioManager, gate.getPageSize()), 1000, "");
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
+		BarrierBuffer buffer = new BarrierBuffer(gate, new BufferSpiller(ioManager, PAGE_SIZE), 1000, "");
 
 		AbstractInvokable toNotify = mock(AbstractInvokable.class);
 		buffer.registerCheckpointEventHandler(toNotify);
@@ -208,8 +208,8 @@ public class BarrierBufferAlignmentLimitTest {
 		};
 
 		// the barrier buffer has a limit that only 1000 bytes may be spilled in alignment
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, 3, Arrays.asList(sequence));
-		BarrierBuffer buffer = new BarrierBuffer(gate, new BufferSpiller(ioManager, gate.getPageSize()), 500, "");
+		MockInputGate gate = new MockInputGate(3, Arrays.asList(sequence));
+		BarrierBuffer buffer = new BarrierBuffer(gate, new BufferSpiller(ioManager, PAGE_SIZE), 500, "");
 
 		AbstractInvokable toNotify = mock(AbstractInvokable.class);
 		buffer.registerCheckpointEventHandler(toNotify);

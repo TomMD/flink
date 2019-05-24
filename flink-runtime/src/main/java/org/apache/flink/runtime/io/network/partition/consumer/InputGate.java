@@ -96,8 +96,6 @@ public abstract class InputGate implements AutoCloseable {
 
 	public abstract void sendTaskEvent(TaskEvent event) throws IOException;
 
-	public abstract int getPageSize();
-
 	/**
 	 * @return a future that is completed if there are more records available. If there more records
 	 * available immediately, {@link #AVAILABLE} should be returned.
