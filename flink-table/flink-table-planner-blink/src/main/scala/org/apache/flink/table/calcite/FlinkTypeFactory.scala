@@ -72,8 +72,8 @@ class FlinkTypeFactory(typeSystem: RelDataTypeSystem) extends JavaTypeFactoryImp
           case InternalTypes.DATE => createSqlType(DATE)
           case InternalTypes.TIME => createSqlType(TIME)
           case InternalTypes.TIMESTAMP => createSqlType(TIMESTAMP)
-          case InternalTypes.PROCTIME_INDICATOR => createProctimeIndicatorType()
-          case InternalTypes.ROWTIME_INDICATOR => createRowtimeIndicatorType()
+          case InternalTypes.PROCTIME_INDICATOR => createProctimeIndicatorType(isNullable)
+          case InternalTypes.ROWTIME_INDICATOR => createRowtimeIndicatorType(isNullable)
 
           // interval types
           case InternalTypes.INTERVAL_MONTHS =>
@@ -120,26 +120,26 @@ class FlinkTypeFactory(typeSystem: RelDataTypeSystem) extends JavaTypeFactoryImp
   /**
     * Creates a indicator type for processing-time, but with similar properties as SQL timestamp.
     */
-  def createProctimeIndicatorType(): RelDataType = {
-    val originalType = createTypeFromInternalType(InternalTypes.TIMESTAMP, isNullable = false)
-    canonize(
+  def createProctimeIndicatorType(isNullable: Boolean): RelDataType = {
+    val originalType = createTypeFromInternalType(InternalTypes.TIMESTAMP, isNullable)
+    canonize(createTypeWithNullability(
       new TimeIndicatorRelDataType(
         getTypeSystem,
         originalType.asInstanceOf[BasicSqlType],
-        isEventTime = false)
+        isEventTime = false), isNullable)
     )
   }
 
   /**
     * Creates a indicator type for event-time, but with similar properties as SQL timestamp.
     */
-  def createRowtimeIndicatorType(): RelDataType = {
-    val originalType = createTypeFromInternalType(InternalTypes.TIMESTAMP, isNullable = false)
-    canonize(
+  def createRowtimeIndicatorType(isNullable: Boolean): RelDataType = {
+    val originalType = createTypeFromInternalType(InternalTypes.TIMESTAMP, isNullable)
+    canonize(createTypeWithNullability(
       new TimeIndicatorRelDataType(
         getTypeSystem,
         originalType.asInstanceOf[BasicSqlType],
-        isEventTime = true)
+        isEventTime = true), isNullable)
     )
   }
 
@@ -199,10 +199,13 @@ class FlinkTypeFactory(typeSystem: RelDataTypeSystem) extends JavaTypeFactoryImp
   def buildRelDataType(
       fieldNames: Seq[String],
       fieldTypes: Seq[InternalType]): RelDataType = {
+    // TimeIndicatorType should also be nullable, this should keep synced with
+    // UserDefinedFunctionUtils.buildRelDataType, that is, we assume all the data types
+    // are nullable.
     buildRelDataType(
       fieldNames,
       fieldTypes,
-      fieldTypes.map(!FlinkTypeFactory.isTimeIndicatorType(_)))
+      fieldTypes.map(_ => true))
   }
 
   def buildRelDataType(
@@ -213,10 +216,6 @@ class FlinkTypeFactory(typeSystem: RelDataTypeSystem) extends JavaTypeFactoryImp
     val fields = fieldNames.zip(fieldTypes).zip(fieldNullables)
     fields foreach {
       case ((fieldName, fieldType), fieldNullable) =>
-        if (FlinkTypeFactory.isTimeIndicatorType(fieldType) && fieldNullable) {
-          throw new TableException(
-            s"$fieldName can not be nullable because it is TimeIndicatorType!")
-        }
         b.add(fieldName, createTypeFromInternalType(fieldType, fieldNullable))
     }
     b.build
@@ -312,11 +311,11 @@ class FlinkTypeFactory(typeSystem: RelDataTypeSystem) extends JavaTypeFactoryImp
       case generic: GenericRelDataType =>
         new GenericRelDataType(generic.genericType, isNullable, typeSystem)
 
-      case timeIndicator: TimeIndicatorRelDataType =>
-        timeIndicator
-
       case _ =>
-        super.createTypeWithNullability(relDataType, isNullable)
+      // timeAttribute is always not null, but for some edge cases, e.g. agg call for GROUP BY ()
+      // the inferred returned type is nullable, so we fix the agg type, see
+      // RelTimeIndicatorConverter#convertAggregate for details.
+      super.createTypeWithNullability(relDataType, isNullable)
     }
 
     canonize(newType)
