@@ -478,11 +478,6 @@ public class RecordWriterTest {
 		}
 
 		@Override
-		public BufferProvider getBufferProvider() {
-			return bufferProvider;
-		}
-
-		@Override
 		public ResultPartitionID getPartitionId() {
 			return partitionId;
 		}
@@ -498,8 +493,19 @@ public class RecordWriterTest {
 		}
 
 		@Override
-		public void addBufferConsumer(BufferConsumer buffer, int targetChannel) throws IOException {
-			queues[targetChannel].add(buffer);
+		public void broadcastEvents(AbstractEvent event) throws IOException {
+			try (BufferConsumer eventBufferConsumer = EventSerializer.toBufferConsumer(event)) {
+				for (Queue queue : queues) {
+					queue.add(eventBufferConsumer.copy());
+				}
+			}
+		}
+
+		@Override
+		public BufferBuilder requestBufferBuilder(int targetChannel) throws IOException, InterruptedException {
+			BufferBuilder bufferBuilder = bufferProvider.requestBufferBuilderBlocking();
+			queues[targetChannel].add(bufferBuilder.createBufferConsumer());
+			return bufferBuilder;
 		}
 
 		@Override
@@ -543,11 +549,6 @@ public class RecordWriterTest {
 		}
 
 		@Override
-		public BufferProvider getBufferProvider() {
-			return bufferProvider;
-		}
-
-		@Override
 		public ResultPartitionID getPartitionId() {
 			return partitionId;
 		}
@@ -563,8 +564,14 @@ public class RecordWriterTest {
 		}
 
 		@Override
-		public void addBufferConsumer(BufferConsumer bufferConsumer, int targetChannel) throws IOException {
-			bufferConsumer.close();
+		public void broadcastEvents(AbstractEvent event) {
+		}
+
+		@Override
+		public BufferBuilder requestBufferBuilder(int targetChannel) throws IOException, InterruptedException {
+			BufferBuilder bufferBuilder = bufferProvider.requestBufferBuilderBlocking();
+			bufferBuilder.createBufferConsumer().close();
+			return bufferBuilder;
 		}
 
 		@Override

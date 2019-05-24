@@ -18,8 +18,9 @@
 
 package org.apache.flink.runtime.io.network.api.writer;
 
+import org.apache.flink.runtime.event.AbstractEvent;
+import org.apache.flink.runtime.io.network.buffer.BufferBuilder;
 import org.apache.flink.runtime.io.network.buffer.BufferConsumer;
-import org.apache.flink.runtime.io.network.buffer.BufferProvider;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 
 import java.io.IOException;
@@ -34,8 +35,6 @@ public interface ResultPartitionWriter extends AutoCloseable {
 	 */
 	void setup() throws IOException;
 
-	BufferProvider getBufferProvider();
-
 	ResultPartitionID getPartitionId();
 
 	int getNumberOfSubpartitions();
@@ -43,18 +42,22 @@ public interface ResultPartitionWriter extends AutoCloseable {
 	int getNumTargetKeyGroups();
 
 	/**
-	 * Adds the bufferConsumer to the subpartition with the given index.
+	 * Writes the {@link AbstractEvent} to all the sub partitions.
+	 */
+	void broadcastEvents(AbstractEvent event) throws IOException;
+
+	/**
+	 * Requests a {@link BufferBuilder} and adds the created {@link BufferConsumer} to the sub partition
+	 * with the given index.
 	 *
 	 * <p>For PIPELINED {@link org.apache.flink.runtime.io.network.partition.ResultPartitionType}s,
 	 * this will trigger the deployment of consuming tasks after the first buffer has been added.
 	 *
-	 * <p>This method takes the ownership of the passed {@code bufferConsumer} and thus is responsible for releasing
-	 * it's resources.
-	 *
-	 * <p>To avoid problems with data re-ordering, before adding new {@link BufferConsumer} the previously added one
-	 * the given {@code subpartitionIndex} must be marked as {@link BufferConsumer#isFinished()}.
+	 * <p>To avoid problems with data re-ordering, before requesting new {@link BufferBuilder} the
+	 * previously requested one with the given {@code subpartitionIndex} must be marked as
+	 * {@link BufferBuilder#isFinished()}.
 	 */
-	void addBufferConsumer(BufferConsumer bufferConsumer, int subpartitionIndex) throws IOException;
+	BufferBuilder requestBufferBuilder(int subpartitionIndex) throws IOException, InterruptedException;
 
 	/**
 	 * Manually trigger consumption from enqueued {@link BufferConsumer BufferConsumers} in all subpartitions.

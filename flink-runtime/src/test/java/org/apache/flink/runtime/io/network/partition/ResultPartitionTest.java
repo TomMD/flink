@@ -104,24 +104,18 @@ public class ResultPartitionTest {
 	 *
 	 * @param pipelined the result partition type to set up
 	 */
-	protected void testAddOnFinishedPartition(final ResultPartitionType pipelined)
-		throws Exception {
-		BufferConsumer bufferConsumer = createFilledBufferConsumer(BufferBuilderTestUtils.BUFFER_SIZE);
+	protected void testAddOnFinishedPartition(final ResultPartitionType pipelined) throws Exception {
 		ResultPartitionConsumableNotifier notifier = mock(ResultPartitionConsumableNotifier.class);
 		try {
 			ResultPartition partition = createPartition(notifier, pipelined, true);
 			partition.finish();
 			reset(notifier);
-			// partition.add() should fail
-			partition.addBufferConsumer(bufferConsumer, 0);
+			// partition.requestBufferBuilder() should fail
+			partition.requestBufferBuilder(0);
 			Assert.fail("exception expected");
 		} catch (IllegalStateException e) {
 			// expected => ignored
 		} finally {
-			if (!bufferConsumer.isRecycled()) {
-				bufferConsumer.close();
-				Assert.fail("bufferConsumer not recycled");
-			}
 			// should not have notified either
 			verify(notifier, never()).notifyPartitionConsumable(any(JobID.class), any(ResultPartitionID.class), any(TaskActions.class));
 		}
