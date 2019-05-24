@@ -18,32 +18,26 @@
 
 package org.apache.flink.runtime.webmonitor.handlers;
 
-import org.apache.flink.runtime.rest.messages.MessageQueryParameter;
+import org.apache.flink.runtime.rest.HttpMethodWrapper;
+import org.apache.flink.util.TestLogger;
+
+import org.junit.Test;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 /**
- * Query parameter specifying the parallelism of the job.
- * @see ArtifactRunHandler
+ * Tests for {@link ArtifactDeleteHeaders}.
  */
-public class ParallelismQueryParameter extends MessageQueryParameter<Integer> {
+public class ArtifactDeleteHeadersTest extends TestLogger {
 
-	private static final String KEY = "parallelism";
-
-	public ParallelismQueryParameter() {
-		super(KEY, MessageParameterRequisiteness.OPTIONAL);
+	@Test
+	public void testUrl() {
+		assertThat(ArtifactDeleteHeaders.getInstance().getTargetRestEndpointURL(), equalTo("/artifacts/:" + ArtifactIdPathParameter.KEY));
 	}
 
-	@Override
-	public Integer convertStringToValue(final String value) {
-		return Integer.valueOf(value);
-	}
-
-	@Override
-	public String convertValueToString(final Integer value) {
-		return value.toString();
-	}
-
-	@Override
-	public String getDescription() {
-		return "Positive integer value that specifies the desired parallelism for the job.";
+	@Test
+	public void testHttpMethod() {
+		assertThat(ArtifactDeleteHeaders.getInstance().getHttpMethod(), equalTo(HttpMethodWrapper.DELETE));
 	}
 }

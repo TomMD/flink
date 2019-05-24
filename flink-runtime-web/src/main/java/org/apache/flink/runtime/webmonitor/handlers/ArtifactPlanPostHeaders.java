@@ -18,32 +18,21 @@
 
 package org.apache.flink.runtime.webmonitor.handlers;
 
-import org.apache.flink.runtime.rest.messages.MessageQueryParameter;
+import org.apache.flink.runtime.rest.HttpMethodWrapper;
 
 /**
- * Query parameter specifying the parallelism of the job.
- * @see ArtifactRunHandler
+ * Message headers for {@link ArtifactPlanHandler}.
  */
-public class ParallelismQueryParameter extends MessageQueryParameter<Integer> {
+public class ArtifactPlanPostHeaders extends AbstractArtifactPlanHeaders {
 
-	private static final String KEY = "parallelism";
-
-	public ParallelismQueryParameter() {
-		super(KEY, MessageParameterRequisiteness.OPTIONAL);
-	}
+	private static final ArtifactPlanPostHeaders INSTANCE = new ArtifactPlanPostHeaders();
 
 	@Override
-	public Integer convertStringToValue(final String value) {
-		return Integer.valueOf(value);
+	public HttpMethodWrapper getHttpMethod() {
+		return HttpMethodWrapper.POST;
 	}
 
-	@Override
-	public String convertValueToString(final Integer value) {
-		return value.toString();
-	}
-
-	@Override
-	public String getDescription() {
-		return "Positive integer value that specifies the desired parallelism for the job.";
+	public static ArtifactPlanPostHeaders getInstance() {
+		return INSTANCE;
 	}
 }

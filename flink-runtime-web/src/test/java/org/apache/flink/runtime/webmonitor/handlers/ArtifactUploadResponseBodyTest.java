@@ -18,32 +18,29 @@
 
 package org.apache.flink.runtime.webmonitor.handlers;
 
-import org.apache.flink.runtime.rest.messages.MessageQueryParameter;
+import org.apache.flink.runtime.rest.messages.RestResponseMarshallingTestBase;
+
+import static org.junit.Assert.assertEquals;
 
 /**
- * Query parameter specifying the parallelism of the job.
- * @see ArtifactRunHandler
+ * Tests for {@link ArtifactUploadResponseBody}.
  */
-public class ParallelismQueryParameter extends MessageQueryParameter<Integer> {
+public class ArtifactUploadResponseBodyTest extends RestResponseMarshallingTestBase<ArtifactUploadResponseBody> {
 
-	private static final String KEY = "parallelism";
-
-	public ParallelismQueryParameter() {
-		super(KEY, MessageParameterRequisiteness.OPTIONAL);
+	@Override
+	protected Class<ArtifactUploadResponseBody> getTestResponseClass() {
+		return ArtifactUploadResponseBody.class;
 	}
 
 	@Override
-	public Integer convertStringToValue(final String value) {
-		return Integer.valueOf(value);
+	protected ArtifactUploadResponseBody getTestResponseInstance() throws Exception {
+		return new ArtifactUploadResponseBody("/tmp");
 	}
 
 	@Override
-	public String convertValueToString(final Integer value) {
-		return value.toString();
+	protected void assertOriginalEqualsToUnmarshalled(final ArtifactUploadResponseBody expected, final ArtifactUploadResponseBody actual) {
+		assertEquals(expected.getFilename(), actual.getFilename());
+		assertEquals(expected.getStatus(), actual.getStatus());
 	}
 
-	@Override
-	public String getDescription() {
-		return "Positive integer value that specifies the desired parallelism for the job.";
-	}
 }

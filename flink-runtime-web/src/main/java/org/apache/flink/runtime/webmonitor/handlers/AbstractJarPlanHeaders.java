@@ -24,9 +24,10 @@ import org.apache.flink.runtime.rest.messages.MessageHeaders;
 import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * Message headers for {@link JarPlanHandler}.
+ * Message headers for {@link ArtifactPlanHandler}.
  */
-public abstract class AbstractJarPlanHeaders implements MessageHeaders<JarPlanRequestBody, JobPlanInfo, JarPlanMessageParameters> {
+@Deprecated
+public abstract class AbstractJarPlanHeaders implements MessageHeaders<ArtifactPlanRequestBody, JobPlanInfo, ArtifactPlanMessageParameters> {
 
 	@Override
 	public Class<JobPlanInfo> getResponseClass() {
@@ -39,18 +40,18 @@ public abstract class AbstractJarPlanHeaders implements MessageHeaders<JarPlanRe
 	}
 
 	@Override
-	public Class<JarPlanRequestBody> getRequestClass() {
-		return JarPlanRequestBody.class;
+	public Class<ArtifactPlanRequestBody> getRequestClass() {
+		return ArtifactPlanRequestBody.class;
 	}
 
 	@Override
-	public JarPlanMessageParameters getUnresolvedMessageParameters() {
-		return new JarPlanMessageParameters();
+	public ArtifactPlanMessageParameters getUnresolvedMessageParameters() {
+		return new ArtifactPlanMessageParameters();
 	}
 
 	@Override
 	public String getTargetRestEndpointURL() {
-		return "/jars/:" + JarIdPathParameter.KEY + "/plan";
+		return "/jars/:" + ArtifactIdPathParameter.KEY + "/plan";
 	}
 
 	@Override

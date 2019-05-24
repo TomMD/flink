@@ -27,8 +27,10 @@ import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseSt
 
 /**
  * {@link MessageHeaders} for uploading jars.
+ * @deprecated please, use {@link ArtifactUploadHeaders}.
  */
-public final class JarUploadHeaders implements MessageHeaders<EmptyRequestBody, JarUploadResponseBody, EmptyMessageParameters> {
+@Deprecated
+public final class JarUploadHeaders implements MessageHeaders<EmptyRequestBody, ArtifactUploadResponseBody, EmptyMessageParameters> {
 
 	public static final String URL = "/jars/upload";
 	private static final JarUploadHeaders INSTANCE = new JarUploadHeaders();
@@ -36,8 +38,8 @@ public final class JarUploadHeaders implements MessageHeaders<EmptyRequestBody, 
 	private JarUploadHeaders() {}
 
 	@Override
-	public Class<JarUploadResponseBody> getResponseClass() {
-		return JarUploadResponseBody.class;
+	public Class<ArtifactUploadResponseBody> getResponseClass() {
+		return ArtifactUploadResponseBody.class;
 	}
 
 	@Override

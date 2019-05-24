@@ -18,32 +18,30 @@
 
 package org.apache.flink.runtime.webmonitor.handlers;
 
-import org.apache.flink.runtime.rest.messages.MessageQueryParameter;
+import org.apache.flink.api.common.JobID;
+import org.apache.flink.runtime.rest.messages.RestResponseMarshallingTestBase;
+
+import static org.junit.Assert.assertEquals;
 
 /**
- * Query parameter specifying the parallelism of the job.
- * @see ArtifactRunHandler
+ * Tests for {@link ArtifactRunResponseBody}.
  */
-public class ParallelismQueryParameter extends MessageQueryParameter<Integer> {
+public class ArtifactRunResponseBodyTest extends RestResponseMarshallingTestBase<ArtifactRunResponseBody> {
 
-	private static final String KEY = "parallelism";
-
-	public ParallelismQueryParameter() {
-		super(KEY, MessageParameterRequisiteness.OPTIONAL);
+	@Override
+	protected Class<ArtifactRunResponseBody> getTestResponseClass() {
+		return ArtifactRunResponseBody.class;
 	}
 
 	@Override
-	public Integer convertStringToValue(final String value) {
-		return Integer.valueOf(value);
+	protected ArtifactRunResponseBody getTestResponseInstance() throws Exception {
+		return new ArtifactRunResponseBody(new JobID());
 	}
 
 	@Override
-	public String convertValueToString(final Integer value) {
-		return value.toString();
-	}
-
-	@Override
-	public String getDescription() {
-		return "Positive integer value that specifies the desired parallelism for the job.";
+	protected void assertOriginalEqualsToUnmarshalled(
+			final ArtifactRunResponseBody expected,
+			final ArtifactRunResponseBody actual) {
+		assertEquals(expected.getJobId(), actual.getJobId());
 	}
 }

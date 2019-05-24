@@ -25,14 +25,12 @@ import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseSt
 
 /**
  * {@link MessageHeaders} for {@link ArtifactRunHandler}.
- * @deprecated please, use {@link ArtifactRunHeaders}.
  */
-@Deprecated
-public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, ArtifactRunResponseBody, ArtifactRunMessageParameters> {
+public class ArtifactRunHeaders implements MessageHeaders<ArtifactRunRequestBody, ArtifactRunResponseBody, ArtifactRunMessageParameters> {
 
-	private static final JarRunHeaders INSTANCE = new JarRunHeaders();
+	private static final ArtifactRunHeaders INSTANCE = new ArtifactRunHeaders();
 
-	private JarRunHeaders() {}
+	private ArtifactRunHeaders() {}
 
 	@Override
 	public Class<ArtifactRunResponseBody> getResponseClass() {
@@ -61,16 +59,16 @@ public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, Art
 
 	@Override
 	public String getTargetRestEndpointURL() {
-		return "/jars/:" + ArtifactIdPathParameter.KEY + "/run";
+		return "/artifacts/:" + ArtifactIdPathParameter.KEY + "/run";
 	}
 
-	public static JarRunHeaders getInstance() {
+	public static ArtifactRunHeaders getInstance() {
 		return INSTANCE;
 	}
 
 	@Override
 	public String getDescription() {
-		return "Submits a job by running a jar previously uploaded via '" + ArtifactUploadHeaders.URL + "'. " +
+		return "Submits a job by running an artifact previously uploaded via '" + ArtifactUploadHeaders.URL + "'. " +
 			"Program arguments can be passed both via the JSON request (recommended) or query parameters.";
 	}
 }

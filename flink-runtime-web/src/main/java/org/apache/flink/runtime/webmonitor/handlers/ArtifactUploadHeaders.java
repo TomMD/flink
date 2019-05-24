@@ -19,24 +19,25 @@
 package org.apache.flink.runtime.webmonitor.handlers;
 
 import org.apache.flink.runtime.rest.HttpMethodWrapper;
+import org.apache.flink.runtime.rest.messages.EmptyMessageParameters;
+import org.apache.flink.runtime.rest.messages.EmptyRequestBody;
 import org.apache.flink.runtime.rest.messages.MessageHeaders;
 
 import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * {@link MessageHeaders} for {@link ArtifactRunHandler}.
- * @deprecated please, use {@link ArtifactRunHeaders}.
+ * {@link MessageHeaders} for uploading artifacts.
  */
-@Deprecated
-public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, ArtifactRunResponseBody, ArtifactRunMessageParameters> {
+public final class ArtifactUploadHeaders implements MessageHeaders<EmptyRequestBody, ArtifactUploadResponseBody, EmptyMessageParameters> {
 
-	private static final JarRunHeaders INSTANCE = new JarRunHeaders();
+	public static final String URL = "/artifacts/upload";
+	private static final ArtifactUploadHeaders INSTANCE = new ArtifactUploadHeaders();
 
-	private JarRunHeaders() {}
+	private ArtifactUploadHeaders() {}
 
 	@Override
-	public Class<ArtifactRunResponseBody> getResponseClass() {
-		return ArtifactRunResponseBody.class;
+	public Class<ArtifactUploadResponseBody> getResponseClass() {
+		return ArtifactUploadResponseBody.class;
 	}
 
 	@Override
@@ -45,13 +46,13 @@ public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, Art
 	}
 
 	@Override
-	public Class<ArtifactRunRequestBody> getRequestClass() {
-		return ArtifactRunRequestBody.class;
+	public Class<EmptyRequestBody> getRequestClass() {
+		return EmptyRequestBody.class;
 	}
 
 	@Override
-	public ArtifactRunMessageParameters getUnresolvedMessageParameters() {
-		return new ArtifactRunMessageParameters();
+	public EmptyMessageParameters getUnresolvedMessageParameters() {
+		return EmptyMessageParameters.getInstance();
 	}
 
 	@Override
@@ -61,16 +62,22 @@ public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, Art
 
 	@Override
 	public String getTargetRestEndpointURL() {
-		return "/jars/:" + ArtifactIdPathParameter.KEY + "/run";
+		return URL;
 	}
 
-	public static JarRunHeaders getInstance() {
+	public static ArtifactUploadHeaders getInstance() {
 		return INSTANCE;
 	}
 
 	@Override
 	public String getDescription() {
-		return "Submits a job by running a jar previously uploaded via '" + ArtifactUploadHeaders.URL + "'. " +
-			"Program arguments can be passed both via the JSON request (recommended) or query parameters.";
+		return "Uploads an artifact to the cluster. The artifact must be sent as multi-part data. Make sure that the \"Content-Type\"" +
+			" header is set to \"application/x-java-archive\", as some http libraries do not add the header by default.\n" +
+			"Using 'curl' you can upload an artifact via 'curl -X POST -H \"Expect:\" -F \"jarfile=@path/to/flink-job.jar\" http://hostname:port" + URL + "'.";
+	}
+
+	@Override
+	public boolean acceptsFileUploads() {
+		return true;
 	}
 }

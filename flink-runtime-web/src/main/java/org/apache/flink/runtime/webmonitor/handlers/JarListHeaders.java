@@ -26,9 +26,11 @@ import org.apache.flink.runtime.rest.messages.MessageHeaders;
 import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * Message headers for the {@link JarListHandler}.
+ * Message headers for the {@link ArtifactListHandler}.
+ * @deprecated please, use {@link ArtifactListHeaders}.
  */
-public class JarListHeaders implements MessageHeaders<EmptyRequestBody, JarListInfo, EmptyMessageParameters> {
+@Deprecated
+public class JarListHeaders implements MessageHeaders<EmptyRequestBody, ArtifactListInfo, EmptyMessageParameters> {
 
 	public static final String URL = "/jars";
 
@@ -42,8 +44,8 @@ public class JarListHeaders implements MessageHeaders<EmptyRequestBody, JarListI
 	}
 
 	@Override
-	public Class<JarListInfo> getResponseClass() {
-		return JarListInfo.class;
+	public Class<ArtifactListInfo> getResponseClass() {
+		return ArtifactListInfo.class;
 	}
 
 	@Override

@@ -26,9 +26,11 @@ import org.apache.flink.runtime.rest.messages.MessageHeaders;
 import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * Message headers for {@link JarDeleteHandler}.
+ * Message headers for {@link ArtifactDeleteHandler}.
+ * @deprecated please, use {@link ArtifactDeleteHeaders}.
  */
-public class JarDeleteHeaders implements MessageHeaders<EmptyRequestBody, EmptyResponseBody, JarDeleteMessageParameters> {
+@Deprecated
+public class JarDeleteHeaders implements MessageHeaders<EmptyRequestBody, EmptyResponseBody, ArtifactDeleteMessageParameters> {
 
 	private static final JarDeleteHeaders INSTANCE = new JarDeleteHeaders();
 
@@ -48,8 +50,8 @@ public class JarDeleteHeaders implements MessageHeaders<EmptyRequestBody, EmptyR
 	}
 
 	@Override
-	public JarDeleteMessageParameters getUnresolvedMessageParameters() {
-		return new JarDeleteMessageParameters();
+	public ArtifactDeleteMessageParameters getUnresolvedMessageParameters() {
+		return new ArtifactDeleteMessageParameters();
 	}
 
 	@Override
@@ -59,7 +61,7 @@ public class JarDeleteHeaders implements MessageHeaders<EmptyRequestBody, EmptyR
 
 	@Override
 	public String getTargetRestEndpointURL() {
-		return "/jars/:" + JarIdPathParameter.KEY;
+		return "/jars/:" + ArtifactIdPathParameter.KEY;
 	}
 
 	public static JarDeleteHeaders getInstance() {

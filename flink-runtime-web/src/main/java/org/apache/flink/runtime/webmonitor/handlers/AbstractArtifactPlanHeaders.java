@@ -18,25 +18,19 @@
 
 package org.apache.flink.runtime.webmonitor.handlers;
 
-import org.apache.flink.runtime.rest.HttpMethodWrapper;
+import org.apache.flink.runtime.rest.messages.JobPlanInfo;
 import org.apache.flink.runtime.rest.messages.MessageHeaders;
 
 import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * {@link MessageHeaders} for {@link ArtifactRunHandler}.
- * @deprecated please, use {@link ArtifactRunHeaders}.
+ * Message headers for {@link ArtifactPlanHandler}.
  */
-@Deprecated
-public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, ArtifactRunResponseBody, ArtifactRunMessageParameters> {
-
-	private static final JarRunHeaders INSTANCE = new JarRunHeaders();
-
-	private JarRunHeaders() {}
+public abstract class AbstractArtifactPlanHeaders implements MessageHeaders<ArtifactPlanRequestBody, JobPlanInfo, ArtifactPlanMessageParameters> {
 
 	@Override
-	public Class<ArtifactRunResponseBody> getResponseClass() {
-		return ArtifactRunResponseBody.class;
+	public Class<JobPlanInfo> getResponseClass() {
+		return JobPlanInfo.class;
 	}
 
 	@Override
@@ -45,32 +39,23 @@ public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, Art
 	}
 
 	@Override
-	public Class<ArtifactRunRequestBody> getRequestClass() {
-		return ArtifactRunRequestBody.class;
+	public Class<ArtifactPlanRequestBody> getRequestClass() {
+		return ArtifactPlanRequestBody.class;
 	}
 
 	@Override
-	public ArtifactRunMessageParameters getUnresolvedMessageParameters() {
-		return new ArtifactRunMessageParameters();
-	}
-
-	@Override
-	public HttpMethodWrapper getHttpMethod() {
-		return HttpMethodWrapper.POST;
+	public ArtifactPlanMessageParameters getUnresolvedMessageParameters() {
+		return new ArtifactPlanMessageParameters();
 	}
 
 	@Override
 	public String getTargetRestEndpointURL() {
-		return "/jars/:" + ArtifactIdPathParameter.KEY + "/run";
-	}
-
-	public static JarRunHeaders getInstance() {
-		return INSTANCE;
+		return "/artifacts/:" + ArtifactIdPathParameter.KEY + "/plan";
 	}
 
 	@Override
 	public String getDescription() {
-		return "Submits a job by running a jar previously uploaded via '" + ArtifactUploadHeaders.URL + "'. " +
+		return "Returns the dataflow plan of a job contained in an artifact previously uploaded via '" + ArtifactUploadHeaders.URL + "'. " +
 			"Program arguments can be passed both via the JSON request (recommended) or query parameters.";
 	}
 }

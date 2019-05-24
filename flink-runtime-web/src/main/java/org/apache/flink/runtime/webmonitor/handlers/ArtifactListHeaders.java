@@ -19,24 +19,31 @@
 package org.apache.flink.runtime.webmonitor.handlers;
 
 import org.apache.flink.runtime.rest.HttpMethodWrapper;
+import org.apache.flink.runtime.rest.messages.EmptyMessageParameters;
+import org.apache.flink.runtime.rest.messages.EmptyRequestBody;
 import org.apache.flink.runtime.rest.messages.MessageHeaders;
 
 import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * {@link MessageHeaders} for {@link ArtifactRunHandler}.
- * @deprecated please, use {@link ArtifactRunHeaders}.
+ * Message headers for the {@link ArtifactListHandler}.
  */
-@Deprecated
-public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, ArtifactRunResponseBody, ArtifactRunMessageParameters> {
+public class ArtifactListHeaders implements MessageHeaders<EmptyRequestBody, ArtifactListInfo, EmptyMessageParameters> {
 
-	private static final JarRunHeaders INSTANCE = new JarRunHeaders();
+	public static final String URL = "/artifacts";
 
-	private JarRunHeaders() {}
+	private static final ArtifactListHeaders INSTANCE = new ArtifactListHeaders();
+
+	private ArtifactListHeaders() {}
 
 	@Override
-	public Class<ArtifactRunResponseBody> getResponseClass() {
-		return ArtifactRunResponseBody.class;
+	public Class<EmptyRequestBody> getRequestClass() {
+		return EmptyRequestBody.class;
+	}
+
+	@Override
+	public Class<ArtifactListInfo> getResponseClass() {
+		return ArtifactListInfo.class;
 	}
 
 	@Override
@@ -45,32 +52,26 @@ public class JarRunHeaders implements MessageHeaders<ArtifactRunRequestBody, Art
 	}
 
 	@Override
-	public Class<ArtifactRunRequestBody> getRequestClass() {
-		return ArtifactRunRequestBody.class;
-	}
-
-	@Override
-	public ArtifactRunMessageParameters getUnresolvedMessageParameters() {
-		return new ArtifactRunMessageParameters();
+	public EmptyMessageParameters getUnresolvedMessageParameters() {
+		return EmptyMessageParameters.getInstance();
 	}
 
 	@Override
 	public HttpMethodWrapper getHttpMethod() {
-		return HttpMethodWrapper.POST;
+		return HttpMethodWrapper.GET;
 	}
 
 	@Override
 	public String getTargetRestEndpointURL() {
-		return "/jars/:" + ArtifactIdPathParameter.KEY + "/run";
+		return URL;
 	}
 
-	public static JarRunHeaders getInstance() {
+	public static ArtifactListHeaders getInstance() {
 		return INSTANCE;
 	}
 
 	@Override
 	public String getDescription() {
-		return "Submits a job by running a jar previously uploaded via '" + ArtifactUploadHeaders.URL + "'. " +
-			"Program arguments can be passed both via the JSON request (recommended) or query parameters.";
+		return "Returns a list of all artifacts previously uploaded via '" + ArtifactUploadHeaders.URL + "'.";
 	}
 }

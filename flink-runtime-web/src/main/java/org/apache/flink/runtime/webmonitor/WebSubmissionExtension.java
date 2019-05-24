@@ -23,16 +23,21 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.dispatcher.DispatcherGateway;
 import org.apache.flink.runtime.rest.handler.RestHandlerSpecification;
-import org.apache.flink.runtime.webmonitor.handlers.JarDeleteHandler;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactDeleteHandler;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactDeleteHeaders;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactListHandler;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactListHeaders;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactPlanGetHeaders;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactPlanHandler;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactPlanPostHeaders;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactRunHandler;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactRunHeaders;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactUploadHandler;
+import org.apache.flink.runtime.webmonitor.handlers.ArtifactUploadHeaders;
 import org.apache.flink.runtime.webmonitor.handlers.JarDeleteHeaders;
-import org.apache.flink.runtime.webmonitor.handlers.JarListHandler;
 import org.apache.flink.runtime.webmonitor.handlers.JarListHeaders;
 import org.apache.flink.runtime.webmonitor.handlers.JarPlanGetHeaders;
-import org.apache.flink.runtime.webmonitor.handlers.JarPlanHandler;
-import org.apache.flink.runtime.webmonitor.handlers.JarPlanPostHeaders;
-import org.apache.flink.runtime.webmonitor.handlers.JarRunHandler;
 import org.apache.flink.runtime.webmonitor.handlers.JarRunHeaders;
-import org.apache.flink.runtime.webmonitor.handlers.JarUploadHandler;
 import org.apache.flink.runtime.webmonitor.handlers.JarUploadHeaders;
 import org.apache.flink.runtime.webmonitor.retriever.GatewayRetriever;
 
@@ -57,72 +62,79 @@ public class WebSubmissionExtension implements WebMonitorExtension {
 			GatewayRetriever<? extends DispatcherGateway> leaderRetriever,
 			Map<String, String> responseHeaders,
 			CompletableFuture<String> localAddressFuture,
-			Path jarDir,
+			Path artifactDir,
 			Executor executor,
 			Time timeout) throws Exception {
 
-		webSubmissionHandlers = new ArrayList<>(5);
+		webSubmissionHandlers = new ArrayList<>(12);
 
-		final JarUploadHandler jarUploadHandler = new JarUploadHandler(
+		final ArtifactUploadHandler artifactUploadHandler = new ArtifactUploadHandler(
 			leaderRetriever,
 			timeout,
 			responseHeaders,
-			JarUploadHeaders.getInstance(),
-			jarDir,
+			ArtifactUploadHeaders.getInstance(),
+			artifactDir,
 			executor);
 
-		final JarListHandler jarListHandler = new JarListHandler(
+		final ArtifactListHandler artifactListHandler = new ArtifactListHandler(
 			leaderRetriever,
 			timeout,
 			responseHeaders,
-			JarListHeaders.getInstance(),
+			ArtifactListHeaders.getInstance(),
 			localAddressFuture,
-			jarDir.toFile(),
+			artifactDir.toFile(),
 			executor);
 
-		final JarRunHandler jarRunHandler = new JarRunHandler(
+		final ArtifactRunHandler artifactRunHandler = new ArtifactRunHandler(
 			leaderRetriever,
 			timeout,
 			responseHeaders,
-			JarRunHeaders.getInstance(),
-			jarDir,
+			ArtifactRunHeaders.getInstance(),
+			artifactDir,
 			configuration,
 			executor);
 
-		final JarDeleteHandler jarDeleteHandler = new JarDeleteHandler(
+		final ArtifactDeleteHandler artifactDeleteHandler = new ArtifactDeleteHandler(
 			leaderRetriever,
 			timeout,
 			responseHeaders,
-			JarDeleteHeaders.getInstance(),
-			jarDir,
+			ArtifactDeleteHeaders.getInstance(),
+			artifactDir,
 			executor);
 
-		final JarPlanHandler jarPlanHandler = new JarPlanHandler(
+		final ArtifactPlanHandler artifactPlanHandler = new ArtifactPlanHandler(
 			leaderRetriever,
 			timeout,
 			responseHeaders,
-			JarPlanGetHeaders.getInstance(),
-			jarDir,
-			configuration,
-			executor
-		);
-
-		final JarPlanHandler postJarPlanHandler = new JarPlanHandler(
-			leaderRetriever,
-			timeout,
-			responseHeaders,
-			JarPlanPostHeaders.getInstance(),
-			jarDir,
+			ArtifactPlanGetHeaders.getInstance(),
+			artifactDir,
 			configuration,
 			executor
 		);
 
-		webSubmissionHandlers.add(Tuple2.of(JarUploadHeaders.getInstance(), jarUploadHandler));
-		webSubmissionHandlers.add(Tuple2.of(JarListHeaders.getInstance(), jarListHandler));
-		webSubmissionHandlers.add(Tuple2.of(JarRunHeaders.getInstance(), jarRunHandler));
-		webSubmissionHandlers.add(Tuple2.of(JarDeleteHeaders.getInstance(), jarDeleteHandler));
-		webSubmissionHandlers.add(Tuple2.of(JarPlanGetHeaders.getInstance(), jarPlanHandler));
-		webSubmissionHandlers.add(Tuple2.of(JarPlanGetHeaders.getInstance(), postJarPlanHandler));
+		final ArtifactPlanHandler postArtifactPlanHandler = new ArtifactPlanHandler(
+			leaderRetriever,
+			timeout,
+			responseHeaders,
+			ArtifactPlanPostHeaders.getInstance(),
+			artifactDir,
+			configuration,
+			executor
+		);
+
+		webSubmissionHandlers.add(Tuple2.of(ArtifactUploadHeaders.getInstance(), artifactUploadHandler));
+		webSubmissionHandlers.add(Tuple2.of(ArtifactListHeaders.getInstance(), artifactListHandler));
+		webSubmissionHandlers.add(Tuple2.of(ArtifactRunHeaders.getInstance(), artifactRunHandler));
+		webSubmissionHandlers.add(Tuple2.of(ArtifactDeleteHeaders.getInstance(), artifactDeleteHandler));
+		webSubmissionHandlers.add(Tuple2.of(ArtifactPlanGetHeaders.getInstance(), artifactPlanHandler));
+		webSubmissionHandlers.add(Tuple2.of(ArtifactPlanGetHeaders.getInstance(), postArtifactPlanHandler));
+
+		webSubmissionHandlers.add(Tuple2.of(JarUploadHeaders.getInstance(), artifactUploadHandler));
+		webSubmissionHandlers.add(Tuple2.of(JarListHeaders.getInstance(), artifactListHandler));
+		webSubmissionHandlers.add(Tuple2.of(JarRunHeaders.getInstance(), artifactRunHandler));
+		webSubmissionHandlers.add(Tuple2.of(JarDeleteHeaders.getInstance(), artifactDeleteHandler));
+		webSubmissionHandlers.add(Tuple2.of(JarPlanGetHeaders.getInstance(), artifactPlanHandler));
+		webSubmissionHandlers.add(Tuple2.of(JarPlanGetHeaders.getInstance(), postArtifactPlanHandler));
 	}
 
 	@Override

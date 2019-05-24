@@ -18,32 +18,29 @@
 
 package org.apache.flink.runtime.webmonitor.handlers;
 
+import org.apache.flink.runtime.rest.messages.MessageParameters;
 import org.apache.flink.runtime.rest.messages.MessageQueryParameter;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+
 /**
- * Query parameter specifying the parallelism of the job.
- * @see ArtifactRunHandler
+ * {@link MessageParameters} for {@link ArtifactRunHandler}.
  */
-public class ParallelismQueryParameter extends MessageQueryParameter<Integer> {
+public class ArtifactRunMessageParameters extends ArtifactMessageParameters {
 
-	private static final String KEY = "parallelism";
+	final AllowNonRestoredStateQueryParameter allowNonRestoredStateQueryParameter = new AllowNonRestoredStateQueryParameter();
 
-	public ParallelismQueryParameter() {
-		super(KEY, MessageParameterRequisiteness.OPTIONAL);
-	}
+	final SavepointPathQueryParameter savepointPathQueryParameter = new SavepointPathQueryParameter();
 
 	@Override
-	public Integer convertStringToValue(final String value) {
-		return Integer.valueOf(value);
-	}
-
-	@Override
-	public String convertValueToString(final Integer value) {
-		return value.toString();
-	}
-
-	@Override
-	public String getDescription() {
-		return "Positive integer value that specifies the desired parallelism for the job.";
+	public Collection<MessageQueryParameter<?>> getQueryParameters() {
+		Collection<MessageQueryParameter<?>> pars = new ArrayList<>(Arrays.asList(
+			allowNonRestoredStateQueryParameter,
+			savepointPathQueryParameter));
+		pars.addAll(super.getQueryParameters());
+		return Collections.unmodifiableCollection(pars);
 	}
 }
