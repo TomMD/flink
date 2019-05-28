@@ -641,7 +641,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 	}
 
 	@Override
-	public void releasePartitions(Collection<ResultPartitionID> partitionIds) {
+	public void releasePartitions(JobID jobId, Collection<ResultPartitionID> partitionIds) {
 		try {
 			networkEnvironment.releasePartitions(partitionIds);
 		} catch (Throwable t) {
