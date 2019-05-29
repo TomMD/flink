@@ -129,6 +129,7 @@ public class NettyShuffleEnvironmentBuilder {
 				floatingNetworkBuffersPerGate,
 				isCreditBased,
 				isNetworkDetailedMetrics,
+				true,
 				nettyConfig),
 			taskEventDispatcher,
 			metricGroup,

@@ -137,7 +137,7 @@ public class NettyShuffleEnvironment implements ShuffleEnvironment {
 
 		NettyConfig nettyConfig = config.nettyConfig();
 
-		ResultPartitionManager resultPartitionManager = new ResultPartitionManager();
+		ResultPartitionManager resultPartitionManager = new ResultPartitionManager(config.isReleaseBlockingPartitionsOnConsumption());
 
 		ConnectionManager connectionManager = nettyConfig != null ?
 			new NettyConnectionManager(resultPartitionManager, taskEventPublisher, nettyConfig, config.isCreditBased()) :
