@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.api
 
+import org.apache.flink.annotation.VisibleForTesting
 import org.apache.flink.api.common.JobExecutionResult
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.common.typeutils.CompositeType
@@ -32,7 +33,7 @@ import org.apache.flink.streaming.api.transformations.StreamTransformation
 import org.apache.flink.table.`type`.TypeConverters
 import org.apache.flink.table.dataformat.BaseRow
 import org.apache.flink.table.plan.`trait`.{AccModeTraitDef, FlinkRelDistributionTraitDef, MiniBatchIntervalTraitDef, UpdateAsRetractionTraitDef}
-import org.apache.flink.table.plan.nodes.calcite.LogicalSink
+import org.apache.flink.table.plan.nodes.calcite.{LogicalSink, LogicalWatermarkAssigner}
 import org.apache.flink.table.plan.nodes.exec.{ExecNode, StreamExecNode}
 import org.apache.flink.table.plan.optimize.{Optimizer, StreamCommonSubGraphBasedOptimizer}
 import org.apache.flink.table.plan.schema._
@@ -599,6 +600,42 @@ abstract class StreamTableEnvironment(
     }
 
     withProctime
+  }
+
+  /**
+    * Register a table with specific row time field and offset.
+    *
+    * @param tableName table name
+    * @param sourceTable table to register
+    * @param rowtimeField row time field
+    * @param watermarkDelay delay to the row time field value
+    */
+  @VisibleForTesting
+  def registerTableWithWatermark(
+      tableName: String,
+      sourceTable: Table,
+      rowtimeField: String,
+      watermarkDelay: Long): Unit = {
+
+    val sourceRel = sourceTable.asInstanceOf[TableImpl].getRelNode
+    val rowtimeFieldIdx = sourceRel.getRowType.getFieldNames.indexOf(rowtimeField)
+    if (rowtimeFieldIdx < 0) {
+      throw new TableException(s"$rowtimeField does not exist, please check it")
+    }
+
+    registerTable(
+      tableName,
+      new TableImpl(
+        this,
+        new LogicalWatermarkAssigner(
+          sourceRel.getCluster,
+          sourceRel.getTraitSet,
+          sourceRel,
+          Some(rowtimeFieldIdx),
+          Some(watermarkDelay)
+        )
+      )
+    )
   }
 
 }
