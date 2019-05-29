@@ -40,10 +40,12 @@ import org.apache.flink.table.operations.AggregateOperationFactory;
 import org.apache.flink.table.operations.AggregateQueryOperation;
 import org.apache.flink.table.operations.CalculatedQueryOperation;
 import org.apache.flink.table.operations.CatalogQueryOperation;
+import org.apache.flink.table.operations.CatalogSinkOperation;
 import org.apache.flink.table.operations.DistinctQueryOperation;
 import org.apache.flink.table.operations.FilterQueryOperation;
 import org.apache.flink.table.operations.JoinQueryOperation;
 import org.apache.flink.table.operations.JoinQueryOperation.JoinType;
+import org.apache.flink.table.operations.OutputConversionOperation;
 import org.apache.flink.table.operations.PlannerQueryOperation;
 import org.apache.flink.table.operations.ProjectQueryOperation;
 import org.apache.flink.table.operations.QueryOperation;
@@ -51,6 +53,7 @@ import org.apache.flink.table.operations.QueryOperationDefaultVisitor;
 import org.apache.flink.table.operations.QueryOperationVisitor;
 import org.apache.flink.table.operations.SetQueryOperation;
 import org.apache.flink.table.operations.SortQueryOperation;
+import org.apache.flink.table.operations.UnregisteredSinkOperation;
 import org.apache.flink.table.operations.WindowAggregateQueryOperation;
 import org.apache.flink.table.operations.WindowAggregateQueryOperation.ResolvedGroupWindow;
 import org.apache.flink.table.plan.logical.LogicalWindow;
@@ -242,6 +245,21 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 		@Override
 		public RelNode visitCatalogTable(CatalogQueryOperation catalogTable) {
 			return relBuilder.scan(catalogTable.getTablePath()).build();
+		}
+
+		@Override
+		public RelNode visitCatalogSink(CatalogSinkOperation catalogSink) {
+			throw new UnsupportedOperationException("In the legacy planner it should never be converted to a RelNode");
+		}
+
+		@Override
+		public <U> RelNode visitInlineSink(UnregisteredSinkOperation<U> inlineSink) {
+			throw new UnsupportedOperationException("In the legacy planner it should never be converted to a RelNode");
+		}
+
+		@Override
+		public <U> RelNode visitOutputConversion(OutputConversionOperation<U> outputConversion) {
+			throw new UnsupportedOperationException("In the legacy planner it should never be converted to a RelNode");
 		}
 
 		@Override

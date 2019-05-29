@@ -18,16 +18,37 @@
 
 package org.apache.flink.table.operations;
 
-import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.sinks.TableSink;
+
+import java.util.Collections;
+import java.util.List;
 
 /**
- * Covers all sort of Table operations such as queries(DQL), modifications(DML), definitions(DDL),
- * or control actions(DCL). This is the output of
- * {@link org.apache.flink.table.planner.Planner#parse(String)}.
- *
- * @see QueryOperation
- * @see ModifyOperation
+ * DML operation that tells to write to the given sink.
  */
-@PublicEvolving
-public interface TableOperation {
+@Internal
+public class UnregisteredSinkOperation<T> extends ModifyOperation {
+
+	private final TableSink<T> sink;
+	private final QueryOperation child;
+
+	public UnregisteredSinkOperation(TableSink<T> sink, QueryOperation child) {
+		this.sink = sink;
+		this.child = child;
+	}
+
+	public TableSink<T> getSink() {
+		return sink;
+	}
+
+	@Override
+	public List<QueryOperation> getChildren() {
+		return Collections.singletonList(child);
+	}
+
+	@Override
+	public <R> R accept(QueryOperationVisitor<R> visitor) {
+		return visitor.visitInlineSink(this);
+	}
 }

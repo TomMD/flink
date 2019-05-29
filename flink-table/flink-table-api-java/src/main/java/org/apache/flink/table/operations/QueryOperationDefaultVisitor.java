@@ -79,6 +79,21 @@ public abstract class QueryOperationDefaultVisitor<T> implements QueryOperationV
 	}
 
 	@Override
+	public T visitCatalogSink(CatalogSinkOperation catalogSink) {
+		return defaultMethod(catalogSink);
+	}
+
+	@Override
+	public <U> T visitInlineSink(UnregisteredSinkOperation<U> inlineSink) {
+		return defaultMethod(inlineSink);
+	}
+
+	@Override
+	public <U> T visitOutputConversion(OutputConversionOperation<U> outputConversion) {
+		return defaultMethod(outputConversion);
+	}
+
+	@Override
 	public T visitOther(QueryOperation other) {
 		return defaultMethod(other);
 	}
