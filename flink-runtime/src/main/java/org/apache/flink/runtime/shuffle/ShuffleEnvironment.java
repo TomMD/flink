@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.shuffle;
 
 import org.apache.flink.metrics.MetricGroup;
+import org.apache.flink.runtime.clusterframework.types.ResourceID;
 import org.apache.flink.runtime.deployment.InputGateDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
@@ -30,7 +31,10 @@ import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collection;
+
+import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * Interface for the implementation of shuffle service local environment.
@@ -163,4 +167,48 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
 	boolean updatePartitionInfo(
 		ExecutionAttemptID consumerID,
 		PartitionInfo partitionInfo) throws IOException, InterruptedException;
+
+	/**
+	 * Task executor local context of shuffle service used to create {@link ShuffleEnvironment}.
+	 */
+	class ShuffleLocalContext {
+		private final ResourceID taskExecutorLocation;
+		private final MetricGroup metricGroup;
+		private final long maxJvmHeapMemory;
+		private final boolean localCommunicationOnly;
+		private final InetAddress taskManagerAddress;
+
+		public ShuffleLocalContext(
+				ResourceID taskExecutorLocation,
+				MetricGroup metricGroup,
+				long maxJvmHeapMemory,
+				boolean localCommunicationOnly,
+				InetAddress taskManagerAddress) {
+			this.taskExecutorLocation = taskExecutorLocation;
+			this.metricGroup = checkNotNull(metricGroup);
+			this.maxJvmHeapMemory = maxJvmHeapMemory;
+			this.localCommunicationOnly = localCommunicationOnly;
+			this.taskManagerAddress = checkNotNull(taskManagerAddress);
+		}
+
+		public ResourceID getTaskExecutorLocation() {
+			return taskExecutorLocation;
+		}
+
+		public MetricGroup getMetricGroup() {
+			return metricGroup;
+		}
+
+		public long getMaxJvmHeapMemory() {
+			return maxJvmHeapMemory;
+		}
+
+		public boolean isLocalCommunicationOnly() {
+			return localCommunicationOnly;
+		}
+
+		public InetAddress getTaskManagerAddress() {
+			return taskManagerAddress;
+		}
+	}
 }
