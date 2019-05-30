@@ -51,7 +51,7 @@ import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.shuffle.NettyShuffleDescriptor;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
 import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
-import org.apache.flink.runtime.taskmanager.NetworkEnvironmentConfiguration;
+import org.apache.flink.runtime.taskmanager.NettyShuffleEnvironmentConfiguration;
 import org.apache.flink.util.Preconditions;
 
 import org.slf4j.Logger;
@@ -72,9 +72,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * The network environment contains the data structures that keep track of all intermediate results
  * and shuffle data exchanges.
  */
-public class NetworkEnvironment implements ShuffleEnvironment {
+public class NettyShuffleEnvironment implements ShuffleEnvironment {
 
-	private static final Logger LOG = LoggerFactory.getLogger(NetworkEnvironment.class);
+	private static final Logger LOG = LoggerFactory.getLogger(NettyShuffleEnvironment.class);
 
 	private static final String METRIC_GROUP_NETWORK = "Network";
 	private static final String METRIC_TOTAL_MEMORY_SEGMENT = "TotalMemorySegments";
@@ -89,7 +89,7 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 
 	private final ResourceID taskExecutorLocation;
 
-	private final NetworkEnvironmentConfiguration config;
+	private final NettyShuffleEnvironmentConfiguration config;
 
 	private final NetworkBufferPool networkBufferPool;
 
@@ -105,9 +105,9 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 
 	private boolean isShutdown;
 
-	private NetworkEnvironment(
+	private NettyShuffleEnvironment(
 			ResourceID taskExecutorLocation,
-			NetworkEnvironmentConfiguration config,
+			NettyShuffleEnvironmentConfiguration config,
 			NetworkBufferPool networkBufferPool,
 			ConnectionManager connectionManager,
 			ResultPartitionManager resultPartitionManager,
@@ -124,9 +124,9 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 		this.isShutdown = false;
 	}
 
-	public static NetworkEnvironment create(
+	public static NettyShuffleEnvironment create(
 			ResourceID taskExecutorLocation,
-			NetworkEnvironmentConfiguration config,
+			NettyShuffleEnvironmentConfiguration config,
 			TaskEventPublisher taskEventPublisher,
 			MetricGroup metricGroup,
 			IOManager ioManager) {
@@ -165,7 +165,7 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 			taskEventPublisher,
 			networkBufferPool);
 
-		return new NetworkEnvironment(
+		return new NettyShuffleEnvironment(
 			taskExecutorLocation,
 			config,
 			networkBufferPool,
@@ -205,7 +205,7 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 	}
 
 	@VisibleForTesting
-	public NetworkEnvironmentConfiguration getConfiguration() {
+	public NettyShuffleEnvironmentConfiguration getConfiguration() {
 		return config;
 	}
 
@@ -244,7 +244,7 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 			MetricGroup outputGroup,
 			MetricGroup buffersGroup) {
 		synchronized (lock) {
-			Preconditions.checkState(!isShutdown, "The NetworkEnvironment has already been shut down.");
+			Preconditions.checkState(!isShutdown, "The NettyShuffleEnvironment has already been shut down.");
 
 			ResultPartition[] resultPartitions = new ResultPartition[resultPartitionDeploymentDescriptors.size()];
 			int counter = 0;
@@ -267,7 +267,7 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 			MetricGroup inputGroup,
 			MetricGroup buffersGroup) {
 		synchronized (lock) {
-			Preconditions.checkState(!isShutdown, "The NetworkEnvironment has already been shut down.");
+			Preconditions.checkState(!isShutdown, "The NettyShuffleEnvironment has already been shut down.");
 
 			InputChannelMetrics inputChannelMetrics = new InputChannelMetrics(parentGroup);
 			SingleInputGate[] inputGates = new SingleInputGate[inputGateDeploymentDescriptors.size()];
@@ -331,7 +331,7 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 	@Override
 	public int start() throws IOException {
 		synchronized (lock) {
-			Preconditions.checkState(!isShutdown, "The NetworkEnvironment has already been shut down.");
+			Preconditions.checkState(!isShutdown, "The NettyShuffleEnvironment has already been shut down.");
 
 			LOG.info("Starting the network environment and its components.");
 
@@ -395,7 +395,7 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 		}
 	}
 
-	public static NetworkEnvironment fromConfiguration(
+	public static NettyShuffleEnvironment fromConfiguration(
 			ResourceID taskExecutorLocation,
 			Configuration configuration,
 			TaskEventPublisher taskEventPublisher,
@@ -404,11 +404,11 @@ public class NetworkEnvironment implements ShuffleEnvironment {
 			long maxJvmHeapMemory,
 			boolean localTaskManagerCommunication,
 			InetAddress taskManagerAddress) {
-		final NetworkEnvironmentConfiguration networkConfig = NetworkEnvironmentConfiguration.fromConfiguration(
+		final NettyShuffleEnvironmentConfiguration networkConfig = NettyShuffleEnvironmentConfiguration.fromConfiguration(
 			configuration,
 			maxJvmHeapMemory,
 			localTaskManagerCommunication,
 			taskManagerAddress);
-		return NetworkEnvironment.create(taskExecutorLocation, networkConfig, taskEventPublisher, metricGroup, ioManager);
+		return create(taskExecutorLocation, networkConfig, taskEventPublisher, metricGroup, ioManager);
 	}
 }
