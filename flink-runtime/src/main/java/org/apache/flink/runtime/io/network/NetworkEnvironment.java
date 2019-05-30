@@ -50,7 +50,7 @@ import org.apache.flink.runtime.io.network.partition.consumer.SingleInputGateFac
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.shuffle.NettyShuffleDescriptor;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
-import org.apache.flink.runtime.taskexecutor.TaskExecutor;
+import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.taskmanager.NetworkEnvironmentConfiguration;
 import org.apache.flink.util.Preconditions;
 
@@ -68,10 +68,11 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
- * Network I/O components of each {@link TaskExecutor} instance. The network environment contains
- * the data structures that keep track of all intermediate results and all data exchanges.
+ * The implementation of {@link ShuffleEnvironment} based on netty network communication, local memory and disk files.
+ * The network environment contains the data structures that keep track of all intermediate results
+ * and shuffle data exchanges.
  */
-public class NetworkEnvironment {
+public class NetworkEnvironment implements ShuffleEnvironment {
 
 	private static final Logger LOG = LoggerFactory.getLogger(NetworkEnvironment.class);
 
@@ -213,11 +214,7 @@ public class NetworkEnvironment {
 		return Optional.ofNullable(inputGatesById.get(id));
 	}
 
-	/**
-	 * Batch release intermediate result partitions.
-	 *
-	 * @param partitionIds partition ids to release
-	 */
+	@Override
 	public void releasePartitions(Collection<ResultPartitionID> partitionIds) {
 		for (ResultPartitionID partitionId : partitionIds) {
 			resultPartitionManager.releasePartition(partitionId, null);
@@ -230,6 +227,7 @@ public class NetworkEnvironment {
 	 * @return collection of partitions which still occupy some resources locally on this task executor
 	 * and have been not released yet.
 	 */
+	@Override
 	public Collection<ResultPartitionID> getUnreleasedPartitions() {
 		return resultPartitionManager.getUnreleasedPartitions();
 	}
@@ -238,9 +236,10 @@ public class NetworkEnvironment {
 	//  Create Output Writers and Input Readers
 	// --------------------------------------------------------------------------------------------
 
+	@Override
 	public ResultPartition[] createResultPartitionWriters(
 			String taskName,
-			ExecutionAttemptID executionId,
+			ExecutionAttemptID executionAttemptID,
 			Collection<ResultPartitionDeploymentDescriptor> resultPartitionDeploymentDescriptors,
 			MetricGroup outputGroup,
 			MetricGroup buffersGroup) {
@@ -250,7 +249,7 @@ public class NetworkEnvironment {
 			ResultPartition[] resultPartitions = new ResultPartition[resultPartitionDeploymentDescriptors.size()];
 			int counter = 0;
 			for (ResultPartitionDeploymentDescriptor rpdd : resultPartitionDeploymentDescriptors) {
-				resultPartitions[counter++] = resultPartitionFactory.create(taskName, executionId, rpdd);
+				resultPartitions[counter++] = resultPartitionFactory.create(taskName, executionAttemptID, rpdd);
 			}
 
 			registerOutputMetrics(outputGroup, buffersGroup, resultPartitions);
@@ -258,9 +257,10 @@ public class NetworkEnvironment {
 		}
 	}
 
+	@Override
 	public SingleInputGate[] createInputGates(
 			String taskName,
-			ExecutionAttemptID executionId,
+			ExecutionAttemptID executionAttemptID,
 			PartitionProducerStateProvider partitionProducerStateProvider,
 			Collection<InputGateDeploymentDescriptor> inputGateDeploymentDescriptors,
 			MetricGroup parentGroup,
@@ -278,7 +278,7 @@ public class NetworkEnvironment {
 					igdd,
 					partitionProducerStateProvider,
 					inputChannelMetrics);
-				InputGateID id = new InputGateID(igdd.getConsumedResultId(), executionId);
+				InputGateID id = new InputGateID(igdd.getConsumedResultId(), executionAttemptID);
 				inputGatesById.put(id, inputGate);
 				inputGate.getCloseFuture().thenRun(() -> inputGatesById.remove(id));
 				inputGates[counter++] = inputGate;
@@ -305,16 +305,7 @@ public class NetworkEnvironment {
 		buffersGroup.gauge(METRIC_INPUT_POOL_USAGE, new InputBufferPoolUsageGauge(inputGates));
 	}
 
-	/**
-	 * Update consuming gate with newly available partition.
-	 *
-	 * @param consumerID execution id of consumer to identify belonging to it gate.
-	 * @param partitionInfo telling where the partition can be retrieved from
-	 * @return {@code true} if the partition has been updated or {@code false} if the partition is not available anymore.
-	 * @throws IOException IO problem by the update
-	 * @throws InterruptedException potentially blocking operation was interrupted
-	 * @throws IllegalStateException the input gate with the id from the partitionInfo is not found
-	 */
+	@Override
 	public boolean updatePartitionInfo(
 			ExecutionAttemptID consumerID,
 			PartitionInfo partitionInfo) throws IOException, InterruptedException {
@@ -337,6 +328,7 @@ public class NetworkEnvironment {
 	 *
 	 * @return a port to connect to the task executor for shuffle data exchange, -1 if only local connection is possible.
 	 */
+	@Override
 	public int start() throws IOException {
 		synchronized (lock) {
 			Preconditions.checkState(!isShutdown, "The NetworkEnvironment has already been shut down.");
@@ -355,6 +347,7 @@ public class NetworkEnvironment {
 	/**
 	 * Tries to shut down all network I/O components.
 	 */
+	@Override
 	public void shutdown() {
 		synchronized (lock) {
 			if (isShutdown) {
@@ -403,6 +396,7 @@ public class NetworkEnvironment {
 	}
 
 	public static NetworkEnvironment fromConfiguration(
+			ResourceID taskExecutorLocation,
 			Configuration configuration,
 			TaskEventPublisher taskEventPublisher,
 			MetricGroup metricGroup,
@@ -415,6 +409,6 @@ public class NetworkEnvironment {
 			maxJvmHeapMemory,
 			localTaskManagerCommunication,
 			taskManagerAddress);
-		return NetworkEnvironment.create(networkConfig, taskEventPublisher, metricGroup, ioManager);
+		return NetworkEnvironment.create(taskExecutorLocation, networkConfig, taskEventPublisher, metricGroup, ioManager);
 	}
 }
