@@ -46,7 +46,7 @@ class MiniBatchIntervalInferTest extends TableTestBase {
   def testRedundantWatermarkDefinition(): Unit = {
     util.tableEnv.getConfig.getConf
         .setLong(TableConfigOptions.SQL_EXEC_MINIBATCH_ALLOW_LATENCY, 1000L)
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "MyTable3", util.tableEnv.scan("MyTable1"), "rowtime", 0)
     val sql = "SELECT b, COUNT(DISTINCT a), MAX(b), SUM(c) FROM MyTable3 GROUP BY b"
     util.verifyPlan(sql)
@@ -57,7 +57,7 @@ class MiniBatchIntervalInferTest extends TableTestBase {
     util.tableEnv.getConfig.getConf
         .setLong(TableConfigOptions.SQL_EXEC_MINIBATCH_ALLOW_LATENCY, 1000L)
     util.tableEnv.getConfig.withEarlyFireInterval(Time.milliseconds(500))
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "MyTable3", util.tableEnv.scan("MyTable1"), "rowtime", 0)
     val sql =
       """
@@ -79,7 +79,7 @@ class MiniBatchIntervalInferTest extends TableTestBase {
   def testWindowCascade(): Unit = {
     util.tableEnv.getConfig.getConf
         .setLong(TableConfigOptions.SQL_EXEC_MINIBATCH_ALLOW_LATENCY, 3000L)
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "MyTable3", util.tableEnv.scan("MyTable1"), "rowtime", 0)
     val sql =
       """
@@ -99,9 +99,9 @@ class MiniBatchIntervalInferTest extends TableTestBase {
 
   @Test
   def testWindowJoinWithMiniBatch(): Unit = {
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "LeftT", util.tableEnv.scan("MyTable1"), "rowtime", 0)
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "RightT", util.tableEnv.scan("MyTable2"), "rowtime", 0)
     util.tableEnv.getConfig.getConf.setLong(
       TableConfigOptions.SQL_EXEC_MINIBATCH_ALLOW_LATENCY, 1000L)
@@ -124,7 +124,7 @@ class MiniBatchIntervalInferTest extends TableTestBase {
 
   @Test
   def testRowtimeRowsOverWithMiniBatch(): Unit = {
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "MyTable3", util.tableEnv.scan("MyTable1"), "rowtime", 0)
     util.tableEnv.getConfig.getConf.setLong(
       TableConfigOptions.SQL_EXEC_MINIBATCH_ALLOW_LATENCY, 1000L)
@@ -146,9 +146,9 @@ class MiniBatchIntervalInferTest extends TableTestBase {
   @Test(expected = classOf[NotImplementedError])
   // TODO remove the exception after TableImpl implements createTemporalTableFunction
   def testTemporalTableFunctionJoinWithMiniBatch(): Unit = {
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "Orders", util.tableEnv.scan("MyTable1"), "rowtime", 0)
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "RatesHistory", util.tableEnv.scan("MyTable2"), "rowtime", 0)
 
     util.tableEnv.getConfig.getConf.setLong(
@@ -176,9 +176,9 @@ class MiniBatchIntervalInferTest extends TableTestBase {
   @Test
   def testMultiOperatorNeedsWatermark1(): Unit = {
     // infer result: miniBatchInterval=[Rowtime, 0ms]
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "LeftT", util.tableEnv.scan("MyTable1"), "rowtime", 0)
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "RightT", util.tableEnv.scan("MyTable2"), "rowtime", 0)
     util.tableEnv.getConfig.getConf.setLong(
       TableConfigOptions.SQL_EXEC_MINIBATCH_ALLOW_LATENCY, 1000L)
@@ -204,9 +204,9 @@ class MiniBatchIntervalInferTest extends TableTestBase {
 
   @Test
   def testMultiOperatorNeedsWatermark2(): Unit = {
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "LeftT", util.tableEnv.scan("MyTable1"), "rowtime", 0)
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "RightT", util.tableEnv.scan("MyTable2"), "rowtime", 0)
     util.tableEnv.getConfig.getConf.setLong(
       TableConfigOptions.SQL_EXEC_MINIBATCH_ALLOW_LATENCY, 6000L)
@@ -243,7 +243,7 @@ class MiniBatchIntervalInferTest extends TableTestBase {
 
   @Test
   def testMultiOperatorNeedsWatermark3(): Unit = {
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "RightT", util.tableEnv.scan("MyTable2"), "rowtime", 0)
     util.tableEnv.getConfig.getConf.setLong(
       TableConfigOptions.SQL_EXEC_MINIBATCH_ALLOW_LATENCY, 6000L)

@@ -102,9 +102,9 @@ class ExplainTest(extended: Boolean) extends TableTestBase {
     util.addDataStream[(Int, String)]("T1", 'id1, 'text, 'rowtime)
     util.addDataStream[(Int, String, Int, String, Long)](
       "T2", 'id2, 'cnt, 'name, 'goods, 'rowtime)
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "T3", util.tableEnv.scan("T1"), "rowtime", 0)
-    util.tableEnv.registerTableWithWatermark(
+    util.registerTableWithWatermark(
       "T4", util.tableEnv.scan("T2"), "rowtime", 0)
     util.tableEnv.getConfig.getConf.setLong(
       TableConfigOptions.SQL_EXEC_MINIBATCH_ALLOW_LATENCY, 3000L)

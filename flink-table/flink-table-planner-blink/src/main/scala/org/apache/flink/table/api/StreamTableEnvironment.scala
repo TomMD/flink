@@ -602,41 +602,5 @@ abstract class StreamTableEnvironment(
     withProctime
   }
 
-  /**
-    * Register a table with specific row time field and offset.
-    *
-    * @param tableName table name
-    * @param sourceTable table to register
-    * @param rowtimeField row time field
-    * @param watermarkDelay delay to the row time field value
-    */
-  @VisibleForTesting
-  def registerTableWithWatermark(
-      tableName: String,
-      sourceTable: Table,
-      rowtimeField: String,
-      watermarkDelay: Long): Unit = {
-
-    val sourceRel = sourceTable.asInstanceOf[TableImpl].getRelNode
-    val rowtimeFieldIdx = sourceRel.getRowType.getFieldNames.indexOf(rowtimeField)
-    if (rowtimeFieldIdx < 0) {
-      throw new TableException(s"$rowtimeField does not exist, please check it")
-    }
-
-    registerTable(
-      tableName,
-      new TableImpl(
-        this,
-        new LogicalWatermarkAssigner(
-          sourceRel.getCluster,
-          sourceRel.getTraitSet,
-          sourceRel,
-          Some(rowtimeFieldIdx),
-          Some(watermarkDelay)
-        )
-      )
-    )
-  }
-
 }
 
