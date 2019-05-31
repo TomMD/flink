@@ -100,7 +100,7 @@ public class StringWriter<T> extends StreamWriterBase<T> {
 		return new StringWriter<>(this);
 	}
 
-	String getCharsetName() {
+	public String getCharsetName() {
 		return charsetName;
 	}
 
