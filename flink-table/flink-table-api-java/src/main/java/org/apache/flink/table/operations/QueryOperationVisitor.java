@@ -19,43 +19,33 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.expressions.Expression;
-
-import java.util.Collections;
-import java.util.List;
 
 /**
- * Filters out rows of underlying relational operation that do not match given condition.
+ * Class that implements visitor pattern. It allows type safe logic on top of tree
+ * of {@link QueryOperation}s.
  */
 @Internal
-public class FilterTableOperation implements TableOperation {
+public interface QueryOperationVisitor<T> {
 
-	private final Expression condition;
-	private final TableOperation child;
+	T visitProject(ProjectQueryOperation projection);
 
-	public FilterTableOperation(Expression condition, TableOperation child) {
-		this.condition = condition;
-		this.child = child;
-	}
+	T visitAggregate(AggregateQueryOperation aggregation);
 
-	public Expression getCondition() {
-		return condition;
-	}
+	T visitWindowAggregate(WindowAggregateQueryOperation windowAggregate);
 
-	@Override
-	public TableSchema getTableSchema() {
-		return child.getTableSchema();
-	}
+	T visitJoin(JoinQueryOperation join);
 
-	@Override
-	public List<TableOperation> getChildren() {
-		return Collections.singletonList(child);
-	}
+	T visitSetOperation(SetQueryOperation setOperation);
 
-	@Override
-	public <T> T accept(TableOperationVisitor<T> visitor) {
-		return visitor.visitFilter(this);
-	}
+	T visitFilter(FilterQueryOperation filter);
 
+	T visitDistinct(DistinctQueryOperation distinct);
+
+	T visitSort(SortQueryOperation sort);
+
+	<U> T visitCalculatedTable(CalculatedQueryOperation<U> calculatedTable);
+
+	T visitCatalogTable(CatalogQueryOperation catalogTable);
+
+	T visitOther(QueryOperation other);
 }

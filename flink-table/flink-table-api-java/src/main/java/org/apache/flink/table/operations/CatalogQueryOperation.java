@@ -20,33 +20,26 @@ package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.expressions.Expression;
 
 import java.util.Collections;
 import java.util.List;
 
 /**
- * Table operation that computes new table using given {@link Expression}s
- * from its input relational operation.
+ * Describes a relational operation that was created from a lookup to a catalog.
  */
 @Internal
-public class ProjectTableOperation implements TableOperation {
+public class CatalogQueryOperation implements QueryOperation {
 
-	private final List<Expression> projectList;
-	private final TableOperation child;
+	private final List<String> tablePath;
 	private final TableSchema tableSchema;
 
-	public ProjectTableOperation(
-			List<Expression> projectList,
-			TableOperation child,
-			TableSchema tableSchema) {
-		this.projectList = projectList;
-		this.child = child;
+	public CatalogQueryOperation(List<String> tablePath, TableSchema tableSchema) {
+		this.tablePath = tablePath;
 		this.tableSchema = tableSchema;
 	}
 
-	public List<Expression> getProjectList() {
-		return projectList;
+	public List<String> getTablePath() {
+		return tablePath;
 	}
 
 	@Override
@@ -55,12 +48,12 @@ public class ProjectTableOperation implements TableOperation {
 	}
 
 	@Override
-	public List<TableOperation> getChildren() {
-		return Collections.singletonList(child);
+	public List<QueryOperation> getChildren() {
+		return Collections.emptyList();
 	}
 
 	@Override
-	public <T> T accept(TableOperationVisitor<T> visitor) {
-		return visitor.visitProject(this);
+	public <T> T accept(QueryOperationVisitor<T> visitor) {
+		return visitor.visitCatalogTable(this);
 	}
 }

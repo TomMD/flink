@@ -19,33 +19,27 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.api.Table;
+import org.apache.flink.table.api.TableSchema;
+
+import java.util.List;
 
 /**
- * Class that implements visitor pattern. It allows type safe logic on top of tree
- * of {@link TableOperation}s.
+ * Base class for representing an operation structure behind a user-facing {@link Table} API.
+ *
+ * <p>It represents an operation that can be a node of a relational query. It has a schema, that
+ * can be used to validate a {@link QueryOperation} applied on top of this one.
  */
 @Internal
-public interface TableOperationVisitor<T> {
+public interface QueryOperation extends TableOperation {
 
-	T visitProject(ProjectTableOperation projection);
+	/**
+	 * Resolved schema of this operation. This is the schema of the data
+	 * that will be produced by the {@link QueryOperation}.
+	 */
+	TableSchema getTableSchema();
 
-	T visitAggregate(AggregateTableOperation aggregation);
+	List<QueryOperation> getChildren();
 
-	T visitWindowAggregate(WindowAggregateTableOperation windowAggregate);
-
-	T visitJoin(JoinTableOperation join);
-
-	T visitSetOperation(SetTableOperation setOperation);
-
-	T visitFilter(FilterTableOperation filter);
-
-	T visitDistinct(DistinctTableOperation distinct);
-
-	T visitSort(SortTableOperation sort);
-
-	<U> T visitCalculatedTable(CalculatedTableOperation<U> calculatedTable);
-
-	T visitCatalogTable(CatalogTableOperation catalogTable);
-
-	T visitOther(TableOperation other);
+	<T> T accept(QueryOperationVisitor<T> visitor);
 }

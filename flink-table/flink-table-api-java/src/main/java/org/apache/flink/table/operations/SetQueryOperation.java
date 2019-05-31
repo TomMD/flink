@@ -29,18 +29,18 @@ import java.util.List;
  * data sets/streams. Both relations must have equal schemas.
  */
 @Internal
-public class SetTableOperation implements TableOperation {
+public class SetQueryOperation implements QueryOperation {
 
-	private final TableOperation leftOperation;
-	private final TableOperation rightOperation;
+	private final QueryOperation leftOperation;
+	private final QueryOperation rightOperation;
 
-	private final SetTableOperationType type;
+	private final SetQueryOperationType type;
 	private final boolean all;
 
-	public SetTableOperation(
-			TableOperation leftOperation,
-			TableOperation rightOperation,
-			SetTableOperationType type,
+	public SetQueryOperation(
+			QueryOperation leftOperation,
+			QueryOperation rightOperation,
+			SetQueryOperationType type,
 			boolean all) {
 		this.leftOperation = leftOperation;
 		this.rightOperation = rightOperation;
@@ -56,7 +56,7 @@ public class SetTableOperation implements TableOperation {
 	 *     <li><b>UNION</b> returns records from both relations as a single relation</li>
 	 * </ul>
 	 */
-	public enum SetTableOperationType {
+	public enum SetQueryOperationType {
 		INTERSECT,
 		MINUS,
 		UNION
@@ -68,16 +68,16 @@ public class SetTableOperation implements TableOperation {
 	}
 
 	@Override
-	public <T> T accept(TableOperationVisitor<T> visitor) {
+	public <T> T accept(QueryOperationVisitor<T> visitor) {
 		return visitor.visitSetOperation(this);
 	}
 
 	@Override
-	public List<TableOperation> getChildren() {
+	public List<QueryOperation> getChildren() {
 		return Arrays.asList(leftOperation, rightOperation);
 	}
 
-	public SetTableOperationType getType() {
+	public SetQueryOperationType getType() {
 		return type;
 	}
 

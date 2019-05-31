@@ -25,35 +25,29 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Describes a relational operation that was created from a lookup to a catalog.
+ * Removes duplicated rows of underlying relational operation.
  */
 @Internal
-public class CatalogTableOperation implements TableOperation {
+public class DistinctQueryOperation implements QueryOperation {
 
-	private final List<String> tablePath;
-	private final TableSchema tableSchema;
+	private final QueryOperation child;
 
-	public CatalogTableOperation(List<String> tablePath, TableSchema tableSchema) {
-		this.tablePath = tablePath;
-		this.tableSchema = tableSchema;
-	}
-
-	public List<String> getTablePath() {
-		return tablePath;
+	public DistinctQueryOperation(QueryOperation child) {
+		this.child = child;
 	}
 
 	@Override
 	public TableSchema getTableSchema() {
-		return tableSchema;
+		return child.getTableSchema();
 	}
 
 	@Override
-	public List<TableOperation> getChildren() {
-		return Collections.emptyList();
+	public List<QueryOperation> getChildren() {
+		return Collections.singletonList(child);
 	}
 
 	@Override
-	public <T> T accept(TableOperationVisitor<T> visitor) {
-		return visitor.visitCatalogTable(this);
+	public <T> T accept(QueryOperationVisitor<T> visitor) {
+		return visitor.visitDistinct(this);
 	}
 }

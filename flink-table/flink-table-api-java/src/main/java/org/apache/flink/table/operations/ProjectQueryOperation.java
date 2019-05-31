@@ -26,26 +26,27 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Relational operation that performs computations on top of subsets of input rows grouped by
- * key.
+ * Table operation that computes new table using given {@link Expression}s
+ * from its input relational operation.
  */
 @Internal
-public class AggregateTableOperation implements TableOperation {
+public class ProjectQueryOperation implements QueryOperation {
 
-	private final List<Expression> groupingExpressions;
-	private final List<Expression> aggregateExpressions;
-	private final TableOperation child;
+	private final List<Expression> projectList;
+	private final QueryOperation child;
 	private final TableSchema tableSchema;
 
-	public AggregateTableOperation(
-			List<Expression> groupingExpressions,
-			List<Expression> aggregateExpressions,
-			TableOperation child,
+	public ProjectQueryOperation(
+			List<Expression> projectList,
+			QueryOperation child,
 			TableSchema tableSchema) {
-		this.groupingExpressions = groupingExpressions;
-		this.aggregateExpressions = aggregateExpressions;
+		this.projectList = projectList;
 		this.child = child;
 		this.tableSchema = tableSchema;
+	}
+
+	public List<Expression> getProjectList() {
+		return projectList;
 	}
 
 	@Override
@@ -53,21 +54,13 @@ public class AggregateTableOperation implements TableOperation {
 		return tableSchema;
 	}
 
-	public List<Expression> getGroupingExpressions() {
-		return groupingExpressions;
-	}
-
-	public List<Expression> getAggregateExpressions() {
-		return aggregateExpressions;
-	}
-
 	@Override
-	public List<TableOperation> getChildren() {
+	public List<QueryOperation> getChildren() {
 		return Collections.singletonList(child);
 	}
 
 	@Override
-	public <T> T accept(TableOperationVisitor<T> visitor) {
-		return visitor.visitAggregate(this);
+	public <T> T accept(QueryOperationVisitor<T> visitor) {
+		return visitor.visitProject(this);
 	}
 }

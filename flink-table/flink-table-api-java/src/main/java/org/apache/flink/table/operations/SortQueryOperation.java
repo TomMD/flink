@@ -19,60 +19,65 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.expressions.Expression;
-import org.apache.flink.table.functions.TableFunction;
 
 import java.util.Collections;
 import java.util.List;
 
 /**
- * Describes a relational operation that was created from applying a {@link TableFunction}.
+ * Expresses sort operation of rows of the underlying relational operation with given order.
+ * It also allows specifying offset and number of rows to fetch from the sorted data set/stream.
  */
 @Internal
-public class CalculatedTableOperation<T> implements TableOperation {
+public class SortQueryOperation implements QueryOperation {
 
-	private final TableFunction<T> tableFunction;
-	private final List<Expression> parameters;
-	private final TypeInformation<T> resultType;
-	private final TableSchema tableSchema;
+	private final List<Expression> order;
+	private final QueryOperation child;
+	private final int offset;
+	private final int fetch;
 
-	public CalculatedTableOperation(
-			TableFunction<T> tableFunction,
-			List<Expression> parameters,
-			TypeInformation<T> resultType,
-			TableSchema tableSchema) {
-		this.tableFunction = tableFunction;
-		this.parameters = parameters;
-		this.resultType = resultType;
-		this.tableSchema = tableSchema;
+	public SortQueryOperation(
+			List<Expression> order,
+			QueryOperation child) {
+		this(order, child, -1, -1);
 	}
 
-	public TableFunction<T> getTableFunction() {
-		return tableFunction;
+	public SortQueryOperation(List<Expression> order, QueryOperation child, int offset, int fetch) {
+		this.order = order;
+		this.child = child;
+		this.offset = offset;
+		this.fetch = fetch;
 	}
 
-	public List<Expression> getParameters() {
-		return parameters;
+	public List<Expression> getOrder() {
+		return order;
 	}
 
-	public TypeInformation<T> getResultType() {
-		return resultType;
+	public QueryOperation getChild() {
+		return child;
+	}
+
+	public int getOffset() {
+		return offset;
+	}
+
+	public int getFetch() {
+		return fetch;
 	}
 
 	@Override
 	public TableSchema getTableSchema() {
-		return tableSchema;
+		return child.getTableSchema();
 	}
 
 	@Override
-	public List<TableOperation> getChildren() {
-		return Collections.emptyList();
+	public List<QueryOperation> getChildren() {
+		return Collections.singletonList(child);
 	}
 
 	@Override
-	public <U> U accept(TableOperationVisitor<U> visitor) {
-		return visitor.visitCalculatedTable(this);
+	public <T> T accept(QueryOperationVisitor<T> visitor) {
+		return visitor.visitSort(this);
 	}
 }
