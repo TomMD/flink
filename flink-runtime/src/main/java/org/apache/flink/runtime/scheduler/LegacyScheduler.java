@@ -526,11 +526,13 @@ public class LegacyScheduler implements SchedulerNG {
 			checkpointId,
 			checkpointMetrics,
 			checkpointState);
+		final Execution currentExecution = executionGraph.getRegisteredExecutions().get(executionAttemptID);
 
 		if (checkpointCoordinator != null) {
 			ioExecutor.execute(() -> {
 				try {
-					checkpointCoordinator.receiveAcknowledgeMessage(ackMessage);
+					checkpointCoordinator.receiveAcknowledgeMessage(ackMessage,
+						currentExecution != null ? currentExecution.getAssignedResourceLocation() : null);
 				} catch (Throwable t) {
 					log.warn("Error while processing checkpoint acknowledgement message", t);
 				}
@@ -550,11 +552,13 @@ public class LegacyScheduler implements SchedulerNG {
 		mainThreadExecutor.assertRunningInMainThread();
 
 		final CheckpointCoordinator checkpointCoordinator = executionGraph.getCheckpointCoordinator();
+		final Execution currentExecution = executionGraph.getRegisteredExecutions().get(decline.getTaskExecutionId());
 
 		if (checkpointCoordinator != null) {
 			ioExecutor.execute(() -> {
 				try {
-					checkpointCoordinator.receiveDeclineMessage(decline);
+					checkpointCoordinator.receiveDeclineMessage(decline,
+						currentExecution != null ? currentExecution.getAssignedResourceLocation() : null);
 				} catch (Exception e) {
 					log.error("Error in CheckpointCoordinator while processing {}", decline, e);
 				}

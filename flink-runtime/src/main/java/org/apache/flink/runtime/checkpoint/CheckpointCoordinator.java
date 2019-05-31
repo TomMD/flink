@@ -42,6 +42,7 @@ import org.apache.flink.runtime.state.SharedStateRegistry;
 import org.apache.flink.runtime.state.SharedStateRegistryFactory;
 import org.apache.flink.runtime.state.StateBackend;
 import org.apache.flink.runtime.taskmanager.DispatcherThreadFactory;
+import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.StringUtils;
@@ -723,14 +724,22 @@ public class CheckpointCoordinator {
 	 * Receives a {@link DeclineCheckpoint} message for a pending checkpoint.
 	 *
 	 * @param message Checkpoint decline from the task manager
+	 * @param taskManagerLocation The location of the decline checkpoint message's sender
 	 */
-	public void receiveDeclineMessage(DeclineCheckpoint message) {
+	public void receiveDeclineMessage(DeclineCheckpoint message, TaskManagerLocation taskManagerLocation) {
 		if (shutdown || message == null) {
 			return;
 		}
+
+		if (taskManagerLocation == null) {
+			throw new IllegalArgumentException("Received DeclineCheckpoint message " + message.getCheckpointId() +
+				" by task " + message.getTaskExecutionId() + " of job " +
+				message.getJob() + " while can not find the task's location information ");
+		}
+
 		if (!job.equals(message.getJob())) {
 			throw new IllegalArgumentException("Received DeclineCheckpoint message for job " +
-				message.getJob() + " while this coordinator handles job " + job);
+				message.getJob() + " at " + taskManagerLocation + " while this coordinator handles job " + job);
 		}
 
 		final long checkpointId = message.getCheckpointId();
@@ -748,7 +757,11 @@ public class CheckpointCoordinator {
 			checkpoint = pendingCheckpoints.remove(checkpointId);
 
 			if (checkpoint != null && !checkpoint.isDiscarded()) {
-				LOG.info("Decline checkpoint {} by task {} of job {}.", checkpointId, message.getTaskExecutionId(), job);
+				LOG.info("Decline checkpoint {} by task {} of job {} at {}.",
+					checkpointId,
+					message.getTaskExecutionId(),
+					job,
+					taskManagerLocation);
 				discardCheckpoint(checkpoint, message.getReason());
 			}
 			else if (checkpoint != null) {
@@ -759,12 +772,12 @@ public class CheckpointCoordinator {
 			else if (LOG.isDebugEnabled()) {
 				if (recentPendingCheckpoints.contains(checkpointId)) {
 					// message is for an unknown checkpoint, or comes too late (checkpoint disposed)
-					LOG.debug("Received another decline message for now expired checkpoint attempt {} of job {} : {}",
-							checkpointId, job, reason);
+					LOG.debug("Received another decline message for now expired checkpoint attempt {} of job {} at {} : {}",
+							checkpointId, job, taskManagerLocation, reason);
 				} else {
 					// message is for an unknown checkpoint. might be so old that we don't even remember it any more
-					LOG.debug("Received decline message for unknown (too old?) checkpoint attempt {} of job {} : {}",
-							checkpointId, job, reason);
+					LOG.debug("Received decline message for unknown (too old?) checkpoint attempt {} of job {} at {} : {}",
+							checkpointId, job, taskManagerLocation, reason);
 				}
 			}
 		}
@@ -776,13 +789,19 @@ public class CheckpointCoordinator {
 	 *
 	 * @param message Checkpoint ack from the task manager
 	 *
+	 * @param taskManagerLocation The location of the acknowledge checkpoint message's sender
 	 * @return Flag indicating whether the ack'd checkpoint was associated
 	 * with a pending checkpoint.
 	 *
 	 * @throws CheckpointException If the checkpoint cannot be added to the completed checkpoint store.
 	 */
-	public boolean receiveAcknowledgeMessage(AcknowledgeCheckpoint message) throws CheckpointException {
+	public boolean receiveAcknowledgeMessage(AcknowledgeCheckpoint message, TaskManagerLocation taskManagerLocation) throws CheckpointException {
 		if (shutdown || message == null) {
+			return false;
+		}
+
+		if (taskManagerLocation == null) {
+			LOG.error("Received AcknowledgeCheckpoint message for job {}: {} while can not find the task's location information", job, message);
 			return false;
 		}
 
@@ -806,31 +825,31 @@ public class CheckpointCoordinator {
 
 				switch (checkpoint.acknowledgeTask(message.getTaskExecutionId(), message.getSubtaskState(), message.getCheckpointMetrics())) {
 					case SUCCESS:
-						LOG.debug("Received acknowledge message for checkpoint {} from task {} of job {}.",
-							checkpointId, message.getTaskExecutionId(), message.getJob());
+						LOG.debug("Received acknowledge message for checkpoint {} from task {} of job {} at {}.",
+							checkpointId, message.getTaskExecutionId(), message.getJob(), taskManagerLocation);
 
 						if (checkpoint.isFullyAcknowledged()) {
 							completePendingCheckpoint(checkpoint);
 						}
 						break;
 					case DUPLICATE:
-						LOG.debug("Received a duplicate acknowledge message for checkpoint {}, task {}, job {}.",
-							message.getCheckpointId(), message.getTaskExecutionId(), message.getJob());
+						LOG.debug("Received a duplicate acknowledge message for checkpoint {}, task {}, job {}, location {}.",
+							message.getCheckpointId(), message.getTaskExecutionId(), message.getJob(), taskManagerLocation);
 						break;
 					case UNKNOWN:
-						LOG.warn("Could not acknowledge the checkpoint {} for task {} of job {}, " +
+						LOG.warn("Could not acknowledge the checkpoint {} for task {} of job {} at {}, " +
 								"because the task's execution attempt id was unknown. Discarding " +
 								"the state handle to avoid lingering state.", message.getCheckpointId(),
-							message.getTaskExecutionId(), message.getJob());
+							message.getTaskExecutionId(), message.getJob(), taskManagerLocation);
 
 						discardSubtaskState(message.getJob(), message.getTaskExecutionId(), message.getCheckpointId(), message.getSubtaskState());
 
 						break;
 					case DISCARDED:
-						LOG.warn("Could not acknowledge the checkpoint {} for task {} of job {}, " +
+						LOG.warn("Could not acknowledge the checkpoint {} for task {} of job {} at {}, " +
 							"because the pending checkpoint had been discarded. Discarding the " +
 								"state handle tp avoid lingering state.",
-							message.getCheckpointId(), message.getTaskExecutionId(), message.getJob());
+							message.getCheckpointId(), message.getTaskExecutionId(), message.getJob(), taskManagerLocation);
 
 						discardSubtaskState(message.getJob(), message.getTaskExecutionId(), message.getCheckpointId(), message.getSubtaskState());
 				}
@@ -849,11 +868,11 @@ public class CheckpointCoordinator {
 				if (recentPendingCheckpoints.contains(checkpointId)) {
 					wasPendingCheckpoint = true;
 					LOG.warn("Received late message for now expired checkpoint attempt {} from " +
-						"{} of job {}.", checkpointId, message.getTaskExecutionId(), message.getJob());
+						"{} of job {} at {}.", checkpointId, message.getTaskExecutionId(), message.getJob(), taskManagerLocation);
 				}
 				else {
-					LOG.debug("Received message for an unknown checkpoint {} from {} of job {}.",
-						checkpointId, message.getTaskExecutionId(), message.getJob());
+					LOG.debug("Received message for an unknown checkpoint {} from {} of job {} at {}.",
+						checkpointId, message.getTaskExecutionId(), message.getJob(), taskManagerLocation);
 					wasPendingCheckpoint = false;
 				}
 
