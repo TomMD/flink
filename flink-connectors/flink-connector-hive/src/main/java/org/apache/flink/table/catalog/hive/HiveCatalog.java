@@ -90,8 +90,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A catalog implementation for Hive.
  */
 public class HiveCatalog extends AbstractCatalog {
+	// Default database of Hive metastore
+	public static final String DEFAULT_DB = "default";
+
 	private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
-	private static final String DEFAULT_DB = "default";
 	private static final StorageFormatFactory storageFormatFactory = new StorageFormatFactory();
 	private static final String DEFAULT_HIVE_TABLE_STORAGE_FORMAT = "TextFile";
 
@@ -124,7 +126,7 @@ public class HiveCatalog extends AbstractCatalog {
 		LOG.info("Created HiveCatalog '{}'", catalogName);
 	}
 
-	private static HiveConf getHiveConf(String hiveMetastoreURI) {
+	public static HiveConf getHiveConf(String hiveMetastoreURI) {
 		checkArgument(!StringUtils.isNullOrWhitespaceOnly(hiveMetastoreURI), "hiveMetastoreURI cannot be null or empty");
 
 		HiveConf hiveConf = new HiveConf();

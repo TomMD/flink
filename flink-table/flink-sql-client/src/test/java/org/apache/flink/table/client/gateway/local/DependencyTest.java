@@ -24,6 +24,9 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.Types;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.GenericInMemoryCatalog;
+import org.apache.flink.table.catalog.exceptions.CatalogException;
+import org.apache.flink.table.catalog.hive.HiveCatalog;
+import org.apache.flink.table.catalog.hive.factories.HiveCatalogFactory;
 import org.apache.flink.table.client.config.Environment;
 import org.apache.flink.table.client.gateway.SessionContext;
 import org.apache.flink.table.client.gateway.utils.EnvironmentFileUtil;
@@ -32,6 +35,7 @@ import org.apache.flink.table.client.gateway.utils.TestTableSourceFactoryBase;
 import org.apache.flink.table.descriptors.DescriptorProperties;
 import org.apache.flink.table.factories.CatalogFactory;
 
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.junit.Test;
 
 import java.net.URL;
@@ -44,6 +48,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.apache.flink.table.descriptors.CatalogDescriptorValidator.CATALOG_DEFAULT_DATABASE;
+import static org.apache.flink.table.descriptors.CatalogDescriptorValidator.CATALOG_PROPERTIES;
 import static org.apache.flink.table.descriptors.CatalogDescriptorValidator.CATALOG_TYPE;
 import static org.junit.Assert.assertEquals;
 
@@ -112,7 +117,7 @@ public class DependencyTest {
 	}
 
 	/**
-	 * External catalog that can be discovered if classloading is correct.
+	 * Catalog that can be discovered if classloading is correct.
 	 */
 	public static class TestCatalogFactory implements CatalogFactory {
 
@@ -126,7 +131,6 @@ public class DependencyTest {
 		@Override
 		public List<String> supportedProperties() {
 			final List<String> properties = new ArrayList<>();
-			properties.add(TEST_PROPERTY);
 			properties.add(CATALOG_DEFAULT_DATABASE);
 			return properties;
 		}
@@ -148,6 +152,52 @@ public class DependencyTest {
 	public static class TestCatalog extends GenericInMemoryCatalog {
 		public TestCatalog(String name, String defaultDatabase) {
 			super(name, defaultDatabase);
+		}
+	}
+
+	/**
+	 * A testing catalog for Hivecatalog. In unit test, since there's no Hive metastore
+	 * for the catalog to connect to, we override the open and close methods to not setup any connection.
+	 */
+	public static class TestHiveCatalog extends HiveCatalog {
+		private static final String EXPECTED_TESTING_HIVE_METASTORE_URIS = "thrift://test";
+
+		public TestHiveCatalog(String catalogName, String defaultDatabase, HiveConf hiveConf) {
+			super(catalogName, defaultDatabase, hiveConf);
+
+			assertEquals(
+				EXPECTED_TESTING_HIVE_METASTORE_URIS,
+				hiveConf.getVar(HiveConf.ConfVars.METASTOREURIS));
+		}
+
+		@Override
+		public void open() throws CatalogException {
+			// do nothing
+		}
+
+		@Override
+		public void close() throws CatalogException {
+			// do nothing
+		}
+	}
+
+	/**
+	 * A test factory that is the same as {@link HiveCatalogFactory}
+	 * except returning a {@link TestHiveCatalog}, to test logic of {@link HiveCatalogFactory}.
+	 */
+	public static class TestHiveCatalogFactory extends HiveCatalogFactory {
+		@Override
+		public Map<String, String> requiredContext() {
+			Map<String, String> context = super.requiredContext();
+
+			// For factory discovery service to distinguish TestHiveCatalogFactory from HiveCatalogFactory
+			context.put(CATALOG_PROPERTIES + ".test", "test");
+			return context;
+		}
+
+		@Override
+		protected HiveCatalog createHiveCatalog(String name, String defaultDatabase, HiveConf hiveConf) {
+			return new TestHiveCatalog(name, defaultDatabase, hiveConf);
 		}
 	}
 }
