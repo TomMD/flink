@@ -117,6 +117,30 @@ public final class ConfigConstants {
 	@PublicEvolving
 	public static final String EXECUTION_RETRY_DELAY_KEY = "execution-retries.delay";
 
+	/**
+	 * Maximum number of failures in given time interval {@link #RESTART_BACKOFF_TIME_STRATEGY_FAILURE_RATE_FAILURE_RATE_INTERVAL}
+	 * before failing a job in FailureRateRestartBackoffTimeStrategy.
+	 */
+	@PublicEvolving
+	public static final ConfigOption<Integer> RESTART_BACKOFF_TIME_STRATEGY_FAILURE_RATE_MAX_FAILURES_PER_INTERVAL =
+		key("restart-backoff-time-strategy.failure-rate.max-failures-per-interval").defaultValue(1);
+
+	/**
+	 * Time interval in which greater amount of failures than {@link #RESTART_BACKOFF_TIME_STRATEGY_FAILURE_RATE_MAX_FAILURES_PER_INTERVAL}
+	 * causes job fail in FailureRateRestartBackoffTimeStrategy. It can be specified using Scala's FiniteDuration notation: "1 min", "20 s"
+	 */
+	@PublicEvolving
+	public static final ConfigOption<String> RESTART_BACKOFF_TIME_STRATEGY_FAILURE_RATE_FAILURE_RATE_INTERVAL =
+		key("restart-backoff-time-strategy.failure-rate.failure-rate-interval").defaultValue("1 min");
+
+	/**
+	 * Backoff time between two consecutive restart attempts in FailureRateRestartBackoffTimeStrategy.
+	 * It can be specified using Scala's FiniteDuration notation: "1 min", "20 s".
+	 */
+	@PublicEvolving
+	public static final ConfigOption<String> RESTART_BACKOFF_TIME_STRATEGY_RESTART_BACKOFF_TIME =
+		key("restart-backoff-time-strategy.restart.backoff.time").defaultValue("1 min");
+
 	// -------------------------------- Runtime -------------------------------
 
 	/**
