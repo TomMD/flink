@@ -27,6 +27,7 @@ import org.apache.flink.runtime.deployment.InputGateDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
+import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.io.network.buffer.NetworkBufferPool;
 import org.apache.flink.runtime.io.network.metrics.InputBufferPoolUsageGauge;
 import org.apache.flink.runtime.io.network.metrics.InputBuffersGauge;
@@ -172,6 +173,7 @@ public class NetworkEnvironment {
 	//  Properties
 	// --------------------------------------------------------------------------------------------
 
+	@VisibleForTesting
 	public ResultPartitionManager getResultPartitionManager() {
 		return resultPartitionManager;
 	}
@@ -199,6 +201,28 @@ public class NetworkEnvironment {
 		for (ResultPartitionID partitionId : partitionIds) {
 			resultPartitionManager.releasePartition(partitionId, null);
 		}
+	}
+
+	/**
+	 * Report unreleased partitions.
+	 *
+	 * <p>Partitions are released in the following cases:
+	 * <ol>
+	 *     <li>{@link ResultPartitionWriter#fail(Throwable)} and {@link ResultPartitionWriter#close()} are called
+	 *     if the production has failed.</li>
+	 *     <li>{@link ResultPartitionWriter#finish()} and {@link ResultPartitionWriter#close()} are called
+	 *     if the production is done. The actual release can take some time
+	 *     if 'the end of consumption' confirmation is being awaited implicitly
+	 *     or the partition is later released by {@code releasePartitions(Collection<ResultPartitionID>)}.</li>
+	 *     <li>{@code releasePartitions(Collection<ResultPartitionID>)} is called,
+	 *     e.g. when the production is done but the final release happens externally.</li>
+	 * </ol>
+	 *
+	 * @return collection of partitions which still occupy some resources locally on this task executor
+	 * and have been not released yet.
+	 */
+	public Collection<ResultPartitionID> getUnreleasedPartitions() {
+		return resultPartitionManager.getUnreleasedPartitions();
 	}
 
 	// --------------------------------------------------------------------------------------------
