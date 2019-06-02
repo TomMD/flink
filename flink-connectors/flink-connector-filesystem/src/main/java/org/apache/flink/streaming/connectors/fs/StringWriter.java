@@ -40,12 +40,17 @@ public class StringWriter<T> extends StreamWriterBase<T> {
 
 	private transient Charset charset;
 
+	private String rowDelimiter;
+
+	private byte[] rowDelimiterBytes;
+
+
 	/**
 	 * Creates a new {@code StringWriter} that uses {@code "UTF-8"} charset to convert
 	 * strings to bytes.
 	 */
 	public StringWriter() {
-		this("UTF-8");
+		this("UTF-8", "\n");
 	}
 
 	/**
@@ -54,13 +59,15 @@ public class StringWriter<T> extends StreamWriterBase<T> {
 	 *
 	 * @param charsetName Name of the charset to be used, must be valid input for {@code Charset.forName(charsetName)}
 	 */
-	public StringWriter(String charsetName) {
+	public StringWriter(String charsetName, String rowDelimiter) {
 		this.charsetName = charsetName;
+		this.rowDelimiter = rowDelimiter;
 	}
 
 	protected StringWriter(StringWriter<T> other) {
 		super(other);
 		this.charsetName = other.charsetName;
+		this.rowDelimiter = other.rowDelimiter;
 	}
 
 	@Override
@@ -82,7 +89,10 @@ public class StringWriter<T> extends StreamWriterBase<T> {
 	public void write(T element) throws IOException {
 		FSDataOutputStream outputStream = getStream();
 		outputStream.write(element.toString().getBytes(charset));
-		outputStream.write('\n');
+		if (rowDelimiterBytes == null) {
+			rowDelimiterBytes = rowDelimiter.getBytes(charset);
+		}
+		outputStream.write(rowDelimiterBytes);
 	}
 
 	@Override
@@ -90,7 +100,11 @@ public class StringWriter<T> extends StreamWriterBase<T> {
 		return new StringWriter<>(this);
 	}
 
-	String getCharsetName() {
+	public String getCharsetName() {
 		return charsetName;
+	}
+
+	public String getRowDelimiter() {
+		return rowDelimiter;
 	}
 }
