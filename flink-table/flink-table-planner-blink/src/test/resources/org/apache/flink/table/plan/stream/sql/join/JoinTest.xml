@@ -344,10 +344,12 @@ LogicalProject(a1=[$0], b1=[$3])
 Join(joinType=[InnerJoin], where=[=(a1, b1)], select=[a1, b1], updateAsRetraction=[false], accMode=[Acc])
 :- Exchange(distribution=[hash[a1]], updateAsRetraction=[true], accMode=[Acc])
 :  +- Calc(select=[a1], updateAsRetraction=[true], accMode=[Acc])
-:     +- TableSourceScan(table=[[A, source: [TestTableSource(a1, a2, a3)]]], fields=[a1, a2, a3], updateAsRetraction=[true], accMode=[Acc])
+:     +- WatermarkAssigner(fields=[a1, a2, a3], miniBatchInterval=[Proctime, 1000ms], updateAsRetraction=[true], accMode=[Acc])
+:        +- TableSourceScan(table=[[A, source: [TestTableSource(a1, a2, a3)]]], fields=[a1, a2, a3], updateAsRetraction=[true], accMode=[Acc])
 +- Exchange(distribution=[hash[b1]], updateAsRetraction=[true], accMode=[Acc])
    +- Calc(select=[b1], updateAsRetraction=[true], accMode=[Acc])
-      +- TableSourceScan(table=[[B, source: [TestTableSource(b1, b2, b3)]]], fields=[b1, b2, b3], updateAsRetraction=[true], accMode=[Acc])
+      +- WatermarkAssigner(fields=[b1, b2, b3], miniBatchInterval=[Proctime, 1000ms], updateAsRetraction=[true], accMode=[Acc])
+         +- TableSourceScan(table=[[B, source: [TestTableSource(b1, b2, b3)]]], fields=[b1, b2, b3], updateAsRetraction=[true], accMode=[Acc])
 ]]>
     </Resource>
   </TestCase>

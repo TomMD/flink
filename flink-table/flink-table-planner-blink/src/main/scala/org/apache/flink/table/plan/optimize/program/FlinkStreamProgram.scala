@@ -18,10 +18,11 @@
 
 package org.apache.flink.table.plan.optimize.program
 
-import org.apache.calcite.plan.hep.HepMatchOrder
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.rules.FlinkStreamRuleSets
+
+import org.apache.calcite.plan.hep.HepMatchOrder
 
 /**
   * Defines a sequence of programs to optimize for stream table plan.
@@ -160,6 +161,14 @@ object FlinkStreamProgram {
             .setHepMatchOrder(HepMatchOrder.BOTTOM_UP)
             .add(FlinkStreamRuleSets.RETRACTION_RULES)
             .build(), "retraction rules")
+        .addProgram(new FlinkMiniBatchIntervalTraitInitProgram,
+          "Initialization for mini-batch interval inference")
+        .addProgram(
+          FlinkHepRuleSetProgramBuilder.newBuilder
+            .setHepRulesExecutionType(HEP_RULES_EXECUTION_TYPE.RULE_SEQUENCE)
+            .setHepMatchOrder(HepMatchOrder.TOP_DOWN)
+            .add(FlinkStreamRuleSets.MINI_BATCH_RULES)
+            .build(), "mini-batch interval rules")
         .addProgram(
           FlinkHepRuleSetProgramBuilder.newBuilder
             .setHepRulesExecutionType(HEP_RULES_EXECUTION_TYPE.RULE_COLLECTION)

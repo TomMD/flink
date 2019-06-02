@@ -31,10 +31,11 @@ import org.apache.flink.table.api.scala.{BatchTableEnvironment => ScalaBatchTabl
 import org.apache.flink.table.calcite.CalciteConfig
 import org.apache.flink.table.dataformat.BaseRow
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction}
+import org.apache.flink.table.plan.nodes.calcite.LogicalWatermarkAssigner
 import org.apache.flink.table.plan.nodes.exec.ExecNode
 import org.apache.flink.table.plan.optimize.program.{FlinkBatchProgram, FlinkStreamProgram}
 import org.apache.flink.table.plan.schema.{BatchTableSourceTable, StreamTableSourceTable}
-import org.apache.flink.table.plan.stats.{FlinkStatistic, TableStats}
+import org.apache.flink.table.plan.stats.FlinkStatistic
 import org.apache.flink.table.plan.util.{ExecNodePlanDumper, FlinkRelOptUtil}
 import org.apache.flink.table.runtime.utils.{BatchTableEnvUtil, TestingAppendTableSink, TestingRetractTableSink, TestingUpsertTableSink}
 import org.apache.flink.table.sinks.{AppendStreamTableSink, CollectRowTableSink, RetractStreamTableSink, TableSink, UpsertStreamTableSink}
@@ -48,8 +49,6 @@ import org.apache.commons.lang3.SystemUtils
 import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Rule
 import org.junit.rules.{ExpectedException, TestName}
-
-import _root_.java.util.{Set => JSet}
 
 import _root_.scala.collection.JavaConversions._
 
@@ -483,6 +482,41 @@ case class StreamTableTestUtil(test: TableTestBase) extends TableTestUtil(test) 
     val table = new StreamTableSourceTable[BaseRow](tableSource, statistic)
     tableEnv.registerTableInternal(name, table)
     tableEnv.scan(name)
+  }
+
+  /**
+    * Register a table with specific row time field and offset.
+    *
+    * @param tableName table name
+    * @param sourceTable table to register
+    * @param rowtimeField row time field
+    * @param watermarkDelay delay to the row time field value
+    */
+  def registerTableWithWatermark(
+      tableName: String,
+      sourceTable: Table,
+      rowtimeField: String,
+      watermarkDelay: Long): Unit = {
+
+    val sourceRel = sourceTable.asInstanceOf[TableImpl].getRelNode
+    val rowtimeFieldIdx = sourceRel.getRowType.getFieldNames.indexOf(rowtimeField)
+    if (rowtimeFieldIdx < 0) {
+      throw new TableException(s"$rowtimeField does not exist, please check it")
+    }
+
+    tableEnv.registerTable(
+      tableName,
+      new TableImpl(
+        tableEnv,
+        new LogicalWatermarkAssigner(
+          sourceRel.getCluster,
+          sourceRel.getTraitSet,
+          sourceRel,
+          Some(rowtimeFieldIdx),
+          Some(watermarkDelay)
+        )
+      )
+    )
   }
 
   def verifyPlanWithTrait(): Unit = {
