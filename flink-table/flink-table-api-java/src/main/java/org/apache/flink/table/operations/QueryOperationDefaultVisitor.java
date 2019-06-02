@@ -21,67 +21,82 @@ package org.apache.flink.table.operations;
 import org.apache.flink.annotation.Internal;
 
 /**
- * A utility {@link TableOperationVisitor} that calls
- * {@link TableOperationDefaultVisitor#defaultMethod(TableOperation)}
+ * A utility {@link QueryOperationVisitor} that calls
+ * {@link QueryOperationDefaultVisitor#defaultMethod(QueryOperation)}
  * by default, unless other methods are overridden explicitly.
  */
 @Internal
-public abstract class TableOperationDefaultVisitor<T> implements TableOperationVisitor<T> {
+public abstract class QueryOperationDefaultVisitor<T> implements QueryOperationVisitor<T> {
 
 	@Override
-	public T visitProject(ProjectTableOperation projection) {
+	public T visitProject(ProjectQueryOperation projection) {
 		return defaultMethod(projection);
 	}
 
 	@Override
-	public T visitAggregate(AggregateTableOperation aggregation) {
+	public T visitAggregate(AggregateQueryOperation aggregation) {
 		return defaultMethod(aggregation);
 	}
 
 	@Override
-	public T visitWindowAggregate(WindowAggregateTableOperation windowAggregate) {
+	public T visitWindowAggregate(WindowAggregateQueryOperation windowAggregate) {
 		return defaultMethod(windowAggregate);
 	}
 
 	@Override
-	public T visitJoin(JoinTableOperation join) {
+	public T visitJoin(JoinQueryOperation join) {
 		return defaultMethod(join);
 	}
 
 	@Override
-	public T visitSetOperation(SetTableOperation setOperation) {
+	public T visitSetOperation(SetQueryOperation setOperation) {
 		return defaultMethod(setOperation);
 	}
 
 	@Override
-	public T visitFilter(FilterTableOperation filter) {
+	public T visitFilter(FilterQueryOperation filter) {
 		return defaultMethod(filter);
 	}
 
 	@Override
-	public T visitDistinct(DistinctTableOperation distinct) {
+	public T visitDistinct(DistinctQueryOperation distinct) {
 		return defaultMethod(distinct);
 	}
 
 	@Override
-	public T visitSort(SortTableOperation sort) {
+	public T visitSort(SortQueryOperation sort) {
 		return defaultMethod(sort);
 	}
 
 	@Override
-	public T visitCalculatedTable(CalculatedTableOperation calculatedTable) {
+	public T visitCalculatedTable(CalculatedQueryOperation calculatedTable) {
 		return defaultMethod(calculatedTable);
 	}
 
 	@Override
-	public T visitCatalogTable(CatalogTableOperation catalogTable) {
+	public T visitCatalogTable(CatalogQueryOperation catalogTable) {
 		return defaultMethod(catalogTable);
 	}
 
 	@Override
-	public T visitOther(TableOperation other) {
+	public T visitCatalogSink(CatalogSinkOperation catalogSink) {
+		return defaultMethod(catalogSink);
+	}
+
+	@Override
+	public <U> T visitInlineSink(UnregisteredSinkOperation<U> inlineSink) {
+		return defaultMethod(inlineSink);
+	}
+
+	@Override
+	public <U> T visitOutputConversion(OutputConversionOperation<U> outputConversion) {
+		return defaultMethod(outputConversion);
+	}
+
+	@Override
+	public T visitOther(QueryOperation other) {
 		return defaultMethod(other);
 	}
 
-	public abstract T defaultMethod(TableOperation other);
+	public abstract T defaultMethod(QueryOperation other);
 }

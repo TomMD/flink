@@ -30,9 +30,9 @@ import java.util.List;
  * Table operation that joins two relational operations based on given condition.
  */
 @Internal
-public class JoinTableOperation implements TableOperation {
-	private final TableOperation left;
-	private final TableOperation right;
+public class JoinQueryOperation implements QueryOperation {
+	private final QueryOperation left;
+	private final QueryOperation right;
 	private final JoinType joinType;
 	private final Expression condition;
 	private final boolean correlated;
@@ -48,9 +48,9 @@ public class JoinTableOperation implements TableOperation {
 		FULL_OUTER
 	}
 
-	public JoinTableOperation(
-			TableOperation left,
-			TableOperation right,
+	public JoinQueryOperation(
+			QueryOperation left,
+			QueryOperation right,
 			JoinType joinType,
 			Expression condition,
 			boolean correlated) {
@@ -63,7 +63,7 @@ public class JoinTableOperation implements TableOperation {
 		this.tableSchema = calculateResultingSchema(left, right);
 	}
 
-	private TableSchema calculateResultingSchema(TableOperation left, TableOperation right) {
+	private TableSchema calculateResultingSchema(QueryOperation left, QueryOperation right) {
 		TableSchema leftSchema = left.getTableSchema();
 		TableSchema rightSchema = right.getTableSchema();
 		int resultingSchemaSize = leftSchema.getFieldCount() + rightSchema.getFieldCount();
@@ -106,12 +106,12 @@ public class JoinTableOperation implements TableOperation {
 	}
 
 	@Override
-	public List<TableOperation> getChildren() {
+	public List<QueryOperation> getChildren() {
 		return Arrays.asList(left, right);
 	}
 
 	@Override
-	public <T> T accept(TableOperationVisitor<T> visitor) {
+	public <T> T accept(QueryOperationVisitor<T> visitor) {
 		return visitor.visitJoin(this);
 	}
 }
