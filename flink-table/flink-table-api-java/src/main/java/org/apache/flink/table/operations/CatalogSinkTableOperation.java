@@ -20,32 +20,35 @@ package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
- * Class that implements visitor pattern. It allows type safe logic on top of tree
- * of {@link TableOperation}s.
+ * DML operation that tells to write to a sink. The sink has to be looked up in a
+ * {@link org.apache.flink.table.catalog.Catalog}.
  */
 @Internal
-public interface TableOperationVisitor<T> {
+public class CatalogSinkTableOperation extends ModifyTableOperation {
 
-	T visitProject(ProjectTableOperation projection);
+	private final List<String> tablePath;
+	private final QueryTableOperation child;
 
-	T visitAggregate(AggregateTableOperation aggregation);
+	public CatalogSinkTableOperation(List<String> tablePath, QueryTableOperation child) {
+		this.tablePath = tablePath;
+		this.child = child;
+	}
 
-	T visitWindowAggregate(WindowAggregateTableOperation windowAggregate);
+	public List<String> getTablePath() {
+		return tablePath;
+	}
 
-	T visitJoin(JoinTableOperation join);
+	@Override
+	public List<QueryTableOperation> getChildren() {
+		return Collections.singletonList(child);
+	}
 
-	T visitSetOperation(SetTableOperation setOperation);
-
-	T visitFilter(FilterTableOperation filter);
-
-	T visitDistinct(DistinctTableOperation distinct);
-
-	T visitSort(SortTableOperation sort);
-
-	<U> T visitCalculatedTable(CalculatedTableOperation<U> calculatedTable);
-
-	T visitCatalogTable(CatalogTableOperation catalogTable);
-
-	T visitOther(TableOperation other);
+	@Override
+	public <T> T accept(QueryTableOperationVisitor<T> visitor) {
+		return visitor.visitCatalogSink(this);
+	}
 }

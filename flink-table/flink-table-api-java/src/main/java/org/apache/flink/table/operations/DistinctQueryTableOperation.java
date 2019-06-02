@@ -20,50 +20,20 @@ package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.expressions.Expression;
 
 import java.util.Collections;
 import java.util.List;
 
 /**
- * Expresses sort operation of rows of the underlying relational operation with given order.
- * It also allows specifying offset and number of rows to fetch from the sorted data set/stream.
+ * Removes duplicated rows of underlying relational operation.
  */
 @Internal
-public class SortTableOperation implements TableOperation {
+public class DistinctQueryTableOperation implements QueryTableOperation {
 
-	private final List<Expression> order;
-	private final TableOperation child;
-	private final int offset;
-	private final int fetch;
+	private final QueryTableOperation child;
 
-	public SortTableOperation(
-			List<Expression> order,
-			TableOperation child) {
-		this(order, child, -1, -1);
-	}
-
-	public SortTableOperation(List<Expression> order, TableOperation child, int offset, int fetch) {
-		this.order = order;
+	public DistinctQueryTableOperation(QueryTableOperation child) {
 		this.child = child;
-		this.offset = offset;
-		this.fetch = fetch;
-	}
-
-	public List<Expression> getOrder() {
-		return order;
-	}
-
-	public TableOperation getChild() {
-		return child;
-	}
-
-	public int getOffset() {
-		return offset;
-	}
-
-	public int getFetch() {
-		return fetch;
 	}
 
 	@Override
@@ -72,12 +42,12 @@ public class SortTableOperation implements TableOperation {
 	}
 
 	@Override
-	public List<TableOperation> getChildren() {
+	public List<QueryTableOperation> getChildren() {
 		return Collections.singletonList(child);
 	}
 
 	@Override
-	public <T> T accept(TableOperationVisitor<T> visitor) {
-		return visitor.visitSort(this);
+	public <T> T accept(QueryTableOperationVisitor<T> visitor) {
+		return visitor.visitDistinct(this);
 	}
 }

@@ -19,35 +19,36 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.sinks.TableSink;
 
 import java.util.Collections;
 import java.util.List;
 
 /**
- * Removes duplicated rows of underlying relational operation.
+ * DML operation that tells to write to the given sink.
  */
 @Internal
-public class DistinctTableOperation implements TableOperation {
+public class InlineSinkTableOperation<T> extends ModifyTableOperation {
 
-	private final TableOperation child;
+	private final TableSink<T> sink;
+	private final QueryTableOperation child;
 
-	public DistinctTableOperation(TableOperation child) {
+	public InlineSinkTableOperation(TableSink<T> sink, QueryTableOperation child) {
+		this.sink = sink;
 		this.child = child;
 	}
 
-	@Override
-	public TableSchema getTableSchema() {
-		return child.getTableSchema();
+	public TableSink<T> getSink() {
+		return sink;
 	}
 
 	@Override
-	public List<TableOperation> getChildren() {
+	public List<QueryTableOperation> getChildren() {
 		return Collections.singletonList(child);
 	}
 
 	@Override
-	public <T> T accept(TableOperationVisitor<T> visitor) {
-		return visitor.visitDistinct(this);
+	public <R> R accept(QueryTableOperationVisitor<R> visitor) {
+		return visitor.visitInlineSink(this);
 	}
 }
