@@ -42,6 +42,11 @@ public abstract class CatalogDescriptorValidator implements DescriptorValidator 
 	 */
 	public static final String CATALOG_DEFAULT_DATABASE = "default-database";
 
+	/**
+	 * Key for describing properties of the catalog.
+	 */
+	public static final String CATALOG_PROPERTIES = "properties";
+
 	@Override
 	public void validate(DescriptorProperties properties) {
 		properties.validateString(CATALOG_TYPE, false, 1);

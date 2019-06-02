@@ -127,3 +127,8 @@ catalogs:
   - name: inmemorycatalog
     type: generic_in_memory
     default-database: mydatabase
+  - name: mycatalog
+    type: hive
+    properties:
+      hive-metastore-uris: "thrift://test"
+      test: test
