@@ -27,7 +27,7 @@ import org.apache.flink.runtime.state.memory.MemoryStateBackend
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
-import org.apache.flink.streaming.api.graph.{StreamGraph, StreamGraphGenerator}
+import org.apache.flink.streaming.api.graph.{StreamGraph, StreamGraphBuilder}
 import org.apache.flink.streaming.api.transformations.StreamTransformation
 import org.apache.flink.table.`type`.TypeConverters
 import org.apache.flink.table.dataformat.BaseRow
@@ -115,9 +115,15 @@ abstract class StreamTableEnvironment(
       jobName: Option[String] = None): StreamGraph = {
     mergeParameters()
 
-    val streamGraph = StreamGraphGenerator.generate(execEnv, streamingTransformations.toList)
-    streamGraph.setJobName(jobName.getOrElse(DEFAULT_JOB_NAME))
-    streamGraph
+    new StreamGraphBuilder(
+        streamingTransformations.toList, execEnv.getConfig, execEnv.getCheckpointConfig)
+      .setChaining(execEnv.isChainingEnabled)
+      .setDefaultBufferTimeout(execEnv.getBufferTimeout)
+      .setStateBackend(execEnv.getStateBackend)
+      .setTimeCharacteristic(execEnv.getStreamTimeCharacteristic)
+      .setUserArtifacts(execEnv.getCachedFiles)
+      .setJobName(jobName.getOrElse(DEFAULT_JOB_NAME))
+      .build()
   }
 
   /**

@@ -71,7 +71,7 @@ import org.apache.flink.streaming.api.functions.source.SocketTextStreamFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.functions.source.StatefulSequenceSource;
 import org.apache.flink.streaming.api.graph.StreamGraph;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
+import org.apache.flink.streaming.api.graph.StreamGraphBuilder;
 import org.apache.flink.streaming.api.operators.StreamSource;
 import org.apache.flink.streaming.api.transformations.StreamTransformation;
 import org.apache.flink.util.Preconditions;
@@ -1511,10 +1511,30 @@ public abstract class StreamExecutionEnvironment {
 	 */
 	@Internal
 	public StreamGraph getStreamGraph() {
+		return getStreamGraphBuilder().build();
+	}
+
+	/**
+	 * Getter of the {@link org.apache.flink.streaming.api.graph.StreamGraph} of the streaming job.
+	 *
+	 * @param jobName Desired name of the job
+	 * @return The streamgraph representing the transformations
+	 */
+	@Internal
+	public StreamGraph getStreamGraph(String jobName) {
+		return getStreamGraphBuilder().setJobName(jobName).build();
+	}
+
+	private StreamGraphBuilder getStreamGraphBuilder() {
 		if (transformations.size() <= 0) {
 			throw new IllegalStateException("No operators defined in streaming topology. Cannot execute.");
 		}
-		return StreamGraphGenerator.generate(this, transformations);
+		return new StreamGraphBuilder(transformations, config, checkpointCfg)
+			.setStateBackend(defaultStateBackend)
+			.setChaining(isChainingEnabled)
+			.setUserArtifacts(cacheFile)
+			.setTimeCharacteristic(timeCharacteristic)
+			.setDefaultBufferTimeout(bufferTimeout);
 	}
 
 	/**

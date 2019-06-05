@@ -25,7 +25,7 @@ import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.MissingTypeInfo;
 import org.apache.flink.streaming.api.graph.StreamGraph;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
+import org.apache.flink.streaming.api.graph.StreamGraphBuilder;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.util.Preconditions;
 
@@ -45,7 +45,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>API operations such as {@link org.apache.flink.streaming.api.datastream.DataStream#map} create
  * a tree of {@code StreamTransformation}s underneath. When the stream program is to be executed
  * this graph is translated to a {@link StreamGraph} using
- * {@link org.apache.flink.streaming.api.graph.StreamGraphGenerator}.
+ * {@link StreamGraphBuilder}.
  *
  * <p>A {@code StreamTransformation} does not necessarily correspond to a physical operation
  * at runtime. Some operations are only logical concepts. Examples of this are union,
@@ -227,8 +227,8 @@ public abstract class StreamTransformation<T> {
 	 */
 	public void setMaxParallelism(int maxParallelism) {
 		Preconditions.checkArgument(maxParallelism > 0
-						&& maxParallelism <= StreamGraphGenerator.UPPER_BOUND_MAX_PARALLELISM,
-				"Maximum parallelism must be between 1 and " + StreamGraphGenerator.UPPER_BOUND_MAX_PARALLELISM
+						&& maxParallelism <= StreamGraphBuilder.UPPER_BOUND_MAX_PARALLELISM,
+				"Maximum parallelism must be between 1 and " + StreamGraphBuilder.UPPER_BOUND_MAX_PARALLELISM
 						+ ". Found: " + maxParallelism);
 		this.maxParallelism = maxParallelism;
 	}
