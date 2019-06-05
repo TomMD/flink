@@ -20,6 +20,7 @@ package org.apache.flink.runtime.taskmanager;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.ConfigurationUtils;
 import org.apache.flink.configuration.IllegalConfigurationException;
 import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.configuration.NetworkEnvironmentOptions;
@@ -65,6 +66,8 @@ public class NetworkEnvironmentConfiguration {
 
 	private final NettyConfig nettyConfig;
 
+	private final String[] tempDirs;
+
 	public NetworkEnvironmentConfiguration(
 			int numNetworkBuffers,
 			int networkBufferSize,
@@ -74,7 +77,8 @@ public class NetworkEnvironmentConfiguration {
 			int floatingNetworkBuffersPerGate,
 			boolean isCreditBased,
 			boolean isNetworkDetailedMetrics,
-			@Nullable NettyConfig nettyConfig) {
+			@Nullable NettyConfig nettyConfig,
+			@Nullable String[] tempDirs) {
 
 		this.numNetworkBuffers = numNetworkBuffers;
 		this.networkBufferSize = networkBufferSize;
@@ -85,6 +89,7 @@ public class NetworkEnvironmentConfiguration {
 		this.isCreditBased = isCreditBased;
 		this.isNetworkDetailedMetrics = isNetworkDetailedMetrics;
 		this.nettyConfig = nettyConfig;
+		this.tempDirs = tempDirs;
 	}
 
 	// ------------------------------------------------------------------------
@@ -125,6 +130,10 @@ public class NetworkEnvironmentConfiguration {
 		return isNetworkDetailedMetrics;
 	}
 
+	public String[] getTempDirs() {
+		return tempDirs;
+	}
+
 	// ------------------------------------------------------------------------
 
 	/**
@@ -161,6 +170,8 @@ public class NetworkEnvironmentConfiguration {
 
 		boolean isNetworkDetailedMetrics = configuration.getBoolean(NetworkEnvironmentOptions.NETWORK_DETAILED_METRICS);
 
+		String[] tempDirs = ConfigurationUtils.parseTempDirectories(configuration);
+
 		return new NetworkEnvironmentConfiguration(
 			numberOfNetworkBuffers,
 			pageSize,
@@ -170,7 +181,8 @@ public class NetworkEnvironmentConfiguration {
 			extraBuffersPerGate,
 			isCreditBased,
 			isNetworkDetailedMetrics,
-			nettyConfig);
+			nettyConfig,
+			tempDirs);
 	}
 
 	/**

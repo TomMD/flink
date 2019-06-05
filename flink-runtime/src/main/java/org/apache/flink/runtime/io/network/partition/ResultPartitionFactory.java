@@ -21,7 +21,7 @@ package org.apache.flink.runtime.io.network.partition;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
-import org.apache.flink.runtime.io.disk.iomanager.IOManager;
+import org.apache.flink.runtime.io.disk.iomanager.IOManager.FileChannelManager;
 import org.apache.flink.runtime.io.network.buffer.BufferPool;
 import org.apache.flink.runtime.io.network.buffer.BufferPoolFactory;
 import org.apache.flink.runtime.io.network.buffer.BufferPoolOwner;
@@ -47,7 +47,7 @@ public class ResultPartitionFactory {
 	private final ResultPartitionManager partitionManager;
 
 	@Nonnull
-	private final IOManager ioManager;
+	private final FileChannelManager channelManager;
 
 	@Nonnull
 	private final BufferPoolFactory bufferPoolFactory;
@@ -58,13 +58,13 @@ public class ResultPartitionFactory {
 
 	public ResultPartitionFactory(
 		@Nonnull ResultPartitionManager partitionManager,
-		@Nonnull IOManager ioManager,
+		@Nonnull FileChannelManager channelManager,
 		@Nonnull BufferPoolFactory bufferPoolFactory,
 		int networkBuffersPerChannel,
 		int floatingNetworkBuffersPerGate) {
 
 		this.partitionManager = partitionManager;
-		this.ioManager = ioManager;
+		this.channelManager = channelManager;
 		this.networkBuffersPerChannel = networkBuffersPerChannel;
 		this.floatingNetworkBuffersPerGate = floatingNetworkBuffersPerGate;
 		this.bufferPoolFactory = bufferPoolFactory;
@@ -102,6 +102,7 @@ public class ResultPartitionFactory {
 			subpartitions,
 			maxParallelism,
 			partitionManager,
+			channelManager,
 			bufferPoolFactory);
 
 		createSubpartitions(partition, type, subpartitions);
@@ -120,7 +121,7 @@ public class ResultPartitionFactory {
 		// Create the subpartitions.
 		switch (type) {
 			case BLOCKING:
-				initializeBoundedBlockingPartitions(subpartitions, partition, ioManager);
+				initializeBoundedBlockingPartitions(subpartitions, partition);
 				break;
 
 			case PIPELINED:
@@ -138,14 +139,12 @@ public class ResultPartitionFactory {
 
 	private static void initializeBoundedBlockingPartitions(
 		ResultSubpartition[] subpartitions,
-		ResultPartition parent,
-		IOManager ioManager) {
+		ResultPartition parent) {
 
 		int i = 0;
 		try {
 			for (; i < subpartitions.length; i++) {
-				subpartitions[i] = new BoundedBlockingSubpartition(
-					i, parent, ioManager.createChannel().getPathFile().toPath());
+				subpartitions[i] = new BoundedBlockingSubpartition(i, parent);
 			}
 		}
 		catch (IOException e) {

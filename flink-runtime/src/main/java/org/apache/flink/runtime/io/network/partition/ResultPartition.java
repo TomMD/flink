@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.io.network.partition;
 
 import org.apache.flink.runtime.executiongraph.IntermediateResultPartition;
+import org.apache.flink.runtime.io.disk.iomanager.IOManager.FileChannelManager;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.io.network.buffer.Buffer;
 import org.apache.flink.runtime.io.network.buffer.BufferBuilder;
@@ -37,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -85,6 +87,8 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 
 	private final ResultPartitionManager partitionManager;
 
+	private final FileChannelManager channelManager;
+
 	public final int numTargetKeyGroups;
 
 	// - Runtime state --------------------------------------------------------
@@ -113,6 +117,7 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 		ResultSubpartition[] subpartitions,
 		int numTargetKeyGroups,
 		ResultPartitionManager partitionManager,
+		FileChannelManager channelManager,
 		FunctionWithException<BufferPoolOwner, BufferPool, IOException> bufferPoolFactory) {
 
 		this.owningTaskName = checkNotNull(owningTaskName);
@@ -121,6 +126,7 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 		this.subpartitions = checkNotNull(subpartitions);
 		this.numTargetKeyGroups = numTargetKeyGroups;
 		this.partitionManager = checkNotNull(partitionManager);
+		this.channelManager = checkNotNull(channelManager);
 		this.bufferPoolFactory = bufferPoolFactory;
 	}
 
@@ -388,6 +394,10 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 
 	public ResultSubpartition[] getAllPartitions() {
 		return subpartitions;
+	}
+
+	Path createFileChannelPath() {
+		return channelManager.createChannel().getPathFile().toPath();
 	}
 
 	// ------------------------------------------------------------------------

@@ -242,7 +242,7 @@ public abstract class IOManager {
 	/**
 	 * The manager used for creating/deleting file channels based on config temp dirs.
 	 */
-	private static class FileChannelManager {
+	public static class FileChannelManager {
 		/** The temporary directories for files. */
 		private final File[] paths;
 
@@ -252,7 +252,7 @@ public abstract class IOManager {
 		/** The number of the next path to use. */
 		private volatile int nextPath = 0;
 
-		private FileChannelManager(String[] tempDirs) {
+		public FileChannelManager(String[] tempDirs) {
 			if (tempDirs == null || tempDirs.length == 0) {
 				throw new IllegalArgumentException("The temporary directories must not be null or empty.");
 			}
@@ -273,7 +273,7 @@ public abstract class IOManager {
 			}
 		}
 
-		private FileIOChannel.ID createChannel() {
+		public FileIOChannel.ID createChannel() {
 			int num = getNextPathNum();
 			return new FileIOChannel.ID(paths[num], num, random);
 		}
@@ -293,7 +293,7 @@ public abstract class IOManager {
 			return paths;
 		}
 
-		private void shutdown() {
+		public void shutdown() {
 			// remove all the temp directories
 			for (File path : paths) {
 				try {

@@ -19,11 +19,10 @@
 package org.apache.flink.runtime.io.network;
 
 import org.apache.flink.metrics.MetricGroup;
-import org.apache.flink.runtime.io.disk.iomanager.IOManager;
-import org.apache.flink.runtime.io.disk.iomanager.IOManagerAsync;
 import org.apache.flink.runtime.io.network.netty.NettyConfig;
 import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.apache.flink.runtime.taskmanager.NetworkEnvironmentConfiguration;
+import org.apache.flink.runtime.util.EnvironmentInformation;
 
 /**
  * Builder for the {@link NetworkEnvironment}.
@@ -52,7 +51,7 @@ public class NetworkEnvironmentBuilder {
 
 	private MetricGroup metricGroup = UnregisteredMetricGroups.createUnregisteredTaskManagerMetricGroup();
 
-	private IOManager ioManager = new IOManagerAsync();
+	private String[] tempDirs = new String[] {EnvironmentInformation.getTemporaryFileDirectory()};
 
 	public NetworkEnvironmentBuilder setNumNetworkBuffers(int numNetworkBuffers) {
 		this.numNetworkBuffers = numNetworkBuffers;
@@ -104,8 +103,8 @@ public class NetworkEnvironmentBuilder {
 		return this;
 	}
 
-	public NetworkEnvironmentBuilder setIOManager(IOManager ioManager) {
-		this.ioManager = ioManager;
+	public NetworkEnvironmentBuilder setTempDirs(String[] tempDirs) {
+		this.tempDirs = tempDirs;
 		return this;
 	}
 
@@ -120,9 +119,9 @@ public class NetworkEnvironmentBuilder {
 				floatingNetworkBuffersPerGate,
 				isCreditBased,
 				isNetworkDetailedMetrics,
-				nettyConfig),
+				nettyConfig,
+				tempDirs),
 			taskEventDispatcher,
-			metricGroup,
-			ioManager);
+			metricGroup);
 	}
 }

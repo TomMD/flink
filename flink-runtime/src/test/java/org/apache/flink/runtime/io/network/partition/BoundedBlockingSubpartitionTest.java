@@ -64,7 +64,7 @@ public class BoundedBlockingSubpartitionTest extends SubpartitionTestBase {
 	@Override
 	ResultSubpartition createSubpartition() throws Exception {
 		final ResultPartition resultPartition = PartitionTestUtils.createPartition(ResultPartitionType.BLOCKING);
-		return new BoundedBlockingSubpartition(0, resultPartition, tmpPath());
+		return new BoundedBlockingSubpartition(0, resultPartition);
 	}
 
 	@Override

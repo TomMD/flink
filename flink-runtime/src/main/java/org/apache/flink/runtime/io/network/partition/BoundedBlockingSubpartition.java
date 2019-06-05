@@ -29,7 +29,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -93,12 +92,8 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
 	/**
 	 * Common constructor.
 	 */
-	public BoundedBlockingSubpartition(
-			int index,
-			ResultPartition parent,
-			Path filePath) throws IOException {
-
-		this(index, parent, MemoryMappedBuffers.create(filePath));
+	BoundedBlockingSubpartition(int index, ResultPartition parent) throws IOException {
+		this(index, parent, MemoryMappedBuffers.create(parent.createFileChannelPath()));
 	}
 
 	/**
