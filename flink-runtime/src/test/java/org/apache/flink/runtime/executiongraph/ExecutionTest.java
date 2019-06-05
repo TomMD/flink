@@ -300,7 +300,7 @@ public class ExecutionTest extends TestLogger {
 	}
 
 	/**
-	 * Tests that the partitions are released in case of a execution cancellation after the execution is already finished.
+	 * Tests that the partitions are released in case of an execution cancellation after the execution is already finished.
 	 */
 	@Test
 	public void testPartitionReleaseOnCancelAfterFinished() throws Exception {
@@ -308,7 +308,7 @@ public class ExecutionTest extends TestLogger {
 	}
 
 	/**
-	 * Tests that the partitions are released in case of a execution suspension after the execution is already finished.
+	 * Tests that the partitions are released in case of an execution suspension after the execution is already finished.
 	 */
 	@Test
 	public void testPartitionReleaseOnSuspendAfterFinished() throws Exception {
