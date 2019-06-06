@@ -32,7 +32,7 @@ public class CreditBasedBarrierBufferTest extends BarrierBufferTestBase {
 
 	@Override
 	public BarrierBuffer createBarrierBuffer(InputGate gate) throws IOException {
-		return new BarrierBuffer(gate, new CachedBufferBlocker(PAGE_SIZE));
+		return new BarrierBuffer(gate, new CachedBufferBlocker());
 	}
 
 	@Override
@@ -40,7 +40,7 @@ public class CreditBasedBarrierBufferTest extends BarrierBufferTestBase {
 		long expectedBuffered = 0;
 		for (BufferOrEvent boe : sequence) {
 			if (boe.isBuffer()) {
-				expectedBuffered += PAGE_SIZE;
+				expectedBuffered += boe.getSize();
 			}
 		}
 

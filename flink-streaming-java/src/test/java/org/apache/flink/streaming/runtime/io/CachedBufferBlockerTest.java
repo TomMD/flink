@@ -36,7 +36,7 @@ public class CachedBufferBlockerTest extends BufferBlockerTestBase {
 
 	@Before
 	public void createBlocker() {
-		bufferBlocker = new CachedBufferBlocker(PAGE_SIZE);
+		bufferBlocker = new CachedBufferBlocker();
 	}
 
 	@After

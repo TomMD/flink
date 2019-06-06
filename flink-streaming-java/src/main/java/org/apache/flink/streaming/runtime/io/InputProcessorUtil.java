@@ -56,7 +56,7 @@ public class InputProcessorUtil {
 			if (taskManagerConfig.getBoolean(NetworkEnvironmentOptions.NETWORK_CREDIT_MODEL)) {
 				barrierHandler = new BarrierBuffer(
 					inputGate,
-					new CachedBufferBlocker(inputGate.getPageSize()),
+					new CachedBufferBlocker(),
 					maxAlign,
 					taskName);
 			} else {
