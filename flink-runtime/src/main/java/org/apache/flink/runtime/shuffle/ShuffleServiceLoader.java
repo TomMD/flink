@@ -34,10 +34,9 @@ public class ShuffleServiceLoader {
 	private ShuffleServiceLoader() {
 	}
 
-	public static ShuffleService<?, ?> loadShuffleService(
-			Configuration configuration) throws FlinkException {
+	public static ShuffleService<?, ?, ?> loadShuffleService(Configuration configuration) throws FlinkException {
 		String shuffleServiceClassName = configuration.getString(SHUFFLE_SERVICE);
-		Optional<ShuffleService<?, ?>> shuffleService = lookupEmbeddedShuffleServices(shuffleServiceClassName);
+		Optional<ShuffleService<?, ?, ?>> shuffleService = lookupEmbeddedShuffleServices(shuffleServiceClassName);
 		return shuffleService.orElseThrow(() -> new FlinkException(
 			String.format(
 				"Could not instantiate the ShuffleService '%s'. " +
@@ -45,10 +44,10 @@ public class ShuffleServiceLoader {
 				shuffleServiceClassName)));
 	}
 
-	private static Optional<ShuffleService<?, ?>> lookupEmbeddedShuffleServices(String shuffleServiceClassName) {
+	private static Optional<ShuffleService<?, ?, ?>> lookupEmbeddedShuffleServices(String shuffleServiceClassName) {
 		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
 		try {
-			return Optional.of((ShuffleService<?, ?>) InstantiationUtil.instantiate(
+			return Optional.of((ShuffleService<?, ?, ?>) InstantiationUtil.instantiate(
 				shuffleServiceClassName,
 				ShuffleService.class,
 				classLoader));
