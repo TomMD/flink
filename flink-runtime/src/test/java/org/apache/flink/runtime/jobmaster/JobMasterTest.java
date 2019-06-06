@@ -22,8 +22,6 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.io.DefaultInputSplitAssigner;
-import org.apache.flink.api.common.io.InputFormat;
-import org.apache.flink.api.common.operators.util.UserCodeObjectWrapper;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.time.Deadline;
 import org.apache.flink.api.common.time.Time;
@@ -72,7 +70,8 @@ import org.apache.flink.runtime.highavailability.TestingHighAvailabilityServices
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
 import org.apache.flink.runtime.jobgraph.DistributionPattern;
-import org.apache.flink.runtime.jobgraph.InputFormatVertex;
+import org.apache.flink.runtime.jobgraph.InputOutputFormatStub;
+import org.apache.flink.runtime.jobgraph.InputOutputFormatVertex;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.JobStatus;
@@ -818,8 +817,10 @@ public class JobMasterTest extends TestLogger {
 
 	private JobGraph createDataSourceJobGraph() throws Exception {
 		final TextInputFormat inputFormat = new TextInputFormat(new Path("."));
-		final InputFormatVertex producer = new InputFormatVertex("Producer");
-		new TaskConfig(producer.getConfiguration()).setStubWrapper(new UserCodeObjectWrapper<InputFormat<?, ?>>(inputFormat));
+		final InputOutputFormatVertex producer = new InputOutputFormatVertex("Producer");
+		new InputOutputFormatStub()
+			.addInputFormat(new OperatorID(), inputFormat)
+			.write(new TaskConfig(producer.getConfiguration()));
 		producer.setInvokableClass(DataSourceTask.class);
 
 		final JobVertex consumer = new JobVertex("Consumer");

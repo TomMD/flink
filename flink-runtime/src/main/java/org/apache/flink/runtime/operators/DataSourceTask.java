@@ -31,6 +31,7 @@ import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.execution.CancelTaskException;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.io.network.api.writer.RecordWriter;
+import org.apache.flink.runtime.jobgraph.InputOutputFormatStub;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobgraph.tasks.InputSplitProvider;
 import org.apache.flink.runtime.jobgraph.tasks.InputSplitProviderException;
@@ -269,8 +270,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 		this.config = new TaskConfig(taskConf);
 
 		try {
-			this.format = config.<InputFormat<OT, InputSplit>>getStubWrapper(userCodeClassLoader)
-					.getUserCodeObject(InputFormat.class, userCodeClassLoader);
+			this.format = new InputOutputFormatStub(config, userCodeClassLoader).getUniqueInputFormat();
 
 			// check if the class is a subclass, if the check is required
 			if (!InputFormat.class.isAssignableFrom(this.format.getClass())) {

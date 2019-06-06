@@ -35,6 +35,7 @@ import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.io.network.api.reader.MutableReader;
 import org.apache.flink.runtime.io.network.api.reader.MutableRecordReader;
 import org.apache.flink.runtime.io.network.partition.consumer.UnionInputGate;
+import org.apache.flink.runtime.jobgraph.InputOutputFormatStub;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.metrics.groups.OperatorIOMetricGroup;
 import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
@@ -323,7 +324,7 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 		this.config = new TaskConfig(taskConf);
 
 		try {
-			this.format = config.<OutputFormat<IT>>getStubWrapper(userCodeClassLoader).getUserCodeObject(OutputFormat.class, userCodeClassLoader);
+			this.format = new InputOutputFormatStub(config, userCodeClassLoader).getUniqueOutputFormat();
 
 			// check if the class is a subclass, if the check is required
 			if (!OutputFormat.class.isAssignableFrom(this.format.getClass())) {
