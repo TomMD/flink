@@ -46,7 +46,7 @@ import org.apache.flink.streaming.api.functions.co.ProcessJoinFunction;
 import org.apache.flink.streaming.api.functions.query.QueryableAppendingStateOperator;
 import org.apache.flink.streaming.api.functions.query.QueryableValueStateOperator;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
+import org.apache.flink.streaming.api.graph.StreamGraphBuilder;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import org.apache.flink.streaming.api.operators.LegacyKeyedProcessOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -131,7 +131,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
 			dataStream,
 			new PartitionTransformation<>(
 				dataStream.getTransformation(),
-				new KeyGroupStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM)),
+				new KeyGroupStreamPartitioner<>(keySelector, StreamGraphBuilder.DEFAULT_LOWER_BOUND_MAX_PARALLELISM)),
 			keySelector,
 			keyType);
 	}

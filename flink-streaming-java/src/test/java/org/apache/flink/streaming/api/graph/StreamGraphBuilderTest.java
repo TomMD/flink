@@ -52,12 +52,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Tests for {@link StreamGraphGenerator}. This only tests correct translation of split/select,
+ * Tests for {@link StreamGraphBuilder}. This only tests correct translation of split/select,
  * union, partitioning since the other translation routines are tested already in operation
  * specific tests.
  */
 @SuppressWarnings("serial")
-public class StreamGraphGeneratorTest {
+public class StreamGraphBuilderTest {
 
 	@Test
 	public void testBufferTimeout() {
@@ -85,16 +85,16 @@ public class StreamGraphGeneratorTest {
 			switch (node.getOperatorName()) {
 
 				case "A":
-					assertEquals(77L, node.getBufferTimeout().longValue());
+					assertEquals(77L, node.getBufferTimeout());
 					break;
 				case "B":
-					assertEquals(0L, node.getBufferTimeout().longValue());
+					assertEquals(0L, node.getBufferTimeout());
 					break;
 				case "C":
-					assertEquals(12L, node.getBufferTimeout().longValue());
+					assertEquals(12L, node.getBufferTimeout());
 					break;
 				case "D":
-					assertEquals(77L, node.getBufferTimeout().longValue());
+					assertEquals(77L, node.getBufferTimeout());
 					break;
 				default:
 					assertTrue(node.getOperator() instanceof StreamSource);

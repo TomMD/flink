@@ -37,7 +37,6 @@ import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.OperatorID;
-import org.apache.flink.runtime.jobgraph.ScheduleMode;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobgraph.tasks.CheckpointCoordinatorConfiguration;
 import org.apache.flink.runtime.jobgraph.tasks.JobCheckpointingSettings;
@@ -74,6 +73,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 /**
  * The StreamingJobGraphGenerator converts a {@link StreamGraph} into a {@link JobGraph}.
@@ -138,7 +138,7 @@ public class StreamingJobGraphGenerator {
 	private JobGraph createJobGraph() {
 
 		// make sure that all vertices start immediately
-		jobGraph.setScheduleMode(ScheduleMode.EAGER);
+		jobGraph.setScheduleMode(streamGraph.getScheduleMode());
 
 		// Generate deterministic hashes for the nodes in order to identify them across
 		// submission iff they didn't change.
@@ -160,7 +160,7 @@ public class StreamingJobGraphGenerator {
 
 		configureCheckpointing();
 
-		JobGraphGenerator.addUserArtifactEntries(streamGraph.getEnvironment().getCachedFiles(), jobGraph);
+		JobGraphGenerator.addUserArtifactEntries(streamGraph.getUserArtifacts(), jobGraph);
 
 		// set the ExecutionConfig last when it has been finalized
 		try {
@@ -442,7 +442,7 @@ public class StreamingJobGraphGenerator {
 		config.setNonChainedOutputs(nonChainableOutputs);
 		config.setChainedOutputs(chainableOutputs);
 
-		config.setTimeCharacteristic(streamGraph.getEnvironment().getStreamTimeCharacteristic());
+		config.setTimeCharacteristic(streamGraph.getTimeCharacteristic());
 
 		final CheckpointConfig checkpointCfg = streamGraph.getCheckpointConfig();
 
@@ -575,8 +575,16 @@ public class StreamingJobGraphGenerator {
 			ccg.addVertex(sink);
 			source.updateCoLocationGroup(ccg);
 			sink.updateCoLocationGroup(ccg);
-		}
 
+			if (source.getSlotSharingGroup() == null ||
+					sink.getSlotSharingGroup() == null ||
+					!Objects.equals(source.getSlotSharingGroup(), sink.getSlotSharingGroup())) {
+
+				SlotSharingGroup slotSharingGroup = new SlotSharingGroup();
+				source.setSlotSharingGroup(slotSharingGroup);
+				sink.setSlotSharingGroup(slotSharingGroup);
+			}
+		}
 	}
 
 	private void configureCheckpointing() {

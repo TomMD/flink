@@ -19,14 +19,12 @@ package org.apache.flink.streaming.api.graph;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
@@ -45,10 +43,8 @@ public class StreamNode implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
-	private transient StreamExecutionEnvironment env;
-
 	private final int id;
-	private Integer parallelism = null;
+	private int parallelism;
 	/**
 	 * Maximum parallelism for this stream node. The maximum parallelism is the upper limit for
 	 * dynamic scaling and the number of key groups used for partitioned state.
@@ -56,9 +52,9 @@ public class StreamNode implements Serializable {
 	private int maxParallelism;
 	private ResourceSpec minResources = ResourceSpec.DEFAULT;
 	private ResourceSpec preferredResources = ResourceSpec.DEFAULT;
-	private Long bufferTimeout = null;
+	private long bufferTimeout;
 	private final String operatorName;
-	private String slotSharingGroup;
+	private @Nullable String slotSharingGroup;
 	private @Nullable String coLocationGroup;
 	private KeySelector<?, ?> statePartitioner1;
 	private KeySelector<?, ?> statePartitioner2;
@@ -81,28 +77,27 @@ public class StreamNode implements Serializable {
 	private String userHash;
 
 	@VisibleForTesting
-	public StreamNode(StreamExecutionEnvironment env,
+	public StreamNode(
 			Integer id,
-			String slotSharingGroup,
+			@Nullable String slotSharingGroup,
 			@Nullable String coLocationGroup,
 			StreamOperator<?> operator,
 			String operatorName,
 			List<OutputSelector<?>> outputSelector,
 			Class<? extends AbstractInvokable> jobVertexClass) {
-		this(env, id, slotSharingGroup, coLocationGroup, SimpleOperatorFactory.of(operator),
+		this(id, slotSharingGroup, coLocationGroup, SimpleOperatorFactory.of(operator),
 				operatorName, outputSelector, jobVertexClass);
 	}
 
-	public StreamNode(StreamExecutionEnvironment env,
+	public StreamNode(
 		Integer id,
-		String slotSharingGroup,
+		@Nullable String slotSharingGroup,
 		@Nullable String coLocationGroup,
 		StreamOperatorFactory<?> operatorFactory,
 		String operatorName,
 		List<OutputSelector<?>> outputSelector,
 		Class<? extends AbstractInvokable> jobVertexClass) {
 
-		this.env = env;
 		this.id = id;
 		this.operatorName = operatorName;
 		this.operatorFactory = operatorFactory;
@@ -161,11 +156,7 @@ public class StreamNode implements Serializable {
 	}
 
 	public int getParallelism() {
-		if (parallelism == ExecutionConfig.PARALLELISM_DEFAULT) {
-			return env.getParallelism();
-		} else {
-			return parallelism;
-		}
+		return parallelism;
 	}
 
 	public void setParallelism(Integer parallelism) {
@@ -203,8 +194,8 @@ public class StreamNode implements Serializable {
 		this.preferredResources = preferredResources;
 	}
 
-	public Long getBufferTimeout() {
-		return bufferTimeout != null ? bufferTimeout : env.getBufferTimeout();
+	public long getBufferTimeout() {
+		return bufferTimeout;
 	}
 
 	public void setBufferTimeout(Long bufferTimeout) {
