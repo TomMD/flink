@@ -31,13 +31,14 @@ import org.apache.flink.runtime.clusterframework.types.ResourceID;
 import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.disk.iomanager.IOManagerAsync;
-import org.apache.flink.runtime.io.network.NetworkEnvironment;
+import org.apache.flink.runtime.io.network.NettyShuffleEnvironment;
 import org.apache.flink.runtime.io.network.TaskEventDispatcher;
 import org.apache.flink.runtime.memory.MemoryManager;
+import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.state.TaskExecutorLocalStateStoresManager;
 import org.apache.flink.runtime.taskexecutor.slot.TaskSlotTable;
 import org.apache.flink.runtime.taskexecutor.slot.TimerService;
-import org.apache.flink.runtime.taskmanager.NetworkEnvironmentConfiguration;
+import org.apache.flink.runtime.taskmanager.NettyShuffleEnvironmentConfiguration;
 import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 import org.apache.flink.runtime.util.ConfigurationParserUtils;
 import org.apache.flink.util.ExceptionUtils;
@@ -58,7 +59,7 @@ import static org.apache.flink.configuration.MemorySize.MemoryUnit.MEGA_BYTES;
 
 /**
  * Container for {@link TaskExecutor} services such as the {@link MemoryManager}, {@link IOManager},
- * {@link NetworkEnvironment}. All services are exclusive to a single {@link TaskExecutor}.
+ * {@link ShuffleEnvironment}. All services are exclusive to a single {@link TaskExecutor}.
  * Consequently, the respective {@link TaskExecutor} is responsible for closing them.
  */
 public class TaskManagerServices {
@@ -71,7 +72,7 @@ public class TaskManagerServices {
 	private final TaskManagerLocation taskManagerLocation;
 	private final MemoryManager memoryManager;
 	private final IOManager ioManager;
-	private final NetworkEnvironment networkEnvironment;
+	private final ShuffleEnvironment shuffleEnvironment;
 	private final KvStateService kvStateService;
 	private final BroadcastVariableManager broadcastVariableManager;
 	private final TaskSlotTable taskSlotTable;
@@ -84,7 +85,7 @@ public class TaskManagerServices {
 		TaskManagerLocation taskManagerLocation,
 		MemoryManager memoryManager,
 		IOManager ioManager,
-		NetworkEnvironment networkEnvironment,
+		ShuffleEnvironment shuffleEnvironment,
 		KvStateService kvStateService,
 		BroadcastVariableManager broadcastVariableManager,
 		TaskSlotTable taskSlotTable,
@@ -96,7 +97,7 @@ public class TaskManagerServices {
 		this.taskManagerLocation = Preconditions.checkNotNull(taskManagerLocation);
 		this.memoryManager = Preconditions.checkNotNull(memoryManager);
 		this.ioManager = Preconditions.checkNotNull(ioManager);
-		this.networkEnvironment = Preconditions.checkNotNull(networkEnvironment);
+		this.shuffleEnvironment = Preconditions.checkNotNull(shuffleEnvironment);
 		this.kvStateService = Preconditions.checkNotNull(kvStateService);
 		this.broadcastVariableManager = Preconditions.checkNotNull(broadcastVariableManager);
 		this.taskSlotTable = Preconditions.checkNotNull(taskSlotTable);
@@ -118,8 +119,8 @@ public class TaskManagerServices {
 		return ioManager;
 	}
 
-	public NetworkEnvironment getNetworkEnvironment() {
-		return networkEnvironment;
+	public ShuffleEnvironment getShuffleEnvironment() {
+		return shuffleEnvironment;
 	}
 
 	public KvStateService getKvStateService() {
@@ -184,7 +185,7 @@ public class TaskManagerServices {
 		}
 
 		try {
-			networkEnvironment.shutdown();
+			shuffleEnvironment.shutdown();
 		} catch (Exception e) {
 			exception = ExceptionUtils.firstOrSuppressed(e, exception);
 		}
@@ -221,22 +222,27 @@ public class TaskManagerServices {
 	/**
 	 * Creates and returns the task manager services.
 	 *
+	 * @param configuration Flink configuration.
 	 * @param taskManagerServicesConfiguration task manager configuration
 	 * @param taskManagerMetricGroup metric group of the task manager
 	 * @param resourceID resource ID of the task manager
 	 * @param taskIOExecutor executor for async IO operations
 	 * @param freeHeapMemoryWithDefrag an estimate of the size of the free heap memory
 	 * @param maxJvmHeapMemory the maximum JVM heap size
+	 * @param localCommunicationOnly True, to skip initializing the network stack.
+	 *                               Use only in cases where only one task manager runs.
 	 * @return task manager components
 	 * @throws Exception
 	 */
 	public static TaskManagerServices fromConfiguration(
+			Configuration configuration,
 			TaskManagerServicesConfiguration taskManagerServicesConfiguration,
 			MetricGroup taskManagerMetricGroup,
 			ResourceID resourceID,
 			Executor taskIOExecutor,
 			long freeHeapMemoryWithDefrag,
-			long maxJvmHeapMemory) throws Exception {
+			long maxJvmHeapMemory,
+			boolean localCommunicationOnly) throws Exception {
 
 		// pre-start checks
 		checkTempDirs(taskManagerServicesConfiguration.getTmpDirPaths());
@@ -246,13 +252,16 @@ public class TaskManagerServices {
 		// start the I/O manager, it will create some temp directories.
 		final IOManager ioManager = new IOManagerAsync(taskManagerServicesConfiguration.getTmpDirPaths());
 
-		final NetworkEnvironment network = NetworkEnvironment.create(
+		final ShuffleEnvironment shuffleEnvironment = NettyShuffleEnvironment.fromConfiguration(
 			resourceID,
-			taskManagerServicesConfiguration.getNetworkConfig(),
+			configuration,
 			taskEventDispatcher,
 			taskManagerMetricGroup,
-			ioManager);
-		int dataPort = network.start();
+			ioManager,
+			maxJvmHeapMemory,
+			localCommunicationOnly,
+			taskManagerServicesConfiguration.getTaskManagerAddress());
+		int dataPort = shuffleEnvironment.start();
 
 		final KvStateService kvStateService = KvStateService.fromConfiguration(taskManagerServicesConfiguration);
 		kvStateService.start();
@@ -300,7 +309,7 @@ public class TaskManagerServices {
 			taskManagerLocation,
 			memoryManager,
 			ioManager,
-			network,
+			shuffleEnvironment,
 			kvStateService,
 			broadcastVariableManager,
 			taskSlotTable,
@@ -382,7 +391,7 @@ public class TaskManagerServices {
 			memoryManager = new MemoryManager(
 				memorySize,
 				taskManagerServicesConfiguration.getNumberOfSlots(),
-				taskManagerServicesConfiguration.getNetworkConfig().networkBufferSize(),
+				taskManagerServicesConfiguration.getPageSize(),
 				memType,
 				preAllocateMemory);
 		} catch (OutOfMemoryError e) {
@@ -415,7 +424,7 @@ public class TaskManagerServices {
 		Preconditions.checkArgument(totalJavaMemorySizeMB > 0);
 
 		// subtract the Java memory used for network buffers (always off-heap)
-		final long networkBufMB = NetworkEnvironmentConfiguration.calculateNetworkBufferMemory(
+		final long networkBufMB = NettyShuffleEnvironmentConfiguration.calculateNetworkBufferMemory(
 			totalJavaMemorySizeMB << 20, // megabytes to bytes
 			config) >> 20; // bytes to megabytes
 		final long remainingJavaMemorySizeMB = totalJavaMemorySizeMB - networkBufMB;

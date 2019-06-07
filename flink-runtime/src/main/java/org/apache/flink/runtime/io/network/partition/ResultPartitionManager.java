@@ -37,8 +37,16 @@ public class ResultPartitionManager implements ResultPartitionProvider {
 	private static final Logger LOG = LoggerFactory.getLogger(ResultPartitionManager.class);
 
 	private final Map<ResultPartitionID, ResultPartition> registeredPartitions = new HashMap<>(16);
-
+	private final boolean releaseBlockingPartitionsOnConsumption;
 	private boolean isShutdown;
+
+	public ResultPartitionManager() {
+		this.releaseBlockingPartitionsOnConsumption = true;
+	}
+
+	public ResultPartitionManager(boolean releaseBlockingPartitionsOnConsumption) {
+		this.releaseBlockingPartitionsOnConsumption = releaseBlockingPartitionsOnConsumption;
+	}
 
 	public void registerResultPartition(ResultPartition partition) {
 		synchronized (registeredPartitions) {
@@ -113,10 +121,12 @@ public class ResultPartitionManager implements ResultPartitionProvider {
 			final ResultPartition previous = registeredPartitions.remove(partition.getPartitionId());
 			// Release the partition if it was successfully removed
 			if (partition == previous) {
-				partition.release();
-				ResultPartitionID partitionId = partition.getPartitionId();
-				LOG.debug("Released partition {} produced by {}.",
-					partitionId.getPartitionId(), partitionId.getProducerId());
+				if (partition.getPartitionType() != ResultPartitionType.BLOCKING || releaseBlockingPartitionsOnConsumption) {
+					partition.release();
+					ResultPartitionID partitionId = partition.getPartitionId();
+					LOG.debug("Released partition {} produced by {}.",
+						partitionId.getPartitionId(), partitionId.getProducerId());
+				}
 			}
 		}
 	}

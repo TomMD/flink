@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.io.network;
 
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.clusterframework.types.ResourceID;
@@ -49,14 +50,15 @@ import org.apache.flink.runtime.io.network.partition.consumer.SingleInputGateFac
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.shuffle.NettyShuffleDescriptor;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
-import org.apache.flink.runtime.taskexecutor.TaskExecutor;
-import org.apache.flink.runtime.taskmanager.NetworkEnvironmentConfiguration;
+import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
+import org.apache.flink.runtime.taskmanager.NettyShuffleEnvironmentConfiguration;
 import org.apache.flink.util.Preconditions;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
@@ -66,12 +68,13 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
- * Network I/O components of each {@link TaskExecutor} instance. The network environment contains
- * the data structures that keep track of all intermediate results and all data exchanges.
+ * The implementation of {@link ShuffleEnvironment} based on netty network communication, local memory and disk files.
+ * The network environment contains the data structures that keep track of all intermediate results
+ * and shuffle data exchanges.
  */
-public class NetworkEnvironment {
+public class NettyShuffleEnvironment implements ShuffleEnvironment {
 
-	private static final Logger LOG = LoggerFactory.getLogger(NetworkEnvironment.class);
+	private static final Logger LOG = LoggerFactory.getLogger(NettyShuffleEnvironment.class);
 
 	private static final String METRIC_GROUP_NETWORK = "Network";
 	private static final String METRIC_TOTAL_MEMORY_SEGMENT = "TotalMemorySegments";
@@ -86,7 +89,7 @@ public class NetworkEnvironment {
 
 	private final ResourceID taskExecutorLocation;
 
-	private final NetworkEnvironmentConfiguration config;
+	private final NettyShuffleEnvironmentConfiguration config;
 
 	private final NetworkBufferPool networkBufferPool;
 
@@ -102,9 +105,9 @@ public class NetworkEnvironment {
 
 	private boolean isShutdown;
 
-	private NetworkEnvironment(
+	private NettyShuffleEnvironment(
 			ResourceID taskExecutorLocation,
-			NetworkEnvironmentConfiguration config,
+			NettyShuffleEnvironmentConfiguration config,
 			NetworkBufferPool networkBufferPool,
 			ConnectionManager connectionManager,
 			ResultPartitionManager resultPartitionManager,
@@ -121,9 +124,9 @@ public class NetworkEnvironment {
 		this.isShutdown = false;
 	}
 
-	public static NetworkEnvironment create(
+	public static NettyShuffleEnvironment create(
 			ResourceID taskExecutorLocation,
-			NetworkEnvironmentConfiguration config,
+			NettyShuffleEnvironmentConfiguration config,
 			TaskEventPublisher taskEventPublisher,
 			MetricGroup metricGroup,
 			IOManager ioManager) {
@@ -134,7 +137,7 @@ public class NetworkEnvironment {
 
 		NettyConfig nettyConfig = config.nettyConfig();
 
-		ResultPartitionManager resultPartitionManager = new ResultPartitionManager();
+		ResultPartitionManager resultPartitionManager = new ResultPartitionManager(config.isReleaseBlockingPartitionsOnConsumption());
 
 		ConnectionManager connectionManager = nettyConfig != null ?
 			new NettyConnectionManager(resultPartitionManager, taskEventPublisher, nettyConfig, config.isCreditBased()) :
@@ -162,7 +165,7 @@ public class NetworkEnvironment {
 			taskEventPublisher,
 			networkBufferPool);
 
-		return new NetworkEnvironment(
+		return new NettyShuffleEnvironment(
 			taskExecutorLocation,
 			config,
 			networkBufferPool,
@@ -202,7 +205,7 @@ public class NetworkEnvironment {
 	}
 
 	@VisibleForTesting
-	public NetworkEnvironmentConfiguration getConfiguration() {
+	public NettyShuffleEnvironmentConfiguration getConfiguration() {
 		return config;
 	}
 
@@ -211,11 +214,7 @@ public class NetworkEnvironment {
 		return Optional.ofNullable(inputGatesById.get(id));
 	}
 
-	/**
-	 * Batch release intermediate result partitions.
-	 *
-	 * @param partitionIds partition ids to release
-	 */
+	@Override
 	public void releasePartitions(Collection<ResultPartitionID> partitionIds) {
 		for (ResultPartitionID partitionId : partitionIds) {
 			resultPartitionManager.releasePartition(partitionId, null);
@@ -228,6 +227,7 @@ public class NetworkEnvironment {
 	 * @return collection of partitions which still occupy some resources locally on this task executor
 	 * and have been not released yet.
 	 */
+	@Override
 	public Collection<ResultPartitionID> getUnreleasedPartitions() {
 		return resultPartitionManager.getUnreleasedPartitions();
 	}
@@ -236,19 +236,20 @@ public class NetworkEnvironment {
 	//  Create Output Writers and Input Readers
 	// --------------------------------------------------------------------------------------------
 
+	@Override
 	public ResultPartition[] createResultPartitionWriters(
 			String taskName,
-			ExecutionAttemptID executionId,
+			ExecutionAttemptID executionAttemptID,
 			Collection<ResultPartitionDeploymentDescriptor> resultPartitionDeploymentDescriptors,
 			MetricGroup outputGroup,
 			MetricGroup buffersGroup) {
 		synchronized (lock) {
-			Preconditions.checkState(!isShutdown, "The NetworkEnvironment has already been shut down.");
+			Preconditions.checkState(!isShutdown, "The NettyShuffleEnvironment has already been shut down.");
 
 			ResultPartition[] resultPartitions = new ResultPartition[resultPartitionDeploymentDescriptors.size()];
 			int counter = 0;
 			for (ResultPartitionDeploymentDescriptor rpdd : resultPartitionDeploymentDescriptors) {
-				resultPartitions[counter++] = resultPartitionFactory.create(taskName, executionId, rpdd);
+				resultPartitions[counter++] = resultPartitionFactory.create(taskName, executionAttemptID, rpdd);
 			}
 
 			registerOutputMetrics(outputGroup, buffersGroup, resultPartitions);
@@ -256,16 +257,17 @@ public class NetworkEnvironment {
 		}
 	}
 
+	@Override
 	public SingleInputGate[] createInputGates(
 			String taskName,
-			ExecutionAttemptID executionId,
+			ExecutionAttemptID executionAttemptID,
 			PartitionProducerStateProvider partitionProducerStateProvider,
 			Collection<InputGateDeploymentDescriptor> inputGateDeploymentDescriptors,
 			MetricGroup parentGroup,
 			MetricGroup inputGroup,
 			MetricGroup buffersGroup) {
 		synchronized (lock) {
-			Preconditions.checkState(!isShutdown, "The NetworkEnvironment has already been shut down.");
+			Preconditions.checkState(!isShutdown, "The NettyShuffleEnvironment has already been shut down.");
 
 			InputChannelMetrics inputChannelMetrics = new InputChannelMetrics(parentGroup);
 			SingleInputGate[] inputGates = new SingleInputGate[inputGateDeploymentDescriptors.size()];
@@ -276,7 +278,7 @@ public class NetworkEnvironment {
 					igdd,
 					partitionProducerStateProvider,
 					inputChannelMetrics);
-				InputGateID id = new InputGateID(igdd.getConsumedResultId(), executionId);
+				InputGateID id = new InputGateID(igdd.getConsumedResultId(), executionAttemptID);
 				inputGatesById.put(id, inputGate);
 				inputGate.getCloseFuture().thenRun(() -> inputGatesById.remove(id));
 				inputGates[counter++] = inputGate;
@@ -303,16 +305,7 @@ public class NetworkEnvironment {
 		buffersGroup.gauge(METRIC_INPUT_POOL_USAGE, new InputBufferPoolUsageGauge(inputGates));
 	}
 
-	/**
-	 * Update consuming gate with newly available partition.
-	 *
-	 * @param consumerID execution id of consumer to identify belonging to it gate.
-	 * @param partitionInfo telling where the partition can be retrieved from
-	 * @return {@code true} if the partition has been updated or {@code false} if the partition is not available anymore.
-	 * @throws IOException IO problem by the update
-	 * @throws InterruptedException potentially blocking operation was interrupted
-	 * @throws IllegalStateException the input gate with the id from the partitionInfo is not found
-	 */
+	@Override
 	public boolean updatePartitionInfo(
 			ExecutionAttemptID consumerID,
 			PartitionInfo partitionInfo) throws IOException, InterruptedException {
@@ -335,9 +328,10 @@ public class NetworkEnvironment {
 	 *
 	 * @return a port to connect to the task executor for shuffle data exchange, -1 if only local connection is possible.
 	 */
+	@Override
 	public int start() throws IOException {
 		synchronized (lock) {
-			Preconditions.checkState(!isShutdown, "The NetworkEnvironment has already been shut down.");
+			Preconditions.checkState(!isShutdown, "The NettyShuffleEnvironment has already been shut down.");
 
 			LOG.info("Starting the network environment and its components.");
 
@@ -353,6 +347,7 @@ public class NetworkEnvironment {
 	/**
 	 * Tries to shut down all network I/O components.
 	 */
+	@Override
 	public void shutdown() {
 		synchronized (lock) {
 			if (isShutdown) {
@@ -398,5 +393,22 @@ public class NetworkEnvironment {
 		synchronized (lock) {
 			return isShutdown;
 		}
+	}
+
+	public static NettyShuffleEnvironment fromConfiguration(
+			ResourceID taskExecutorLocation,
+			Configuration configuration,
+			TaskEventPublisher taskEventPublisher,
+			MetricGroup metricGroup,
+			IOManager ioManager,
+			long maxJvmHeapMemory,
+			boolean localTaskManagerCommunication,
+			InetAddress taskManagerAddress) {
+		final NettyShuffleEnvironmentConfiguration networkConfig = NettyShuffleEnvironmentConfiguration.fromConfiguration(
+			configuration,
+			maxJvmHeapMemory,
+			localTaskManagerCommunication,
+			taskManagerAddress);
+		return create(taskExecutorLocation, networkConfig, taskEventPublisher, metricGroup, ioManager);
 	}
 }

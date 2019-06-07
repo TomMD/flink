@@ -49,7 +49,7 @@ import org.apache.flink.runtime.executiongraph.JobInformation;
 import org.apache.flink.runtime.executiongraph.TaskInformation;
 import org.apache.flink.runtime.filecache.FileCache;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
-import org.apache.flink.runtime.io.network.NetworkEnvironment;
+import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.io.network.TaskEventDispatcher;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.io.network.partition.PartitionProducerStateProvider;
@@ -283,7 +283,7 @@ public class Task implements Runnable, TaskActions, PartitionProducerStateProvid
 		int targetSlotNumber,
 		MemoryManager memManager,
 		IOManager ioManager,
-		NetworkEnvironment networkEnvironment,
+		ShuffleEnvironment shuffleEnvironment,
 		KvStateService kvStateService,
 		BroadcastVariableManager bcVarManager,
 		TaskEventDispatcher taskEventDispatcher,
@@ -368,7 +368,7 @@ public class Task implements Runnable, TaskActions, PartitionProducerStateProvid
 		final MetricGroup inputGroup = networkGroup.addGroup("Input");
 
 		// produced intermediate result partitions
-		final ResultPartitionWriter[] resultPartitionWriters = networkEnvironment.createResultPartitionWriters(
+		final ResultPartitionWriter[] resultPartitionWriters = shuffleEnvironment.createResultPartitionWriters(
 			taskNameWithSubtaskAndId,
 			executionId,
 			resultPartitionDeploymentDescriptors,
@@ -383,7 +383,7 @@ public class Task implements Runnable, TaskActions, PartitionProducerStateProvid
 			resultPartitionConsumableNotifier);
 
 		// consumed intermediate result partitions
-		InputGate[] gates = networkEnvironment.createInputGates(
+		InputGate[] gates = shuffleEnvironment.createInputGates(
 			taskNameWithSubtaskAndId,
 			executionId,
 			this,
