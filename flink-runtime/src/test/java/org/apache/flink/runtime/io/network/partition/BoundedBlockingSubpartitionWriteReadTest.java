@@ -24,11 +24,8 @@ import org.apache.flink.core.testutils.CheckedThread;
 import org.apache.flink.runtime.io.network.buffer.BufferConsumer;
 import org.apache.flink.runtime.io.network.partition.ResultSubpartition.BufferAndBacklog;
 
-import org.junit.ClassRule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -39,9 +36,6 @@ import static org.junit.Assert.assertTrue;
  * Tests that read the BoundedBlockingSubpartition with multiple threads in parallel.
  */
 public class BoundedBlockingSubpartitionWriteReadTest {
-
-	@ClassRule
-	public static final TemporaryFolder TMP_FOLDER = new TemporaryFolder();
 
 	@Test
 	public void testWriteAndReadData() throws Exception {
@@ -158,9 +152,8 @@ public class BoundedBlockingSubpartitionWriteReadTest {
 
 	private static BoundedBlockingSubpartition createSubpartition() throws IOException {
 		return new BoundedBlockingSubpartition(
-				0,
-				PartitionTestUtils.createPartition(ResultPartitionType.BLOCKING),
-				new File(TMP_FOLDER.newFolder(), "partitiondata").toPath());
+			0,
+			PartitionTestUtils.createPartition(ResultPartitionType.BLOCKING));
 	}
 
 	private static LongReader[] createSubpartitionLongReaders(

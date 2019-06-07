@@ -26,8 +26,6 @@ import org.apache.flink.runtime.clusterframework.types.ResourceID;
 import org.apache.flink.runtime.deployment.InputChannelDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.InputGateDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.ResultPartitionLocation;
-import org.apache.flink.runtime.io.disk.iomanager.IOManager;
-import org.apache.flink.runtime.io.disk.iomanager.IOManagerAsync;
 import org.apache.flink.runtime.io.network.ConnectionID;
 import org.apache.flink.runtime.io.network.NetworkEnvironment;
 import org.apache.flink.runtime.io.network.NetworkEnvironmentBuilder;
@@ -82,7 +80,6 @@ public class StreamNetworkBenchmarkEnvironment<T extends IOReadableWritable> {
 
 	protected NetworkEnvironment senderEnv;
 	protected NetworkEnvironment receiverEnv;
-	protected IOManager ioManager;
 
 	protected int channels;
 	protected boolean broadcastMode = false;
@@ -143,8 +140,6 @@ public class StreamNetworkBenchmarkEnvironment<T extends IOReadableWritable> {
 			receiverBufferPoolSize = Math.max(2048, writers * channels * 4);
 		}
 
-		ioManager = new IOManagerAsync();
-
 		senderEnv = createNettyNetworkEnvironment(senderBufferPoolSize, config);
 		this.dataPort = senderEnv.start();
 		if (localMode && senderBufferPoolSize == receiverBufferPoolSize) {
@@ -168,7 +163,6 @@ public class StreamNetworkBenchmarkEnvironment<T extends IOReadableWritable> {
 	public void tearDown() {
 		suppressExceptions(senderEnv::shutdown);
 		suppressExceptions(receiverEnv::shutdown);
-		suppressExceptions(ioManager::shutdown);
 	}
 
 	public SerializingLongReceiver createReceiver() throws Exception {
@@ -223,7 +217,6 @@ public class StreamNetworkBenchmarkEnvironment<T extends IOReadableWritable> {
 			.setResultPartitionType(ResultPartitionType.PIPELINED_BOUNDED)
 			.setNumberOfSubpartitions(channels)
 			.setResultPartitionManager(environment.getResultPartitionManager())
-			.setIOManager(ioManager)
 			.setupBufferPoolFactoryFromNetworkEnvironment(environment)
 			.build();
 

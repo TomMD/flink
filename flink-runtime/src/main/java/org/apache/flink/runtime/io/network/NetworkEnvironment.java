@@ -25,7 +25,7 @@ import org.apache.flink.runtime.deployment.InputGateDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import org.apache.flink.runtime.executiongraph.PartitionInfo;
-import org.apache.flink.runtime.io.disk.iomanager.IOManager;
+import org.apache.flink.runtime.io.disk.iomanager.IOManager.FileChannelManager;
 import org.apache.flink.runtime.io.network.buffer.NetworkBufferPool;
 import org.apache.flink.runtime.io.network.metrics.InputBufferPoolUsageGauge;
 import org.apache.flink.runtime.io.network.metrics.InputBuffersGauge;
@@ -88,6 +88,8 @@ public class NetworkEnvironment {
 
 	private final ResultPartitionManager resultPartitionManager;
 
+	private final FileChannelManager fileChannelManager;
+
 	private final Map<InputGateID, SingleInputGate> inputGatesById;
 
 	private final ResultPartitionFactory resultPartitionFactory;
@@ -101,12 +103,14 @@ public class NetworkEnvironment {
 			NetworkBufferPool networkBufferPool,
 			ConnectionManager connectionManager,
 			ResultPartitionManager resultPartitionManager,
+			FileChannelManager fileChannelManager,
 			ResultPartitionFactory resultPartitionFactory,
 			SingleInputGateFactory singleInputGateFactory) {
 		this.config = config;
 		this.networkBufferPool = networkBufferPool;
 		this.connectionManager = connectionManager;
 		this.resultPartitionManager = resultPartitionManager;
+		this.fileChannelManager = fileChannelManager;
 		this.inputGatesById = new ConcurrentHashMap<>();
 		this.resultPartitionFactory = resultPartitionFactory;
 		this.singleInputGateFactory = singleInputGateFactory;
@@ -116,15 +120,15 @@ public class NetworkEnvironment {
 	public static NetworkEnvironment create(
 			NetworkEnvironmentConfiguration config,
 			TaskEventPublisher taskEventPublisher,
-			MetricGroup metricGroup,
-			IOManager ioManager) {
-		checkNotNull(ioManager);
+			MetricGroup metricGroup) {
 		checkNotNull(taskEventPublisher);
 		checkNotNull(config);
 
 		NettyConfig nettyConfig = config.nettyConfig();
 
 		ResultPartitionManager resultPartitionManager = new ResultPartitionManager();
+
+		FileChannelManager fileChannelManager = new FileChannelManager(config.getTempDirs());
 
 		ConnectionManager connectionManager = nettyConfig != null ?
 			new NettyConnectionManager(resultPartitionManager, taskEventPublisher, nettyConfig, config.isCreditBased()) :
@@ -139,7 +143,7 @@ public class NetworkEnvironment {
 
 		ResultPartitionFactory resultPartitionFactory = new ResultPartitionFactory(
 			resultPartitionManager,
-			ioManager,
+			fileChannelManager,
 			networkBufferPool,
 			config.networkBuffersPerChannel(),
 			config.floatingNetworkBuffersPerGate());
@@ -156,6 +160,7 @@ public class NetworkEnvironment {
 			networkBufferPool,
 			connectionManager,
 			resultPartitionManager,
+			fileChannelManager,
 			resultPartitionFactory,
 			singleInputGateFactory);
 	}
@@ -362,6 +367,9 @@ public class NetworkEnvironment {
 			catch (Throwable t) {
 				LOG.warn("Network buffer pool did not shut down properly.", t);
 			}
+
+			// delete all the temp directories
+			fileChannelManager.shutdown();
 
 			isShutdown = true;
 		}
