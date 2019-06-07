@@ -104,6 +104,24 @@ public class ResultPartitionDeploymentDescriptorTest extends TestLogger {
 		assertThat(shuffleDescriptorCopy.getConnectionId(), is(connectionID));
 	}
 
+	@Test
+	public void testManagedExternallyFlag() {
+		for (ResultPartitionType partitionType : ResultPartitionType.values()) {
+			ResultPartitionDeploymentDescriptor partitionDescriptor = new ResultPartitionDeploymentDescriptor(
+				new PartitionDescriptor(resultId, partitionId, partitionType, numberOfSubpartitions, connectionIndex),
+				(ShuffleDescriptor) ResultPartitionID::new,
+				1,
+				true
+			);
+
+			if (partitionType == ResultPartitionType.BLOCKING) {
+				assertThat(partitionDescriptor.isManagedExternally(), is(true));
+			} else {
+				assertThat(partitionDescriptor.isManagedExternally(), is(false));
+			}
+		}
+	}
+
 	private static ResultPartitionDeploymentDescriptor createCopyAndVerifyResultPartitionDeploymentDescriptor(
 			ShuffleDescriptor shuffleDescriptor) throws IOException {
 		ResultPartitionDeploymentDescriptor orig = new ResultPartitionDeploymentDescriptor(

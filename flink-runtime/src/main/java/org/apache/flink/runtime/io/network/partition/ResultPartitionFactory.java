@@ -82,6 +82,7 @@ public class ResultPartitionFactory {
 			desc.getPartitionType(),
 			desc.getNumberOfSubpartitions(),
 			desc.getMaxParallelism(),
+			desc.isManagedExternally(),
 			createBufferPoolFactory(desc.getNumberOfSubpartitions(), desc.getPartitionType()));
 	}
 
@@ -92,6 +93,7 @@ public class ResultPartitionFactory {
 		@Nonnull ResultPartitionType type,
 		int numberOfSubpartitions,
 		int maxParallelism,
+		boolean isManagedExternally,
 		FunctionWithException<BufferPoolOwner, BufferPool, IOException> bufferPoolFactory) {
 
 		ResultSubpartition[] subpartitions = new ResultSubpartition[numberOfSubpartitions];
@@ -102,6 +104,7 @@ public class ResultPartitionFactory {
 			type,
 			subpartitions,
 			maxParallelism,
+			isManagedExternally,
 			partitionManager,
 			bufferPoolFactory);
 

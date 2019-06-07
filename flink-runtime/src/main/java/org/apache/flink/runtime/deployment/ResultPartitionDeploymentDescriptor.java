@@ -24,9 +24,11 @@ import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
 import org.apache.flink.runtime.shuffle.PartitionDescriptor;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
+import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 
 import java.io.Serializable;
+import java.util.Collection;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -48,6 +50,18 @@ public class ResultPartitionDeploymentDescriptor implements Serializable {
 	/** Flag whether the result partition should send scheduleOrUpdateConsumer messages. */
 	private final boolean sendScheduleOrUpdateConsumersMessage;
 
+	/** Whether the result partition is managed externally.
+	 *
+	 * <p>An externally managed partition is only released if either
+	 * a) the {@link ShuffleEnvironment} is instructed to do so via {@link ShuffleEnvironment#releasePartitions(Collection)},
+	 * b) the production of the partition fails,
+	 * c) the {@link ShuffleEnvironment} shuts down.
+	 *
+	 * <p>An internally managed partition may be released by the {@link ShuffleEnvironment} at any time it deems
+	 * appropriate, typically after it has been fully consumed once.
+	 * */
+	private final boolean isManagedExternally;
+
 	public ResultPartitionDeploymentDescriptor(
 			PartitionDescriptor partitionDescriptor,
 			ShuffleDescriptor shuffleDescriptor,
@@ -58,6 +72,7 @@ public class ResultPartitionDeploymentDescriptor implements Serializable {
 		KeyGroupRangeAssignment.checkParallelismPreconditions(maxParallelism);
 		this.maxParallelism = maxParallelism;
 		this.sendScheduleOrUpdateConsumersMessage = sendScheduleOrUpdateConsumersMessage;
+		this.isManagedExternally = partitionDescriptor.getPartitionType() == ResultPartitionType.BLOCKING;
 	}
 
 	public IntermediateDataSetID getResultId() {
@@ -86,6 +101,10 @@ public class ResultPartitionDeploymentDescriptor implements Serializable {
 
 	public boolean sendScheduleOrUpdateConsumersMessage() {
 		return sendScheduleOrUpdateConsumersMessage;
+	}
+
+	public boolean isManagedExternally() {
+		return isManagedExternally;
 	}
 
 	@Override

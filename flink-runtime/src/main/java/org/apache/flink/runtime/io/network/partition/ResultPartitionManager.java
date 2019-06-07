@@ -38,7 +38,17 @@ public class ResultPartitionManager implements ResultPartitionProvider {
 
 	private final Map<ResultPartitionID, ResultPartition> registeredPartitions = new HashMap<>(16);
 
+	private final boolean releaseExternallyManagedPartitionsOnConsumption;
+
 	private boolean isShutdown;
+
+	public ResultPartitionManager() {
+		this.releaseExternallyManagedPartitionsOnConsumption = true;
+	}
+
+	public ResultPartitionManager(boolean releaseExternallyManagedPartitionsOnConsumption) {
+		this.releaseExternallyManagedPartitionsOnConsumption = releaseExternallyManagedPartitionsOnConsumption;
+	}
 
 	public void registerResultPartition(ResultPartition partition) {
 		synchronized (registeredPartitions) {

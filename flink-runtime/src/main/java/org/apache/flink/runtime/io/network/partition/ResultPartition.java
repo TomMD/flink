@@ -80,6 +80,8 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 	/** Type of this partition. Defines the concrete subpartition implementation to use. */
 	private final ResultPartitionType partitionType;
 
+	private boolean isManagedExternally;
+
 	/** The subpartitions of this partition. At least one. */
 	private final ResultSubpartition[] subpartitions;
 
@@ -112,6 +114,7 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 		ResultPartitionType partitionType,
 		ResultSubpartition[] subpartitions,
 		int numTargetKeyGroups,
+		boolean isManagedExternally,
 		ResultPartitionManager partitionManager,
 		FunctionWithException<BufferPoolOwner, BufferPool, IOException> bufferPoolFactory) {
 
@@ -120,6 +123,7 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 		this.partitionType = checkNotNull(partitionType);
 		this.subpartitions = checkNotNull(subpartitions);
 		this.numTargetKeyGroups = numTargetKeyGroups;
+		this.isManagedExternally = isManagedExternally;
 		this.partitionManager = checkNotNull(partitionManager);
 		this.bufferPoolFactory = bufferPoolFactory;
 	}
@@ -178,6 +182,10 @@ public class ResultPartition implements ResultPartitionWriter, BufferPoolOwner {
 	 */
 	public ResultPartitionType getPartitionType() {
 		return partitionType;
+	}
+
+	public boolean isManagedExternally() {
+		return isManagedExternally;
 	}
 
 	// ------------------------------------------------------------------------

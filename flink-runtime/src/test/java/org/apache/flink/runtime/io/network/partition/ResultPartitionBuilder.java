@@ -129,6 +129,7 @@ public class ResultPartitionBuilder {
 			partitionType,
 			numberOfSubpartitions,
 			numTargetKeyGroups,
+			false,
 			factory);
 	}
 }

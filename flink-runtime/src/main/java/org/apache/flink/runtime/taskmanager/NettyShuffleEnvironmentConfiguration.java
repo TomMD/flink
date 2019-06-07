@@ -60,6 +60,8 @@ public class NettyShuffleEnvironmentConfiguration {
 
 	private final boolean isNetworkDetailedMetrics;
 
+	private final boolean isReleaseBlockingPartitionsOnConsumption;
+
 	private final NettyConfig nettyConfig;
 
 	public NettyShuffleEnvironmentConfiguration(
@@ -71,6 +73,7 @@ public class NettyShuffleEnvironmentConfiguration {
 			int floatingNetworkBuffersPerGate,
 			boolean isCreditBased,
 			boolean isNetworkDetailedMetrics,
+			boolean isReleaseBlockingPartitionsOnConsumption,
 			@Nullable NettyConfig nettyConfig) {
 
 		this.numNetworkBuffers = numNetworkBuffers;
@@ -81,6 +84,7 @@ public class NettyShuffleEnvironmentConfiguration {
 		this.floatingNetworkBuffersPerGate = floatingNetworkBuffersPerGate;
 		this.isCreditBased = isCreditBased;
 		this.isNetworkDetailedMetrics = isNetworkDetailedMetrics;
+		this.isReleaseBlockingPartitionsOnConsumption = isReleaseBlockingPartitionsOnConsumption;
 		this.nettyConfig = nettyConfig;
 	}
 
@@ -122,6 +126,10 @@ public class NettyShuffleEnvironmentConfiguration {
 		return isNetworkDetailedMetrics;
 	}
 
+	public boolean isReleaseExternallyManagedPartitionsOnConsumption() {
+		return isReleaseBlockingPartitionsOnConsumption;
+	}
+
 	// ------------------------------------------------------------------------
 
 	/**
@@ -158,6 +166,8 @@ public class NettyShuffleEnvironmentConfiguration {
 
 		boolean isNetworkDetailedMetrics = configuration.getBoolean(NettyShuffleEnvironmentOptions.NETWORK_DETAILED_METRICS);
 
+		boolean isReleasingExternallyManagedPartitionsOnConsumptions = configuration.getBoolean(NettyShuffleEnvironmentOptions.RELEASE_EXTERNALLY_MANAGED_PARTITIONS_ON_CONSUMPTION);
+
 		return new NettyShuffleEnvironmentConfiguration(
 			numberOfNetworkBuffers,
 			pageSize,
@@ -167,6 +177,7 @@ public class NettyShuffleEnvironmentConfiguration {
 			extraBuffersPerGate,
 			isCreditBased,
 			isNetworkDetailedMetrics,
+			isReleasingExternallyManagedPartitionsOnConsumptions,
 			nettyConfig);
 	}
 
