@@ -36,6 +36,8 @@ import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.shuffle.ShuffleEnvironmentContext;
 import org.apache.flink.runtime.shuffle.ShuffleServiceLoader;
 import org.apache.flink.runtime.state.TaskExecutorLocalStateStoresManager;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironment;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironmentImpl;
 import org.apache.flink.runtime.taskexecutor.slot.TaskSlotTable;
 import org.apache.flink.runtime.taskexecutor.slot.TimerService;
 import org.apache.flink.runtime.taskmanager.NettyShuffleEnvironmentConfiguration;
@@ -72,7 +74,7 @@ public class TaskManagerServices {
 	private final TaskManagerLocation taskManagerLocation;
 	private final MemoryManager memoryManager;
 	private final IOManager ioManager;
-	private final ShuffleEnvironment shuffleEnvironment;
+	private final JobAwareShuffleEnvironment<?, ?> shuffleEnvironment;
 	private final KvStateService kvStateService;
 	private final BroadcastVariableManager broadcastVariableManager;
 	private final TaskSlotTable taskSlotTable;
@@ -85,7 +87,7 @@ public class TaskManagerServices {
 		TaskManagerLocation taskManagerLocation,
 		MemoryManager memoryManager,
 		IOManager ioManager,
-		ShuffleEnvironment shuffleEnvironment,
+		JobAwareShuffleEnvironment<?, ?> shuffleEnvironment,
 		KvStateService kvStateService,
 		BroadcastVariableManager broadcastVariableManager,
 		TaskSlotTable taskSlotTable,
@@ -119,7 +121,7 @@ public class TaskManagerServices {
 		return ioManager;
 	}
 
-	public ShuffleEnvironment getShuffleEnvironment() {
+	public JobAwareShuffleEnvironment<?, ?> getShuffleEnvironment() {
 		return shuffleEnvironment;
 	}
 
@@ -294,7 +296,7 @@ public class TaskManagerServices {
 			taskManagerLocation,
 			memoryManager,
 			ioManager,
-			shuffleEnvironment,
+			new JobAwareShuffleEnvironmentImpl(shuffleEnvironment),
 			kvStateService,
 			broadcastVariableManager,
 			taskSlotTable,

@@ -21,12 +21,12 @@ package org.apache.flink.runtime.taskexecutor;
 import org.apache.flink.core.memory.MemoryType;
 import org.apache.flink.runtime.broadcast.BroadcastVariableManager;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
-import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.io.network.TaskEventDispatcher;
 import org.apache.flink.runtime.memory.MemoryManager;
 import org.apache.flink.runtime.query.KvStateRegistry;
 import org.apache.flink.runtime.registration.RetryingRegistrationConfiguration;
 import org.apache.flink.runtime.state.TaskExecutorLocalStateStoresManager;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironment;
 import org.apache.flink.runtime.taskexecutor.slot.TaskSlotTable;
 import org.apache.flink.runtime.taskmanager.LocalTaskManagerLocation;
 import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
@@ -42,7 +42,7 @@ public class TaskManagerServicesBuilder {
 	private TaskManagerLocation taskManagerLocation;
 	private MemoryManager memoryManager;
 	private IOManager ioManager;
-	private ShuffleEnvironment<?, ?> shuffleEnvironment;
+	private JobAwareShuffleEnvironment<?, ?> shuffleEnvironment;
 	private KvStateService kvStateService;
 	private BroadcastVariableManager broadcastVariableManager;
 	private TaskSlotTable taskSlotTable;
@@ -60,7 +60,7 @@ public class TaskManagerServicesBuilder {
 			MemoryType.HEAP,
 			false);
 		ioManager = mock(IOManager.class);
-		shuffleEnvironment = mock(ShuffleEnvironment.class);
+		shuffleEnvironment = mock(JobAwareShuffleEnvironment.class);
 		kvStateService = new KvStateService(new KvStateRegistry(), null, null);
 		broadcastVariableManager = new BroadcastVariableManager();
 		taskEventDispatcher = new TaskEventDispatcher();
@@ -85,7 +85,7 @@ public class TaskManagerServicesBuilder {
 		return this;
 	}
 
-	public TaskManagerServicesBuilder setShuffleEnvironment(ShuffleEnvironment<?, ?> shuffleEnvironment) {
+	public TaskManagerServicesBuilder setShuffleEnvironment(JobAwareShuffleEnvironment<?, ?> shuffleEnvironment) {
 		this.shuffleEnvironment = shuffleEnvironment;
 		return this;
 	}

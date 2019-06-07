@@ -48,7 +48,6 @@ import org.apache.flink.runtime.heartbeat.HeartbeatTarget;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
 import org.apache.flink.runtime.instance.HardwareDescription;
 import org.apache.flink.runtime.instance.InstanceID;
-import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionConsumableNotifier;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.jobgraph.tasks.InputSplitProvider;
@@ -83,6 +82,7 @@ import org.apache.flink.runtime.taskexecutor.exceptions.SlotOccupiedException;
 import org.apache.flink.runtime.taskexecutor.exceptions.TaskException;
 import org.apache.flink.runtime.taskexecutor.exceptions.TaskManagerException;
 import org.apache.flink.runtime.taskexecutor.exceptions.TaskSubmissionException;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironment;
 import org.apache.flink.runtime.taskexecutor.rpc.RpcCheckpointResponder;
 import org.apache.flink.runtime.taskexecutor.rpc.RpcGlobalAggregateManager;
 import org.apache.flink.runtime.taskexecutor.rpc.RpcInputSplitProvider;
@@ -169,7 +169,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 	private final TaskExecutorLocalStateStoresManager localStateStoresManager;
 
 	/** The network component in the task manager. */
-	private final ShuffleEnvironment shuffleEnvironment;
+	private final JobAwareShuffleEnvironment<?, ?> shuffleEnvironment;
 
 	/** The kvState registration service in the task manager. */
 	private final KvStateService kvStateService;
@@ -642,7 +642,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 	@Override
 	public void releasePartitions(JobID jobId, Collection<ResultPartitionID> partitionIds) {
 		try {
-			shuffleEnvironment.releasePartitions(partitionIds);
+			shuffleEnvironment.releaseFinishedPartitions(jobId, partitionIds);
 		} catch (Throwable t) {
 			// TODO: Do we still need this catch branch?
 			onFatalError(t);
@@ -1141,6 +1141,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 				jobMasterGateway);
 		jobManagerConnections.put(jobManagerResourceID, newJobManagerConnection);
 		jobManagerTable.put(jobId, newJobManagerConnection);
+		shuffleEnvironment.markJobActive(jobId);
 
 		// monitor the job manager as heartbeat target
 		jobManagerHeartbeatManager.monitorTarget(jobManagerResourceID, new HeartbeatTarget<AccumulatorReport>() {
@@ -1249,6 +1250,8 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
 	private void disassociateFromJobManager(JobManagerConnection jobManagerConnection, Exception cause) throws IOException {
 		checkNotNull(jobManagerConnection);
+
+		shuffleEnvironment.releaseAllFinishedPartitionsForJobAndMarkJobInactive(jobManagerConnection.getJobID());
 
 		final KvStateRegistry kvStateRegistry = kvStateService.getKvStateRegistry();
 

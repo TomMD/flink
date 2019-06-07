@@ -47,7 +47,6 @@ import org.apache.flink.runtime.executiongraph.TaskInformation;
 import org.apache.flink.runtime.filecache.FileCache;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.network.NettyShuffleEnvironmentBuilder;
-import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.io.network.TaskEventDispatcher;
 import org.apache.flink.runtime.io.network.partition.NoOpResultPartitionConsumableNotifier;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionConsumableNotifier;
@@ -71,6 +70,8 @@ import org.apache.flink.runtime.state.TestTaskStateManager;
 import org.apache.flink.runtime.taskexecutor.KvStateService;
 import org.apache.flink.runtime.taskexecutor.PartitionProducerStateChecker;
 import org.apache.flink.runtime.taskexecutor.TestGlobalAggregateManager;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironment;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironmentImpl;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
 import org.apache.flink.runtime.util.NettyShuffleDescriptorBuilder;
 import org.apache.flink.runtime.util.TestingTaskManagerRuntimeInfo;
@@ -107,8 +108,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -124,7 +125,7 @@ public class TaskTest extends TestLogger {
 	private static OneShotLatch awaitLatch;
 	private static OneShotLatch triggerLatch;
 
-	private ShuffleEnvironment<?, ?> shuffleEnvironment;
+	private JobAwareShuffleEnvironment<?, ?> shuffleEnvironment;
 
 	@ClassRule
 	public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
@@ -134,7 +135,7 @@ public class TaskTest extends TestLogger {
 		awaitLatch = new OneShotLatch();
 		triggerLatch = new OneShotLatch();
 
-		shuffleEnvironment = new NettyShuffleEnvironmentBuilder().build();
+		shuffleEnvironment = new JobAwareShuffleEnvironmentImpl<>(new NettyShuffleEnvironmentBuilder().build());
 	}
 
 	@After
@@ -982,7 +983,7 @@ public class TaskTest extends TestLogger {
 		private LibraryCacheManager libraryCacheManager;
 		private ResultPartitionConsumableNotifier consumableNotifier;
 		private PartitionProducerStateChecker partitionProducerStateChecker;
-		private final ShuffleEnvironment<?, ?> shuffleEnvironment;
+		private final JobAwareShuffleEnvironment<?, ?> shuffleEnvironment;
 		private KvStateService kvStateService;
 		private Executor executor;
 		private Configuration taskManagerConfig;
@@ -1011,7 +1012,7 @@ public class TaskTest extends TestLogger {
 			requiredJarFileBlobKeys = Collections.emptyList();
 		}
 
-		private TaskBuilder(ShuffleEnvironment<?, ?> shuffleEnvironment) {
+		private TaskBuilder(JobAwareShuffleEnvironment<?, ?> shuffleEnvironment) {
 			this.shuffleEnvironment = Preconditions.checkNotNull(shuffleEnvironment);
 		}
 
