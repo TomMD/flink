@@ -123,10 +123,12 @@ public class ResultPartitionManager implements ResultPartitionProvider {
 			final ResultPartition previous = registeredPartitions.remove(partition.getPartitionId());
 			// Release the partition if it was successfully removed
 			if (partition == previous) {
-				partition.release();
-				ResultPartitionID partitionId = partition.getPartitionId();
-				LOG.debug("Released partition {} produced by {}.",
-					partitionId.getPartitionId(), partitionId.getProducerId());
+				if (!partition.isManagedExternally() || releaseExternallyManagedPartitionsOnConsumption) {
+					partition.release();
+					ResultPartitionID partitionId = partition.getPartitionId();
+					LOG.debug("Released partition {} produced by {}.",
+						partitionId.getPartitionId(), partitionId.getProducerId());
+				}
 			}
 		}
 	}

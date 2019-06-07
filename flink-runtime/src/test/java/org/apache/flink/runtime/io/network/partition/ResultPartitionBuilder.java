@@ -55,6 +55,8 @@ public class ResultPartitionBuilder {
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	private Optional<FunctionWithException<BufferPoolOwner, BufferPool, IOException>> bufferPoolFactory = Optional.empty();
 
+	private boolean isExternallyManaged;
+
 	public ResultPartitionBuilder setResultPartitionId(ResultPartitionID partitionId) {
 		this.partitionId = partitionId;
 		return this;
@@ -112,6 +114,11 @@ public class ResultPartitionBuilder {
 		return this;
 	}
 
+	public ResultPartitionBuilder setIsExternallyManaged(boolean isExternallyManaged) {
+		this.isExternallyManaged = isExternallyManaged;
+		return this;
+	}
+
 	public ResultPartition build() {
 		ResultPartitionFactory resultPartitionFactory = new ResultPartitionFactory(
 			partitionManager,
@@ -129,7 +136,7 @@ public class ResultPartitionBuilder {
 			partitionType,
 			numberOfSubpartitions,
 			numTargetKeyGroups,
-			false,
+			isExternallyManaged,
 			factory);
 	}
 }
