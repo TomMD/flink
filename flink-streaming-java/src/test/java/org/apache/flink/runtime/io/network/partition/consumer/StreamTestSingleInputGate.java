@@ -79,7 +79,7 @@ public class StreamTestSingleInputGate<T> extends TestSingleInputGate {
 		inputQueues = new ConcurrentLinkedQueue[numInputChannels];
 
 		setupInputChannels();
-		inputGate.setBufferPool(new NoOpBufferPool(bufferSize));
+		inputGate.setBufferPool(new NoOpBufferPool());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -224,19 +224,12 @@ public class StreamTestSingleInputGate<T> extends TestSingleInputGate {
 	}
 
 	private static class NoOpBufferPool implements BufferPool {
-		private int bufferSize;
 
-		public NoOpBufferPool(int bufferSize) {
-			this.bufferSize = bufferSize;
+		public NoOpBufferPool() {
 		}
 
 		@Override
 		public void lazyDestroy() {
-		}
-
-		@Override
-		public int getMemorySegmentSize() {
-			return bufferSize;
 		}
 
 		@Override

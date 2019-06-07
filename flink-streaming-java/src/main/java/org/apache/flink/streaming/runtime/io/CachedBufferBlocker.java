@@ -34,9 +34,6 @@ import java.util.ArrayDeque;
 @Internal
 public class CachedBufferBlocker implements BufferBlocker {
 
-	/** The page size, to estimate the total cached data size. */
-	private final int pageSize;
-
 	/** The number of bytes cached since the last roll over. */
 	private long bytesBlocked;
 
@@ -45,17 +42,14 @@ public class CachedBufferBlocker implements BufferBlocker {
 
 	/**
 	 * Creates a new buffer blocker, caching the buffers or events in memory queue.
-	 *
-	 * @param pageSize The page size used to estimate the cached size.
 	 */
-	public CachedBufferBlocker(int pageSize) {
-		this.pageSize = pageSize;
+	public CachedBufferBlocker() {
 		this.currentBuffers = new ArrayDeque<BufferOrEvent>();
 	}
 
 	@Override
 	public void add(BufferOrEvent boe) {
-		bytesBlocked += pageSize;
+		bytesBlocked += boe.getSize();
 
 		currentBuffers.add(boe);
 	}

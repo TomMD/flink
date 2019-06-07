@@ -62,7 +62,7 @@ public class BarrierBufferMassiveRandomTest {
 					new BufferPool[] { pool1, pool2 },
 					new BarrierGenerator[] { new CountBarrier(100000), new RandomBarrier(100000) });
 
-			BarrierBuffer barrierBuffer = new BarrierBuffer(myIG, new BufferSpiller(ioMan, myIG.getPageSize()));
+			BarrierBuffer barrierBuffer = new BarrierBuffer(myIG, new BufferSpiller(ioMan, PAGE_SIZE));
 
 			for (int i = 0; i < 2000000; i++) {
 				BufferOrEvent boe = barrierBuffer.pollNext().get();
@@ -185,11 +185,6 @@ public class BarrierBufferMassiveRandomTest {
 
 		@Override
 		public void sendTaskEvent(TaskEvent event) {}
-
-		@Override
-		public int getPageSize() {
-			return PAGE_SIZE;
-		}
 
 		@Override
 		public void setup() {

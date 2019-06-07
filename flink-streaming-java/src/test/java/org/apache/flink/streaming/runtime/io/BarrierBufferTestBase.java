@@ -73,7 +73,7 @@ public abstract class BarrierBufferTestBase {
 	BarrierBuffer buffer;
 
 	protected BarrierBuffer createBarrierBuffer(int numberOfChannels, BufferOrEvent[] sequence) throws IOException {
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, numberOfChannels, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(numberOfChannels, Arrays.asList(sequence));
 		return createBarrierBuffer(gate);
 	}
 

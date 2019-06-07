@@ -392,7 +392,7 @@ public class BarrierTrackerTest {
 	// ------------------------------------------------------------------------
 
 	private static BarrierTracker createBarrierTracker(int numberOfChannels, BufferOrEvent[] sequence) {
-		MockInputGate gate = new MockInputGate(PAGE_SIZE, numberOfChannels, Arrays.asList(sequence));
+		MockInputGate gate = new MockInputGate(numberOfChannels, Arrays.asList(sequence));
 		return new BarrierTracker(gate);
 	}
 
