@@ -526,7 +526,7 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	 * @return Future which is completed with the allocated slot once it has been assigned
 	 * 			or with an exception if an error occurred.
 	 */
-	private CompletableFuture<LogicalSlot> allocateAndAssignSlotForExecution(
+	CompletableFuture<LogicalSlot> allocateAndAssignSlotForExecution(
 			SlotProvider slotProvider,
 			boolean queued,
 			LocationPreferenceConstraint locationPreferenceConstraint,
