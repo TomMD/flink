@@ -23,8 +23,11 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.plan.stats.TableStats;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.utils.TableConnectorUtils;
+
+import java.util.Optional;
 
 import static org.apache.flink.table.types.utils.TypeConversions.fromLegacyInfoToDataType;
 
@@ -83,5 +86,14 @@ public interface TableSource<T> {
 	 */
 	default String explainSource() {
 		return TableConnectorUtils.generateRuntimeName(getClass(), getTableSchema().getFieldNames());
+	}
+
+	/**
+	 * Gets the statistics of the table.
+	 *
+	 * @return an optional statistics of the table.
+	 */
+	default Optional<TableStats> getTableStats() {
+		return Optional.empty();
 	}
 }
