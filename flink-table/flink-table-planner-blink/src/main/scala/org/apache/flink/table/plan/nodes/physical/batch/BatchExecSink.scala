@@ -18,6 +18,8 @@
 
 package org.apache.flink.table.plan.nodes.physical.batch
 
+import java.util
+
 import org.apache.flink.runtime.operators.DamBehavior
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.transformations.{OneInputTransformation, StreamTransformation}
@@ -27,14 +29,13 @@ import org.apache.flink.table.codegen.{CodeGenUtils, CodeGeneratorContext}
 import org.apache.flink.table.dataformat.BaseRow
 import org.apache.flink.table.plan.nodes.calcite.Sink
 import org.apache.flink.table.plan.nodes.exec.{BatchExecNode, ExecNode}
-import org.apache.flink.table.sinks.{BatchTableSink, DataStreamTableSink, TableSink}
+import org.apache.flink.table.plan.util.SinkUtil
+import org.apache.flink.table.sinks.{DataStreamTableSink, StreamTableSink, TableSink}
 import org.apache.flink.table.types.utils.TypeConversions.fromDataTypeToLegacyInfo
 import org.apache.flink.table.typeutils.BaseRowTypeInfo
 
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
 import org.apache.calcite.rel.RelNode
-
-import java.util
 
 import scala.collection.JavaConversions._
 
@@ -77,11 +78,12 @@ class BatchExecSink[T](
   override protected def translateToPlanInternal(
       tableEnv: BatchTableEnvironment): StreamTransformation[Any] = {
     val resultTransformation = sink match {
-      case batchTableSink: BatchTableSink[T] =>
+      case boundedTableSink: StreamTableSink[T] =>
+        // we can insert the bounded DataStream into a StreamTableSink
         val transformation = translateToStreamTransformation(withChangeFlag = false, tableEnv)
         val boundedStream = new DataStream(tableEnv.streamEnv, transformation)
-        batchTableSink.emitBoundedStream(
-          boundedStream, tableEnv.getConfig, tableEnv.streamEnv.getConfig).getTransformation
+        boundedTableSink.emitDataStream(boundedStream)
+        SinkUtil.getNewlyAddedSinkTransformation(tableEnv.streamEnv)
 
       case streamTableSink: DataStreamTableSink[T] =>
         // In case of table to bounded stream through BatchTableEnvironment#toBoundedStream, we
@@ -91,7 +93,7 @@ class BatchExecSink[T](
         translateToStreamTransformation(withChangeFlag = streamTableSink.withChangeFlag, tableEnv)
 
       case _ =>
-        throw new TableException("Only Support BatchTableSink or DataStreamTableSink!")
+        throw new TableException("Only Support StreamTableSink or DataStreamTableSink!")
     }
     resultTransformation.asInstanceOf[StreamTransformation[Any]]
   }

@@ -119,8 +119,20 @@ abstract class BatchTableEnvImpl(
         val result: DataSet[T] = translate(table, batchQueryConfig)(outputType)
         // Give the DataSet to the TableSink to emit it.
         batchSink.emitDataSet(result)
+      case boundedSink: BoundedTableSink[T] =>
+        val outputType = fromDataTypeToLegacyInfo(sink.getConsumedDataType)
+          .asInstanceOf[TypeInformation[T]]
+        // translate the Table into a DataSet and provide the type that the TableSink expects.
+        val result: DataSet[T] = translate(table, batchQueryConfig)(outputType)
+        // use the OutputFormat to consume the DataSet.
+        val dataSink = result.output(boundedSink.getOutputFormat)
+        dataSink.name(
+          TableConnectorUtils.generateRuntimeName(
+            boundedSink.getClass,
+            boundedSink.getTableSchema.getFieldNames))
       case _ =>
-        throw new TableException("BatchTableSink required to emit batch Table.")
+        throw new TableException(
+          "BatchTableSink or BoundedTableSink required to emit batch Table.")
     }
   }
 
