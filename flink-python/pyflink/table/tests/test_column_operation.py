@@ -34,7 +34,7 @@ class StreamTableColumnsOperationTests(PyFlinkStreamTableTestCase):
 
         result = t.select("a").add_columns("a + 1 as b, a + 2 as c")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['1,2,3', '2,3,4']
@@ -51,7 +51,7 @@ class StreamTableColumnsOperationTests(PyFlinkStreamTableTestCase):
 
         result = t.select("a").add_or_replace_columns("a + 1 as b, a + 2 as a")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['3,2', '4,3']
@@ -68,7 +68,7 @@ class StreamTableColumnsOperationTests(PyFlinkStreamTableTestCase):
 
         result = t.select("a, b, c").rename_columns("a as d, c as f, b as e").select("d, e, f")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['1,Hi,Hello', '2,Hello,Hello']
@@ -85,7 +85,7 @@ class StreamTableColumnsOperationTests(PyFlinkStreamTableTestCase):
 
         result = t.select("a, b, c").drop_columns("a, c").select("b")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['Hi', 'Hello']

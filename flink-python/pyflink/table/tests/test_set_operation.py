@@ -38,7 +38,7 @@ class StreamTableSetOperationTests(PyFlinkStreamTableTestCase):
 
         result = t1.union_all(t2)
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
 
         actual = source_sink_utils.results()
         expected = ['1,Hi,Hello',

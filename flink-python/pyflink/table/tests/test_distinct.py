@@ -35,7 +35,7 @@ class StreamTableDistinctTests(PyFlinkStreamTableTestCase):
 
         result = t.distinct().select("a, c as b")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['1,Hello', '2,Hello']

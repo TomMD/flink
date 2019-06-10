@@ -36,7 +36,7 @@ class StreamTableJoinTests(PyFlinkStreamTableTestCase):
 
         result = t1.join(t2, "a = d").select("a, b + e")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['2,HiFlink', '3,HelloPython', '3,HelloFlink']
@@ -55,7 +55,7 @@ class StreamTableJoinTests(PyFlinkStreamTableTestCase):
 
         result = t1.join(t2).where("a = d").select("a, b + e")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['2,HiFlink', '3,HelloPython', '3,HelloFlink']
@@ -74,7 +74,7 @@ class StreamTableJoinTests(PyFlinkStreamTableTestCase):
 
         result = t1.left_outer_join(t2, "a = d").select("a, b + e")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['1,null', '2,HiFlink', '3,HelloPython', '3,HelloFlink']
@@ -93,7 +93,7 @@ class StreamTableJoinTests(PyFlinkStreamTableTestCase):
 
         result = t1.left_outer_join(t2).where("a = d").select("a, b + e")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['2,HiFlink', '3,HelloPython', '3,HelloFlink']
@@ -112,7 +112,7 @@ class StreamTableJoinTests(PyFlinkStreamTableTestCase):
 
         result = t1.right_outer_join(t2, "a = d").select("d, b + e")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['2,HiFlink', '3,HelloPython', '4,null']
@@ -131,7 +131,7 @@ class StreamTableJoinTests(PyFlinkStreamTableTestCase):
 
         result = t1.full_outer_join(t2, "a = d").select("a, d, b + e")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['1,null,null', '2,2,HiFlink', '3,3,HelloPython', 'null,4,null']

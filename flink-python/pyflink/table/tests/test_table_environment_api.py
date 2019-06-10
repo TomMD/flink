@@ -20,7 +20,10 @@ import os
 import tempfile
 
 from py4j.compat import unicode
-from pyflink.table.table_environment import TableEnvironment
+
+from pyflink.batch import ExecutionEnvironment
+from pyflink.streaming import StreamExecutionEnvironment
+from pyflink.table.table_environment import BatchTableEnvironment, StreamTableEnvironment
 from pyflink.table.table_config import TableConfig
 from pyflink.table.table_sink import CsvTableSink
 from pyflink.table.types import DataTypes, RowType
@@ -40,7 +43,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
 
         t_env.from_elements([(1, "Hi", "Hello"), (2, "Hello", "Hello")], ["a", "b", "c"])\
             .insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['1,Hi,Hello', '2,Hello,Hello']
@@ -55,7 +58,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
             field_names, field_types, source_sink_utils.TestAppendSink())
 
         t_env.from_elements([(1, "Hi", "Hello")], ["a", "b", "c"]).insert_into("Sinks")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['1,Hi,Hello']
@@ -71,7 +74,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
 
         t_env.from_elements([(1, "Hi", "Hello"), (2, "Hi", "Hello")], ["a", "b", "c"])\
             .insert_into("Sinks")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['1,Hi,Hello', '2,Hi,Hello']
@@ -125,7 +128,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
 
         result = t_env.sql_query("select a + 1, b, c from %s" % source)
         result.insert_into("sinks")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['2,Hi,Hello', '3,Hello,Hello']
@@ -144,7 +147,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
             field_names, field_types, source_sink_utils.TestAppendSink())
 
         t_env.sql_update("insert into sinks select * from source")
-        t_env.execute("test_sql_job")
+        t_env.exec_env().execute("test_sql_job")
 
         actual = source_sink_utils.results()
         expected = ['1,Hi,Hello', '2,Hello,Hello']
@@ -166,7 +169,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
             datetime.timedelta(days=1), datetime.timedelta(days=2))
 
         t_env.sql_update("insert into sinks select * from source", query_config)
-        t_env.execute("test_sql_job")
+        t_env.exec_env().execute("test_sql_job")
 
         actual = source_sink_utils.results()
         expected = ['1,Hi,Hello', '2,Hello,Hello']
@@ -182,38 +185,19 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
         assert query_config.get_max_idle_state_retention_time() == 2 * 24 * 3600 * 1000
         assert query_config.get_min_idle_state_retention_time() == 24 * 3600 * 1000
 
-    def test_table_config(self):
-
-        table_config = TableConfig.Builder()\
-            .as_streaming_execution()\
-            .set_timezone("Asia/Shanghai")\
-            .set_max_generated_code_length(64000)\
-            .set_null_check(True)\
-            .set_parallelism(4).build()
-
-        assert table_config.parallelism() == 4
-        assert table_config.null_check() is True
-        assert table_config.max_generated_code_length() == 64000
-        assert table_config.timezone() == "Asia/Shanghai"
-        assert table_config.is_stream() is True
-
     def test_create_table_environment(self):
-        table_config = TableConfig.Builder()\
-            .set_parallelism(2)\
-            .set_max_generated_code_length(32000)\
-            .set_null_check(False)\
-            .set_timezone("Asia/Shanghai")\
-            .as_streaming_execution()\
-            .build()
+        table_config = TableConfig()
+        table_config.set_max_generated_code_length(32000)
+        table_config.set_null_check(False)
+        table_config.set_timezone("Asia/Shanghai")
 
-        t_env = TableEnvironment.create(table_config)
+        env = StreamExecutionEnvironment.get_execution_environment()
+        t_env = StreamTableEnvironment.create(env, table_config)
 
         readed_table_config = t_env.get_config()
-        assert readed_table_config.parallelism() == 2
-        assert readed_table_config.null_check() is False
-        assert readed_table_config.max_generated_code_length() == 32000
-        assert readed_table_config.timezone() == "Asia/Shanghai"
-        assert readed_table_config.is_stream() is True
+        assert readed_table_config.get_null_check() is False
+        assert readed_table_config.get_max_generated_code_length() == 32000
+        assert readed_table_config.get_timezone() == "Asia/Shanghai"
 
 
 class BatchTableEnvironmentTests(PyFlinkBatchTableTestCase):
@@ -250,7 +234,7 @@ class BatchTableEnvironmentTests(PyFlinkBatchTableTestCase):
             "Results",
             field_names, field_types, CsvTableSink(tmp_csv))
         t_env.scan("Orders").insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
 
         with open(tmp_csv, 'r') as f:
             lines = f.read()
@@ -326,7 +310,7 @@ class BatchTableEnvironmentTests(PyFlinkBatchTableTestCase):
 
         result = t_env.sql_query("select a + 1, b, c from %s" % source)
         result.insert_into("sinks")
-        t_env.execute()
+        t_env.exec_env().execute()
 
         with open(tmp_csv, 'r') as f:
             lines = f.read()
@@ -349,7 +333,7 @@ class BatchTableEnvironmentTests(PyFlinkBatchTableTestCase):
             field_names, field_types, CsvTableSink(tmp_csv))
 
         t_env.sql_update("insert into sinks select * from source")
-        t_env.execute("test_sql_job")
+        t_env.exec_env().execute("test_sql_job")
 
         with open(tmp_csv, 'r') as f:
             lines = f.read()
@@ -373,7 +357,7 @@ class BatchTableEnvironmentTests(PyFlinkBatchTableTestCase):
         query_config = t_env.query_config()
 
         t_env.sql_update("insert into sinks select * from source", query_config)
-        t_env.execute("test_sql_job")
+        t_env.exec_env().execute("test_sql_job")
 
         with open(tmp_csv, 'r') as f:
             lines = f.read()
@@ -381,33 +365,25 @@ class BatchTableEnvironmentTests(PyFlinkBatchTableTestCase):
 
     def test_table_config(self):
 
-        table_config = TableConfig.Builder()\
-            .as_batch_execution()\
-            .set_timezone("Asia/Shanghai")\
-            .set_max_generated_code_length(64000)\
-            .set_null_check(True)\
-            .set_parallelism(4).build()
+        table_config = TableConfig()
+        table_config.set_timezone("Asia/Shanghai")
+        table_config.set_max_generated_code_length(64000)
+        table_config.set_null_check(True)
 
-        assert table_config.parallelism() == 4
-        assert table_config.null_check() is True
-        assert table_config.max_generated_code_length() == 64000
-        assert table_config.timezone() == "Asia/Shanghai"
-        assert table_config.is_stream() is False
+        assert table_config.get_null_check() is True
+        assert table_config.get_max_generated_code_length() == 64000
+        assert table_config.get_timezone() == "Asia/Shanghai"
 
     def test_create_table_environment(self):
-        table_config = TableConfig.Builder()\
-            .set_parallelism(2)\
-            .set_max_generated_code_length(32000)\
-            .set_null_check(False)\
-            .set_timezone("Asia/Shanghai")\
-            .as_batch_execution()\
-            .build()
+        table_config = TableConfig()
+        table_config.set_max_generated_code_length(32000)
+        table_config.set_null_check(False)
+        table_config.set_timezone("Asia/Shanghai")
 
-        t_env = TableEnvironment.create(table_config)
+        env = ExecutionEnvironment.get_execution_environment()
+        t_env = BatchTableEnvironment.create(env, table_config)
 
         readed_table_config = t_env.get_config()
-        assert readed_table_config.parallelism() == 2
-        assert readed_table_config.null_check() is False
-        assert readed_table_config.max_generated_code_length() == 32000
-        assert readed_table_config.timezone() == "Asia/Shanghai"
-        assert readed_table_config.is_stream() is False
+        assert readed_table_config.get_null_check() is False
+        assert readed_table_config.get_max_generated_code_length() == 32000
+        assert readed_table_config.get_timezone() == "Asia/Shanghai"
