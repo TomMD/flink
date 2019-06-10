@@ -1,0 +1,185 @@
+---
+title: "Python REPL"
+nav-parent_id: ops
+nav-pos: 7
+---
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+Flink comes with an integrated interactive Python Shell.
+It can be used in a local setup as well as in a cluster setup.
+
+To use the shell with an integrated Flink cluster just execute:
+
+{% highlight bash %}
+bin/pyflink-shell.sh local
+{% endhighlight %}
+
+in the root directory of your binary Flink directory. To run the Shell on a
+cluster, please see the Setup section below.
+
+## Usage
+
+The shell only supports Table API currently.
+The Table Environments are automatically prebound after startup. 
+Use "bt_env" and "st_env" to access BatchTableEnvironment and StreamTableEnvironment respectively.
+
+### Table API
+
+The example below is a simple program using Table API:
+<div class="codetabs" markdown="1">
+<div data-lang="stream" markdown="1">
+{% highlight python %}
+>>> import tempfile
+>>> import os
+>>> sink_path = tempfile.gettempdir() + '/streaming.csv'
+>>> if os.path.isfile(sink_path):
+>>>     os.remove(sink_path)
+>>> t = st_env.from_elements([(1, 'hi', 'hello'), (2, 'hi', 'hello')], ['a', 'b', 'c'])
+>>> st_env.connect(FileSystem().path(sink_path))\
+>>>     .with_format(OldCsv()
+>>>         .field_delimiter(',')
+>>>         .field("a", DataTypes.BIGINT())
+>>>         .field("b", DataTypes.STRING())
+>>>         .field("c", DataTypes.STRING()))\
+>>>     .with_schema(Schema()
+>>>         .field("a", DataTypes.BIGINT())
+>>>         .field("b", DataTypes.STRING())
+>>>         .field("c", DataTypes.STRING()))\
+>>>     .register_table_sink("stream_sink")
+>>> t.select("a + 1, b, c")\
+>>>     .insert_into("stream_sink")
+>>> st_env.execute()
+{% endhighlight %}
+</div>
+<div data-lang="batch" markdown="1">
+{% highlight python %}
+>>> import tempfile
+>>> import os
+>>> sink_path = tempfile.gettempdir() + '/batch.csv'
+>>> if os.path.isfile(sink_path):
+>>>     os.remove(sink_path)
+>>> t = bt_env.from_elements([(1, 'hi', 'hello'), (2, 'hi', 'hello')], ['a', 'b', 'c'])
+>>> bt_env.connect(FileSystem().path(sink_path))\
+>>>     .with_format(OldCsv()
+>>>         .field_delimiter(',')
+>>>         .field("a", DataTypes.BIGINT())
+>>>         .field("b", DataTypes.STRING())
+>>>         .field("c", DataTypes.STRING()))\
+>>>     .with_schema(Schema()
+>>>         .field("a", DataTypes.BIGINT())
+>>>         .field("b", DataTypes.STRING())
+>>>         .field("c", DataTypes.STRING()))\
+>>>     .register_table_sink("batch_sink")
+>>> t.select("a + 1, b, c")\
+>>>     .insert_into("batch_sink")
+>>> bt_env.execute()
+{% endhighlight %}
+</div>
+</div>
+
+## Setup
+
+To get an overview of what options the Python Shell provides, please use
+
+{% highlight bash %}
+bin/pyflink-shell.sh --help
+{% endhighlight %}
+
+### Local
+
+To use the shell with an integrated Flink cluster just execute:
+
+{% highlight bash %}
+bin/pyflink-shell.sh local
+{% endhighlight %}
+
+
+### Remote
+
+To use it with a running cluster, please start the Python shell with the keyword `remote`
+and supply the host and port of the JobManager with:
+
+{% highlight bash %}
+bin/pyflink-shell.sh remote <hostname> <portnumber>
+{% endhighlight %}
+
+### Yarn Python Shell cluster
+
+The shell can deploy a Flink cluster to YARN, which is used exclusively by the
+shell. The number of YARN containers can be controlled by the parameter `-n <arg>`.
+The shell deploys a new Flink cluster on YARN and connects the
+cluster. You can also specify options for YARN cluster such as memory for
+JobManager, name of YARN application, etc.
+
+For example, to start a Yarn cluster for the Python Shell with two TaskManagers
+use the following:
+
+{% highlight bash %}
+ bin/pyflink-shell.sh yarn -n 2
+{% endhighlight %}
+
+For all other options, see the full reference at the bottom.
+
+
+### Yarn Session
+
+If you have previously deployed a Flink cluster using the Flink Yarn Session,
+the Python shell can connect with it using the following command:
+
+{% highlight bash %}
+ bin/pyflink-shell.sh yarn
+{% endhighlight %}
+
+
+## Full Reference
+
+{% highlight bash %}
+Flink Python Shell
+Usage: pyflink-shell.sh [local|remote|yarn] [options] <args>...
+
+Command: local [options]
+Starts Flink Python shell with a local Flink cluster
+
+Command: remote [options] <host> <port>
+Starts Flink python shell connecting to a remote cluster
+  <host>
+        Remote host name as string
+  <port>
+        Remote port as integer
+
+Command: yarn [options]
+Starts Flink python shell connecting to a yarn cluster
+  -n arg | --container arg
+        Number of YARN container to allocate (= Number of TaskManagers)
+  -jm arg | --jobManagerMemory arg
+        Memory for JobManager container with optional unit (default: MB)
+  -nm <value> | --name <value>
+        Set a custom name for the application on YARN
+  -qu <arg> | --queue <arg>
+        Specifies YARN queue
+  -s <arg> | --slots <arg>
+        Number of slots per TaskManager
+  -tm <arg> | --taskManagerMemory <arg>
+        Memory per TaskManager container with optional unit (default: MB)
+-h | --help
+    Prints this usage text
+{% endhighlight %}
+
+{% top %}
