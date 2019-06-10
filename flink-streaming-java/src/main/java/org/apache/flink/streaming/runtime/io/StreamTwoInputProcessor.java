@@ -324,6 +324,10 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 		barrierHandler.cleanup();
 	}
 
+	public CheckpointBarrierHandler getBarrierHandler() {
+		return barrierHandler;
+	}
+
 	private class ForwardingValveOutputHandler1 implements StatusWatermarkValve.ValveOutputHandler {
 		private final TwoInputStreamOperator<IN1, IN2, ?> operator;
 		private final Object lock;

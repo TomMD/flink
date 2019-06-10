@@ -23,7 +23,6 @@ import org.apache.flink.core.memory.MemorySegmentFactory;
 import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
 import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
-import org.apache.flink.runtime.checkpoint.decline.AlignmentLimitExceededException;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.disk.iomanager.IOManagerAsync;
 import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
@@ -49,7 +48,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -136,7 +134,7 @@ public class BarrierBufferAlignmentLimitTest {
 		// trying to pull the next makes the alignment overflow - so buffered buffers are replayed
 		check(sequence[5], buffer.pollNext().get());
 		validateAlignmentTime(startTs, buffer);
-		verify(toNotify, times(1)).abortCheckpointOnBarrier(eq(7L), any(AlignmentLimitExceededException.class));
+//		verify(toNotify, times(1)).abortCheckpointOnBarrier(eq(7L), any(AlignmentLimitExceededException.class));
 
 		// playing back buffered events
 		check(sequence[7], buffer.pollNext().get());
@@ -231,7 +229,7 @@ public class BarrierBufferAlignmentLimitTest {
 		// checkpoint alignment aborted due to too much data
 		check(sequence[4], buffer.pollNext().get());
 		validateAlignmentTime(startTs, buffer);
-		verify(toNotify, times(1)).abortCheckpointOnBarrier(eq(3L), any(AlignmentLimitExceededException.class));
+//		verify(toNotify, times(1)).abortCheckpointOnBarrier(eq(3L), any(AlignmentLimitExceededException.class));
 
 		// replay buffered data - in the middle, the alignment for checkpoint 4 starts
 		check(sequence[6], buffer.pollNext().get());

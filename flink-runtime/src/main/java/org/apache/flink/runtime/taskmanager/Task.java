@@ -1185,6 +1185,39 @@ public class Task implements Runnable, TaskActions, PartitionProducerStateProvid
 		}
 	}
 
+	@Override
+	public void notifyCheckpointAbort(final long checkpointID) {
+		AbstractInvokable invokable = this.invokable;
+
+		if (executionState == ExecutionState.RUNNING && invokable != null) {
+
+			Runnable runnable = new Runnable() {
+				@Override
+				public void run() {
+					try {
+						invokable.notifyCheckpointAbort(checkpointID);
+						taskStateManager.notifyCheckpointAbort(checkpointID);
+					}
+					catch (Throwable t) {
+						if (getExecutionState() == ExecutionState.RUNNING) {
+							// fail task if checkpoint confirmation failed.
+							failExternally(new RuntimeException(
+								"Error while aborting checkpoint",
+								t));
+						}
+					}
+				}
+			};
+			executeAsyncCallRunnable(
+				runnable,
+				"Checkpoint aborted notification for " + taskNameWithSubtask,
+				false);
+		}
+		else {
+			LOG.info("Ignoring checkpoint commit notification for non-running task {}.", taskNameWithSubtask);
+		}
+	}
+
 	// ------------------------------------------------------------------------
 
 	/**

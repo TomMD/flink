@@ -27,9 +27,9 @@ import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
 import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
+import org.apache.flink.runtime.checkpoint.decline.CheckpointDeclineTaskNotReadyException;
 import org.apache.flink.runtime.execution.CancelTaskException;
 import org.apache.flink.runtime.execution.Environment;
-import org.apache.flink.runtime.io.network.api.CancelCheckpointMarker;
 import org.apache.flink.runtime.io.network.api.writer.RecordWriter;
 import org.apache.flink.runtime.io.network.api.writer.RecordWriterBuilder;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
@@ -68,10 +68,15 @@ import javax.annotation.Nullable;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Optional;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -190,6 +195,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
 	private final List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> recordWriters;
 
+	/** The asynchronous parts of pending checkpoints. */
+	private final TreeMap<Long, AsyncCheckpointRunnable> asyncCheckpointOperations;
+
+	/** The IDs of the checkpoint for which we are notified aborted. */
+	private final NavigableSet<Long> abortedCheckpointIds;
+
 	private final SynchronousSavepointLatch syncSavepointLatch;
 
 	protected final Mailbox mailbox;
@@ -227,6 +238,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		this.recordWriters = createRecordWriters(configuration, environment);
 		this.syncSavepointLatch = new SynchronousSavepointLatch();
 		this.mailbox = new MailboxImpl();
+		this.abortedCheckpointIds = new ConcurrentSkipListSet();
+		this.asyncCheckpointOperations = new TreeMap<>();
 	}
 
 	// ------------------------------------------------------------------------
@@ -689,16 +702,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	}
 
 	@Override
-	public void abortCheckpointOnBarrier(long checkpointId, Throwable cause) throws Exception {
-		LOG.debug("Aborting checkpoint via cancel-barrier {} for task {}", checkpointId, getName());
+	public void abortCheckpointOnCause(long checkpointId, Throwable cause) {
+		LOG.debug("Aborting checkpoint for task {} due to {}.", checkpointId, getName(), cause);
 
 		// notify the coordinator that we decline this checkpoint
 		getEnvironment().declineCheckpoint(checkpointId, cause);
-
-		// notify all downstream operators that they should not wait for a barrier from us
-		synchronized (lock) {
-			operatorChain.broadcastCheckpointCancelMarker(checkpointId);
-		}
 	}
 
 	private boolean performCheckpoint(
@@ -746,27 +754,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 				result = true;
 			}
 			else {
-				// we cannot perform our checkpoint - let the downstream operators know that they
-				// should not wait for any input from this operator
+				// we cannot perform our checkpoint - decline this checkpoint to coordinator.
 
-				// we cannot broadcast the cancellation markers on the 'operator chain', because it may not
-				// yet be created
-				final CancelCheckpointMarker message = new CancelCheckpointMarker(checkpointMetaData.getCheckpointId());
-				Exception exception = null;
-
-				for (RecordWriter<SerializationDelegate<StreamRecord<OUT>>> recordWriter : recordWriters) {
-					try {
-						recordWriter.broadcastEvent(message);
-					} catch (Exception e) {
-						exception = ExceptionUtils.firstOrSuppressed(
-							new Exception("Could not send cancel checkpoint marker to downstream tasks.", e),
-							exception);
-					}
-				}
-
-				if (exception != null) {
-					throw exception;
-				}
+				abortCheckpointOnCause(checkpointMetaData.getCheckpointId(), new CheckpointDeclineTaskNotReadyException(getName()));
 
 				result = false;
 			}
@@ -807,6 +797,39 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 				LOG.debug("Ignoring notification of complete checkpoint for not-running task {}", getName());
 			}
 		}
+	}
+
+	@Override
+	public void notifyCheckpointAbort(long checkpointId) throws Exception {
+		synchronized (lock) {
+			if (isRunning) {
+				LOG.debug("Notification of aborted checkpoint for task {}", getName());
+				abortedCheckpointIds.add(checkpointId);
+
+				synchronized (asyncCheckpointOperations) {
+					if (asyncCheckpointOperations.containsKey(checkpointId)) {
+						LOG.info("Abort running async checkpoint {}.", checkpointId);
+						AsyncCheckpointRunnable asyncCheckpointOperation = asyncCheckpointOperations.remove(checkpointId);
+						asyncCheckpointOperation.markCancel();
+						asyncCheckpointOperation.close();
+					}
+				}
+
+				for (StreamOperator<?> operator : operatorChain.getAllOperators()) {
+					if (operator != null) {
+						operator.notifyCheckpointAbort(checkpointId);
+					}
+				}
+			}
+			else {
+				LOG.info("Ignoring notification of aborted checkpoint for not-running task {}", getName());
+			}
+		}
+	}
+
+	@VisibleForTesting
+	public Map<Long, AsyncCheckpointRunnable> getAsyncCheckpointOperations() {
+		return Collections.unmodifiableMap(asyncCheckpointOperations);
 	}
 
 	private void tryShutdownTimerService() {
@@ -937,6 +960,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		private final AtomicReference<CheckpointingOperation.AsyncCheckpointState> asyncCheckpointState = new AtomicReference<>(
 			CheckpointingOperation.AsyncCheckpointState.RUNNING);
 
+		private volatile boolean cancelled;
+
 		AsyncCheckpointRunnable(
 			StreamTask<?, ?> owner,
 			Map<OperatorID, OperatorSnapshotFutures> operatorSnapshotsInProgress,
@@ -949,6 +974,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			this.checkpointMetaData = Preconditions.checkNotNull(checkpointMetaData);
 			this.checkpointMetrics = Preconditions.checkNotNull(checkpointMetrics);
 			this.asyncStartNanos = asyncStartNanos;
+			this.cancelled = false;
 		}
 
 		@Override
@@ -1003,6 +1029,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			} finally {
 				owner.cancelables.unregisterCloseable(this);
 				FileSystemSafetyNet.closeSafetyNetAndGuardedResourcesForThread();
+
+				synchronized (owner.asyncCheckpointOperations) {
+					owner.asyncCheckpointOperations.remove(checkpointMetaData.getCheckpointId());
+				}
 			}
 		}
 
@@ -1093,6 +1123,14 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			}
 		}
 
+		private void markCancel() {
+			cancelled = true;
+		}
+
+		public boolean isCancelled() {
+			return cancelled;
+		}
+
 		private void cleanup() throws Exception {
 			LOG.debug(
 				"Cleanup AsyncCheckpointRunnable for checkpoint {} of {}.",
@@ -1166,6 +1204,25 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		}
 
 		public void executeCheckpointing() throws Exception {
+			long checkpointId = checkpointMetaData.getCheckpointId();
+			if (owner.abortedCheckpointIds.contains(checkpointId)) {
+				LOG.info("Checkpoint {} has been notified as aborted, would not execute any checkpointing.", checkpointId);
+
+				owner.abortedCheckpointIds.remove(checkpointId);
+				// local private field abortedCheckpointIds contains this checkpoint,
+				// means some task already decline that checkpoint and we would not execute this again.
+				return;
+			} else {
+				Iterator<Long> iterator = owner.abortedCheckpointIds.iterator();
+				while (iterator.hasNext()) {
+					if (iterator.next() < checkpointId) {
+						iterator.remove();
+					} else {
+						break;
+					}
+				}
+			}
+
 			startSyncPartNano = System.nanoTime();
 
 			try {
@@ -1174,8 +1231,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 				}
 
 				if (LOG.isDebugEnabled()) {
-					LOG.debug("Finished synchronous checkpoints for checkpoint {} on task {}",
-						checkpointMetaData.getCheckpointId(), owner.getName());
+					LOG.debug("Finished synchronous checkpoints for checkpoint {} on task {}", checkpointId, owner.getName());
 				}
 
 				startAsyncPartNano = System.nanoTime();
@@ -1190,13 +1246,17 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 					checkpointMetrics,
 					startAsyncPartNano);
 
+				synchronized (owner.asyncCheckpointOperations) {
+					owner.asyncCheckpointOperations.put(checkpointId, asyncCheckpointRunnable);
+				}
+
 				owner.cancelables.registerCloseable(asyncCheckpointRunnable);
 				owner.asyncOperationsThreadPool.submit(asyncCheckpointRunnable);
 
 				if (LOG.isDebugEnabled()) {
 					LOG.debug("{} - finished synchronous part of checkpoint {}. " +
 							"Alignment duration: {} ms, snapshot duration {} ms",
-						owner.getName(), checkpointMetaData.getCheckpointId(),
+						owner.getName(), checkpointId,
 						checkpointMetrics.getAlignmentDurationNanos() / 1_000_000,
 						checkpointMetrics.getSyncDurationMillis());
 				}
@@ -1212,10 +1272,14 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 					}
 				}
 
+				synchronized (owner.asyncCheckpointOperations) {
+					owner.asyncCheckpointOperations.remove(checkpointId);
+				}
+
 				if (LOG.isDebugEnabled()) {
 					LOG.debug("{} - did NOT finish synchronous part of checkpoint {}. " +
 							"Alignment duration: {} ms, snapshot duration {} ms",
-						owner.getName(), checkpointMetaData.getCheckpointId(),
+						owner.getName(), checkpointId,
 						checkpointMetrics.getAlignmentDurationNanos() / 1_000_000,
 						checkpointMetrics.getSyncDurationMillis());
 				}

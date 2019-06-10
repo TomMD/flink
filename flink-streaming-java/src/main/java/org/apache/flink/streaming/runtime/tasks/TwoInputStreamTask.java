@@ -109,6 +109,12 @@ public class TwoInputStreamTask<IN1, IN2, OUT> extends StreamTask<OUT, TwoInputS
 	}
 
 	@Override
+	public void notifyCheckpointAbort(long checkpointId) throws Exception {
+		inputProcessor.getBarrierHandler().abortCheckpoint(checkpointId);
+		super.notifyCheckpointAbort(checkpointId);
+	}
+
+	@Override
 	protected void performDefaultAction(ActionContext context) throws Exception {
 		if (!inputProcessor.processInput()) {
 			context.allActionsCompleted();

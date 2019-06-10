@@ -178,6 +178,10 @@ public class StreamInputProcessor<IN> {
 		input.close();
 	}
 
+	public CheckpointBarrierHandler getBarrierHandler() {
+		return input.getBarrierHandler();
+	}
+
 	private class ForwardingValveOutputHandler implements StatusWatermarkValve.ValveOutputHandler {
 		private final OneInputStreamOperator<IN, ?> operator;
 		private final Object lock;

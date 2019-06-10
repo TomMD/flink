@@ -132,6 +132,11 @@ public final class StreamTaskNetworkInput implements StreamTaskInput {
 	}
 
 	@Override
+	public CheckpointBarrierHandler getBarrierHandler() {
+		return barrierHandler;
+	}
+
+	@Override
 	public boolean isFinished() {
 		return isFinished;
 	}
