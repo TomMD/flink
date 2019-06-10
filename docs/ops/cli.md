@@ -172,11 +172,11 @@ These examples about how to manage a job in CLI.
 
 -   Cancel a job with a savepoint:
 
-        ./bin/flink cancel -s [targetDirectory] <jobID>
+        ./bin/flink cancel -s [targetDirectory] -st [savepointTimeout] <jobID>
 
 -   Stop a job with a savepoint (streaming jobs only):
 
-        ./bin/flink stop -s [targetDirectory] -d <jobID>
+        ./bin/flink stop -s [targetDirectory] -st [savepointTimeout] -d <jobID>
         
 
 **NOTE**: The difference between cancelling and stopping a (streaming) job is the following:
@@ -321,6 +321,7 @@ Action "run" compiles and runs a program.
                                           standard out.
      -s,--fromSavepoint <savepointPath>   Path to a savepoint to restore the job
                                           from (for example
+     -st,--savepointTimeout <savepointTimeout> Timeout of a savepoint.
                                           hdfs:///flink/savepoint-1537).
      -sae,--shutdownOnAttachedExit        If the job is submitted in attached
                                           mode, perform a best-effort cluster
@@ -430,6 +431,7 @@ Action "stop" stops a running program with a savepoint (streaming jobs only).
                                           directory is specified, the configured
                                           default will be used
                                           ("state.savepoints.dir").
+     -st,--savepointTimeout <savepointTimeout> Timeout of a savepoint.
   Options for default mode:
      -m,--jobmanager <arg>           Address of the JobManager (master) to which
                                      to connect. Use this flag to connect to a
@@ -449,6 +451,7 @@ Action "cancel" cancels a running program.
                                             no directory is specified, the
                                             configured default directory
                                             (state.savepoints.dir) is used.
+     -st,--savepointTimeout <savepointTimeout> Timeout of a savepoint.
   Options for yarn-cluster mode:
      -m,--jobmanager <arg>            Address of the JobManager (master) to
                                       which to connect. Use this flag to connect
@@ -470,7 +473,7 @@ Action "cancel" cancels a running program.
 
 Action "savepoint" triggers savepoints for a running job or disposes existing ones.
 
-  Syntax: savepoint [OPTIONS] <Job ID> [<target directory>]
+  Syntax: savepoint [OPTIONS] <Job ID> [<target directory>] [<savepoint timeout>]
   "savepoint" action options:
      -d,--dispose <arg>       Path of savepoint to dispose.
      -j,--jarfile <jarfile>   Flink program JAR file.

@@ -85,6 +85,9 @@ public class CliFrontendParser {
 	public static final Option SAVEPOINT_PATH_OPTION = new Option("s", "fromSavepoint", true,
 			"Path to a savepoint to restore the job from (for example hdfs:///flink/savepoint-1537).");
 
+	public static final Option SAVEPOINT_TIMEOUT_OPTION = new Option("st", "savepointTimeout", true,
+			"Timeout of a savepoint.");
+
 	public static final Option SAVEPOINT_ALLOW_NON_RESTORED_OPTION = new Option("n", "allowNonRestoredState", false,
 			"Allow to skip savepoint state that cannot be restored. " +
 					"You need to allow this if you removed an operator from your " +
@@ -165,6 +168,9 @@ public class CliFrontendParser {
 		SAVEPOINT_PATH_OPTION.setRequired(false);
 		SAVEPOINT_PATH_OPTION.setArgName("savepointPath");
 
+		SAVEPOINT_TIMEOUT_OPTION.setRequired(false);
+		SAVEPOINT_TIMEOUT_OPTION.setArgName("savepointTimeout");
+
 		SAVEPOINT_ALLOW_NON_RESTORED_OPTION.setRequired(false);
 
 		ZOOKEEPER_NAMESPACE_OPTION.setRequired(false);
@@ -232,6 +238,7 @@ public class CliFrontendParser {
 		Options options = buildGeneralOptions(new Options());
 		options = getProgramSpecificOptions(options);
 		options.addOption(SAVEPOINT_PATH_OPTION);
+		options.addOption(SAVEPOINT_TIMEOUT_OPTION);
 		return options.addOption(SAVEPOINT_ALLOW_NON_RESTORED_OPTION);
 	}
 
@@ -249,12 +256,14 @@ public class CliFrontendParser {
 
 	static Options getCancelCommandOptions() {
 		Options options = buildGeneralOptions(new Options());
-		return options.addOption(CANCEL_WITH_SAVEPOINT_OPTION);
+		return options.addOption(CANCEL_WITH_SAVEPOINT_OPTION)
+				.addOption(SAVEPOINT_TIMEOUT_OPTION);
 	}
 
 	static Options getStopCommandOptions() {
 		return buildGeneralOptions(new Options())
 				.addOption(STOP_WITH_SAVEPOINT)
+				.addOption(SAVEPOINT_TIMEOUT_OPTION)
 				.addOption(STOP_AND_DRAIN);
 	}
 
@@ -271,6 +280,7 @@ public class CliFrontendParser {
 	private static Options getRunOptionsWithoutDeprecatedOptions(Options options) {
 		Options o = getProgramSpecificOptionsWithoutDeprecatedOptions(options);
 		o.addOption(SAVEPOINT_PATH_OPTION);
+		o.addOption(SAVEPOINT_TIMEOUT_OPTION);
 		return o.addOption(SAVEPOINT_ALLOW_NON_RESTORED_OPTION);
 	}
 
@@ -286,12 +296,14 @@ public class CliFrontendParser {
 	}
 
 	private static Options getCancelOptionsWithoutDeprecatedOptions(Options options) {
-		return options.addOption(CANCEL_WITH_SAVEPOINT_OPTION);
+		return options.addOption(CANCEL_WITH_SAVEPOINT_OPTION)
+				.addOption(SAVEPOINT_TIMEOUT_OPTION);
 	}
 
 	private static Options getStopOptionsWithoutDeprecatedOptions(Options options) {
 		return options
 				.addOption(STOP_WITH_SAVEPOINT)
+				.addOption(SAVEPOINT_TIMEOUT_OPTION)
 				.addOption(STOP_AND_DRAIN);
 	}
 

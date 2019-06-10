@@ -34,6 +34,8 @@ public class StopWithSavepointRequestBody implements RequestBody {
 
 	private static final String FIELD_NAME_END_OF_EVENT_TIME = "endOfEventTime";
 
+	private static final String FIELD_NAME_TIMEOUT = "timeout";
+
 	@JsonProperty(FIELD_NAME_TARGET_DIRECTORY)
 	@Nullable
 	private final String targetDirectory;
@@ -41,17 +43,26 @@ public class StopWithSavepointRequestBody implements RequestBody {
 	@JsonProperty(FIELD_NAME_END_OF_EVENT_TIME)
 	private final boolean endOfEventTime;
 
+	@JsonProperty(FIELD_NAME_TIMEOUT)
+	private final long timeout;
+
 	@JsonCreator
 	public StopWithSavepointRequestBody(
 			@Nullable @JsonProperty(FIELD_NAME_TARGET_DIRECTORY) final String targetDirectory,
-			@JsonProperty(value = FIELD_NAME_END_OF_EVENT_TIME, defaultValue = "false") final boolean endOfEventTime) {
+			@JsonProperty(value = FIELD_NAME_END_OF_EVENT_TIME, defaultValue = "false") final boolean endOfEventTime,
+			@JsonProperty(value = FIELD_NAME_TIMEOUT, defaultValue = "-1") final long timeout) {
 		this.targetDirectory = targetDirectory;
 		this.endOfEventTime = endOfEventTime;
+		this.timeout = timeout;
 	}
 
 	@Nullable
 	public String getTargetDirectory() {
 		return targetDirectory;
+	}
+
+	public long getTimeout() {
+		return timeout;
 	}
 
 	public boolean shouldAdvanceToEndOfEventTime() {

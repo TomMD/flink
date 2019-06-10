@@ -1506,6 +1506,9 @@
         },
         "cancel-job" : {
           "type" : "boolean"
+        },
+        "timeout" : {
+          "type" : "integer"
         }
       }
     },
@@ -1578,6 +1581,9 @@
         },
         "endOfEventTime" : {
           "type" : "boolean"
+        },
+        "timeout" : {
+          "type" : "integer"
         }
       }
     },
