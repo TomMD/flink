@@ -20,6 +20,7 @@ package org.apache.flink.table.runtime.functions;
 
 import org.apache.flink.table.dataformat.BinaryString;
 import org.apache.flink.table.dataformat.Decimal;
+import org.apache.flink.table.dataformat.StringUtil;
 import org.apache.flink.table.runtime.util.JsonUtils;
 import org.apache.flink.table.utils.EncodingUtils;
 
@@ -419,14 +420,14 @@ public class SqlFunctionUtils {
 		}
 		if (pairSeparator != null && pairSeparator.getSizeInBytes() == 1 &&
 			kvSeparator != null && kvSeparator.getSizeInBytes() == 1) {
-			return str.keyValue(pairSeparator.getByte(0), kvSeparator.getByte(0), keyName);
+			return StringUtil.keyValue(str, pairSeparator.byteAt(0), kvSeparator.byteAt(0), keyName);
 		} else {
 			return BinaryString.fromString(
 				keyValue(
-					BinaryString.safeToString(str),
-					BinaryString.safeToString(pairSeparator),
-					BinaryString.safeToString(kvSeparator),
-					BinaryString.safeToString(keyName)));
+						StringUtil.safeToString(str),
+						StringUtil.safeToString(pairSeparator),
+						StringUtil.safeToString(kvSeparator),
+						StringUtil.safeToString(keyName)));
 		}
 	}
 
@@ -675,7 +676,7 @@ public class SqlFunctionUtils {
 			}
 			return index;
 		} else {
-			int pos = instr(str.reverse(), subString.reverse(), -startPosition, nthAppearance);
+			int pos = instr(StringUtil.reverse(str), StringUtil.reverse(subString), -startPosition, nthAppearance);
 			if (pos == 0) {
 				return 0;
 			} else {
