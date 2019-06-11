@@ -22,25 +22,35 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.testutils.BlockerSync;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.blob.BlobCacheService;
 import org.apache.flink.runtime.blob.VoidBlobStore;
 import org.apache.flink.runtime.clusterframework.types.ResourceID;
 import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.concurrent.Executors;
+import org.apache.flink.runtime.deployment.InputGateDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.TaskDeploymentDescriptor;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.execution.ExecutionState;
+import org.apache.flink.runtime.execution.librarycache.LibraryCacheManager;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
+import org.apache.flink.runtime.executiongraph.PartitionInfo;
 import org.apache.flink.runtime.heartbeat.HeartbeatServices;
 import org.apache.flink.runtime.highavailability.TestingHighAvailabilityServices;
 import org.apache.flink.runtime.io.network.NettyShuffleEnvironmentBuilder;
+import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
+import org.apache.flink.runtime.io.network.partition.NoOpResultPartitionConsumableNotifier;
+import org.apache.flink.runtime.io.network.partition.PartitionProducerStateProvider;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobmaster.JMTMRegistrationSuccess;
+import org.apache.flink.runtime.jobmaster.JobMasterGateway;
+import org.apache.flink.runtime.jobmaster.JobMasterId;
 import org.apache.flink.runtime.jobmaster.utils.TestingJobMasterGateway;
 import org.apache.flink.runtime.jobmaster.utils.TestingJobMasterGatewayBuilder;
 import org.apache.flink.runtime.leaderretrieval.SettableLeaderRetrievalService;
@@ -52,10 +62,14 @@ import org.apache.flink.runtime.rpc.TestingRpcService;
 import org.apache.flink.runtime.shuffle.PartitionDescriptor;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
 import org.apache.flink.runtime.state.TaskExecutorLocalStateStoresManager;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironment;
 import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironmentImpl;
 import org.apache.flink.runtime.taskexecutor.slot.TaskSlotTable;
 import org.apache.flink.runtime.taskexecutor.slot.TimerService;
+import org.apache.flink.runtime.taskmanager.CheckpointResponder;
 import org.apache.flink.runtime.taskmanager.LocalTaskManagerLocation;
+import org.apache.flink.runtime.taskmanager.NoOpTaskManagerActions;
+import org.apache.flink.runtime.taskmanager.TaskManagerActions;
 import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
 import org.apache.flink.runtime.util.TestingFatalErrorHandler;
@@ -70,13 +84,23 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
+import static junit.framework.TestCase.assertNotNull;
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for the partition-lifecycle logic in the {@link TaskExecutor}.
@@ -100,6 +124,115 @@ public class TaskExecutorPartitionLifecycleTest extends TestLogger {
 		haServices.setResourceManagerLeaderRetriever(new SettableLeaderRetrievalService());
 		haServices.setJobMasterLeaderRetriever(jobId, jobManagerLeaderRetriever);
 		rpc = new TestingRpcService();
+	}
+
+	@Test
+	public void testConnectionTerminationAfterExternalRelease() throws IOException, InterruptedException, ExecutionException, TimeoutException {
+		final JobMasterId jobMasterId = JobMasterId.generate();
+
+		final LibraryCacheManager libraryCacheManager = mock(LibraryCacheManager.class);
+		when(libraryCacheManager.getClassLoader(any(JobID.class))).thenReturn(ClassLoader.getSystemClassLoader());
+
+		final JobMasterGateway jobMasterGateway = mock(JobMasterGateway.class);
+		when(jobMasterGateway.getFencingToken()).thenReturn(jobMasterId);
+
+		final TaskManagerActions taskManagerActions = new NoOpTaskManagerActions();
+		final JobManagerConnection jobManagerConnection = new JobManagerConnection(
+			jobId,
+			ResourceID.generate(),
+			jobMasterGateway,
+			taskManagerActions,
+			mock(CheckpointResponder.class),
+			new TestGlobalAggregateManager(),
+			libraryCacheManager,
+			new NoOpResultPartitionConsumableNotifier(),
+			mock(PartitionProducerStateChecker.class));
+
+		final JobManagerTable jobManagerTable = new JobManagerTable();
+		jobManagerTable.put(jobId, jobManagerConnection);
+
+		final AtomicBoolean hasPartitionsOccupyingLocalResources = new AtomicBoolean(true);
+		final TestJobAwareShuffleEnvironment jobAwareShuffleEnvironment = new TestJobAwareShuffleEnvironment(jobId -> hasPartitionsOccupyingLocalResources.get());
+
+		final TaskManagerServices taskManagerServices = new TaskManagerServicesBuilder()
+			.setJobManagerTable(jobManagerTable)
+			.setShuffleEnvironment(jobAwareShuffleEnvironment)
+			.build();
+
+		final TestingTaskExecutor taskManager = createTestingTaskExecutor(taskManagerServices, new HeartbeatServices(Long.MAX_VALUE, Long.MAX_VALUE));
+
+		try {
+			taskManager.start();
+			taskManager.waitUntilStarted();
+
+			assertTrue(taskManagerServices.getJobManagerTable().contains(jobId));
+
+			taskManager.releasePartitions(jobId, Collections.singletonList(new ResultPartitionID()));
+			// connection should be kept alive since the environment still says we have local resources
+			assertTrue(taskManagerServices.getJobManagerTable().contains(jobId));
+
+			hasPartitionsOccupyingLocalResources.set(false);
+
+			taskManager.releasePartitions(jobId, Collections.singletonList(new ResultPartitionID()));
+			assertTrue(taskManagerServices.getJobManagerTable().contains(jobId));
+		} finally {
+			RpcUtils.terminateRpcEndpoint(taskManager, timeout);
+		}
+	}
+
+	@Test
+	public void testConnectionTerminationAfterInternalRelease() throws Exception {
+		final JobMasterId jobMasterId = JobMasterId.generate();
+
+		final LibraryCacheManager libraryCacheManager = mock(LibraryCacheManager.class);
+		when(libraryCacheManager.getClassLoader(any(JobID.class))).thenReturn(ClassLoader.getSystemClassLoader());
+
+		final JobMasterGateway jobMasterGateway = mock(JobMasterGateway.class);
+		when(jobMasterGateway.getFencingToken()).thenReturn(jobMasterId);
+
+		final TaskManagerActions taskManagerActions = new NoOpTaskManagerActions();
+		final JobManagerConnection jobManagerConnection = new JobManagerConnection(
+			jobId,
+			ResourceID.generate(),
+			jobMasterGateway,
+			taskManagerActions,
+			mock(CheckpointResponder.class),
+			new TestGlobalAggregateManager(),
+			libraryCacheManager,
+			new NoOpResultPartitionConsumableNotifier(),
+			mock(PartitionProducerStateChecker.class));
+
+		final JobManagerTable jobManagerTable = new JobManagerTable();
+		jobManagerTable.put(jobId, jobManagerConnection);
+
+		final AtomicBoolean hasPartitionsOccupyingLocalResources = new AtomicBoolean(true);
+		final TestJobAwareShuffleEnvironment jobAwareShuffleEnvironment = new TestJobAwareShuffleEnvironment(jobId -> hasPartitionsOccupyingLocalResources.get());
+
+		final TaskManagerServices taskManagerServices = new TaskManagerServicesBuilder()
+			.setJobManagerTable(jobManagerTable)
+			.setShuffleEnvironment(jobAwareShuffleEnvironment)
+			.build();
+
+		final TestingTaskExecutor taskManager = createTestingTaskExecutor(taskManagerServices, new HeartbeatServices(Long.MAX_VALUE, Long.MAX_VALUE));
+
+		try {
+			taskManager.start();
+			taskManager.waitUntilStarted();
+
+			assertTrue(taskManagerServices.getJobManagerTable().contains(jobId));
+			assertNotNull(jobAwareShuffleEnvironment.listener);
+
+			jobAwareShuffleEnvironment.listener.accept(jobId);
+			// connection should be kept alive since the environment still says we have local resources
+			assertTrue(taskManagerServices.getJobManagerTable().contains(jobId));
+
+			hasPartitionsOccupyingLocalResources.set(false);
+
+			jobAwareShuffleEnvironment.listener.accept(jobId);
+			assertTrue(taskManagerServices.getJobManagerTable().contains(jobId));
+		} finally {
+			RpcUtils.terminateRpcEndpoint(taskManager, timeout);
+		}
 	}
 
 	@Test
@@ -275,5 +408,70 @@ public class TaskExecutorPartitionLifecycleTest extends TestLogger {
 				new VoidBlobStore(),
 				null),
 			new TestingFatalErrorHandler());
+	}
+
+	private static class TestJobAwareShuffleEnvironment implements JobAwareShuffleEnvironment<ResultPartitionWriter, InputGate> {
+
+		private final Function<JobID, Boolean> hasPartitionsOccupyingLocalResourcesFunction;
+		private Consumer<JobID> listener = null;
+
+		private TestJobAwareShuffleEnvironment(Function<JobID, Boolean> hasPartitionsOccupyingLocalResourcesFunction) {
+			this.hasPartitionsOccupyingLocalResourcesFunction = hasPartitionsOccupyingLocalResourcesFunction;
+		}
+
+		@Override
+		public int start() throws IOException {
+			return 0;
+		}
+
+		@Override
+		public Collection<ResultPartitionWriter> createResultPartitionWriters(JobID jobId, String taskName, ExecutionAttemptID executionAttemptID, Collection<ResultPartitionDeploymentDescriptor> resultPartitionDeploymentDescriptors, MetricGroup outputGroup, MetricGroup buffersGroup) {
+			return null;
+		}
+
+		@Override
+		public void releaseFinishedPartitions(JobID jobId, Collection<ResultPartitionID> partitionIds) {
+
+		}
+
+		@Override
+		public void releaseAllFinishedPartitionsForJobAndMarkJobInactive(JobID jobId) {
+
+		}
+
+		@Override
+		public Collection<ResultPartitionID> getPartitionsOccupyingLocalResources() {
+			return null;
+		}
+
+		@Override
+		public boolean hasPartitionsOccupyingLocalResources(JobID jobId) {
+			return hasPartitionsOccupyingLocalResourcesFunction.apply(jobId);
+		}
+
+		@Override
+		public void markJobActive(JobID jobId) {
+
+		}
+
+		@Override
+		public void setPartitionFailedOrFinishedListener(Consumer<JobID> listener) {
+			this.listener = listener;
+		}
+
+		@Override
+		public Collection<InputGate> createInputGates(String taskName, ExecutionAttemptID executionAttemptID, PartitionProducerStateProvider partitionProducerStateProvider, Collection<InputGateDeploymentDescriptor> inputGateDeploymentDescriptors, MetricGroup parentGroup, MetricGroup inputGroup, MetricGroup buffersGroup) {
+			return null;
+		}
+
+		@Override
+		public boolean updatePartitionInfo(ExecutionAttemptID consumerID, PartitionInfo partitionInfo) throws IOException, InterruptedException {
+			return false;
+		}
+
+		@Override
+		public void close() throws Exception {
+
+		}
 	}
 }

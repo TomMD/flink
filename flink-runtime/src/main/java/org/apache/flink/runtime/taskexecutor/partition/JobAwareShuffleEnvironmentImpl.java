@@ -50,6 +50,8 @@ public class JobAwareShuffleEnvironmentImpl<G extends InputGate> implements JobA
 	private final PartitionTable inProgressPartitionTable = new PartitionTable();
 	private final PartitionTable finishedPartitionTable = new PartitionTable();
 
+	private Consumer<JobID> listener = jobId -> {};
+
 	/**	Tracks which jobs are still being monitored, to ensure cleanup in cases where tasks are finishing while
 	 * the jobmanager connection is being terminated. This is a concurrent map since it is modified by both the
 	 * Task (via {@link #notifyPartitionFinished(JobID, ResultPartitionID)}} and
@@ -58,6 +60,11 @@ public class JobAwareShuffleEnvironmentImpl<G extends InputGate> implements JobA
 
 	public JobAwareShuffleEnvironmentImpl(ShuffleEnvironment<?, G> backingShuffleEnvironment) {
 		this.backingShuffleEnvironment = Preconditions.checkNotNull(backingShuffleEnvironment);
+	}
+
+	@Override
+	public void setPartitionFailedOrFinishedListener(Consumer<JobID> listener) {
+		this.listener = listener;
 	}
 
 	@Override
@@ -147,6 +154,10 @@ public class JobAwareShuffleEnvironmentImpl<G extends InputGate> implements JobA
 			inProgressPartitionTable.stopTrackingPartition(jobId, resultPartitionId);
 			backingShuffleEnvironment.releasePartitions(Collections.singleton(resultPartitionId));
 		}
+
+		if (!hasPartitionsOccupyingLocalResources(jobId)) {
+			listener.accept(jobId);
+		}
 	}
 
 	private void notifyPartitionFailed(JobID jobId, ResultPartitionID resultPartitionId) {
@@ -154,6 +165,10 @@ public class JobAwareShuffleEnvironmentImpl<G extends InputGate> implements JobA
 		// also check for finished partitions since tasks may fail (and release) a finished partition if they are canceled
 		// after they finished their partitions.
 		finishedPartitionTable.stopTrackingPartition(jobId, resultPartitionId);
+
+		if (!hasPartitionsOccupyingLocalResources(jobId)) {
+			listener.accept(jobId);
+		}
 	}
 
 	// ------------------------------------------------------------------------

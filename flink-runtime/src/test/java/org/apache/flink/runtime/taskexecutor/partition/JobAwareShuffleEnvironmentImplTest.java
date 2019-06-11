@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -209,6 +210,44 @@ public class JobAwareShuffleEnvironmentImplTest extends TestLogger {
 
 		assertFalse(jobAwareEnvironment.hasPartitionsOccupyingLocalResources(jobId));
 		assertThat(wrappedEnvironment.releasedPartitions, contains(externallyManagedWriter.resultPartitionID));
+	}
+
+	@Test
+	public void testListenerCalledOnFinishedPartition() throws IOException {
+		AtomicBoolean listenerCalled = new AtomicBoolean();
+
+		jobAwareEnvironment.setPartitionFailedOrFinishedListener(jobId -> listenerCalled.set(true));
+
+		for (ResultPartitionWriter writer : writers) {
+			writer.setup();
+		}
+
+		assertFalse(listenerCalled.get());
+
+		for (ResultPartitionWriter writer : writers) {
+			writer.finish();
+		}
+
+		assertTrue(listenerCalled.get());
+	}
+
+	@Test
+	public void testListenerCalledOnFailedPartition() throws IOException {
+		AtomicBoolean listenerCalled = new AtomicBoolean();
+
+		jobAwareEnvironment.setPartitionFailedOrFinishedListener(jobId -> listenerCalled.set(true));
+
+		for (ResultPartitionWriter writer : writers) {
+			writer.setup();
+		}
+
+		assertFalse(listenerCalled.get());
+
+		for (ResultPartitionWriter writer : writers) {
+			writer.fail(null);
+		}
+
+		assertTrue(listenerCalled.get());
 	}
 
 	private static Collection<ResultPartitionWriter> createResultPartitionWriters(

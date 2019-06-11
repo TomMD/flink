@@ -33,6 +33,7 @@ import org.apache.flink.runtime.taskexecutor.TaskExecutor;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.function.Consumer;
 
 /**
  * Job-aware variation of the {@link ShuffleEnvironment} interface.
@@ -104,6 +105,14 @@ public interface JobAwareShuffleEnvironment<P extends ResultPartitionWriter, G e
 	 * @param jobId
 	 */
 	void markJobActive(JobID jobId);
+
+	/**
+	 * Sets a listener that is called if a partition was failed or finished, and subsequently no more unreleased
+	 * partitions exist for a given job.
+	 *
+	 * @param listener
+	 */
+	void setPartitionFailedOrFinishedListener(Consumer<JobID> listener);
 
 	/**
 	 * Factory method for the task's {@link InputGate}s.

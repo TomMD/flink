@@ -266,6 +266,8 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 		this.currentRegistrationTimeoutId = null;
 
 		this.stackTraceSampleService = new StackTraceSampleService(rpcService.getScheduledExecutor());
+
+		taskExecutorServices.getShuffleEnvironment().setPartitionFailedOrFinishedListener(this::notifyFinalizedPartition);
 	}
 
 	@Override
@@ -643,12 +645,17 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 	public void releasePartitions(JobID jobId, Collection<ResultPartitionID> partitionIds) {
 		try {
 			shuffleEnvironment.releaseFinishedPartitions(jobId, partitionIds);
+			closeJobManagerConnectionIfNoAllocatedResources(jobId);
 		} catch (Throwable t) {
 			// TODO: Do we still need this catch branch?
 			onFatalError(t);
 		}
 
 		// TODO: Maybe it's better to return an Acknowledge here to notify the JM about the success/failure with an Exception
+	}
+
+	private void notifyFinalizedPartition(JobID jobId) {
+		runAsync(() -> closeJobManagerConnectionIfNoAllocatedResources(jobId));
 	}
 
 	// ----------------------------------------------------------------------
@@ -1379,20 +1386,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 				}
 
 				if (jobId != null) {
-					// check whether we still have allocated slots for the same job
-					if (taskSlotTable.getAllocationIdsPerJob(jobId).isEmpty()) {
-						// we can remove the job from the job leader service
-						try {
-							jobLeaderService.removeJob(jobId);
-						} catch (Exception e) {
-							log.info("Could not remove job {} from JobLeaderService.", jobId, e);
-						}
-
-						closeJobManagerConnection(
-							jobId,
-							new FlinkException("TaskExecutor " + getAddress() +
-								" has no more allocated slots for job " + jobId + '.'));
-					}
+					closeJobManagerConnectionIfNoAllocatedResources(jobId);
 				}
 			}
 		} catch (SlotNotFoundException e) {
@@ -1400,6 +1394,23 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 		}
 
 		localStateStoresManager.releaseLocalStateForAllocationId(allocationId);
+	}
+
+	private void closeJobManagerConnectionIfNoAllocatedResources(JobID jobId) {
+		// check whether we still have allocated slots for the same job
+		if (taskSlotTable.getAllocationIdsPerJob(jobId).isEmpty() && !shuffleEnvironment.hasPartitionsOccupyingLocalResources(jobId)) {
+			// we can remove the job from the job leader service
+			try {
+				jobLeaderService.removeJob(jobId);
+			} catch (Exception e) {
+				log.info("Could not remove job {} from JobLeaderService.", jobId, e);
+			}
+
+			closeJobManagerConnection(
+				jobId,
+				new FlinkException("TaskExecutor " + getAddress() +
+					" has no more allocated slots for job " + jobId + '.'));
+		}
 	}
 
 	private void timeoutSlot(AllocationID allocationId, UUID ticket) {
