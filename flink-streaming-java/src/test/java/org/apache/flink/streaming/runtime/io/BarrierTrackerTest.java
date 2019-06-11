@@ -22,7 +22,6 @@ import org.apache.flink.core.memory.MemorySegmentFactory;
 import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
 import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
-import org.apache.flink.runtime.io.network.api.CancelCheckpointMarker;
 import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
 import org.apache.flink.runtime.io.network.buffer.FreeingBufferRecycler;
 import org.apache.flink.runtime.io.network.buffer.NetworkBuffer;
@@ -34,16 +33,13 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 /**
  * Tests for the behavior of the barrier tracker.
@@ -285,22 +281,34 @@ public class BarrierTrackerTest {
 				createBarrier(1, 0),
 				createBuffer(0),
 				createBarrier(2, 0),
-				createCancellationBarrier(4, 0),
+				createBuffer(0),
+				// abort checkpoint-4 abort after 4th location
 				createBarrier(5, 0),
 				createBuffer(0),
-				createCancellationBarrier(6, 0),
+				// abort checkpoint-6 after 5th location
 				createBuffer(0)
 		};
 		tracker = createBarrierTracker(1, sequence);
 
 		// negative values mean an expected cancellation call!
 		CheckpointSequenceValidator validator =
-				new CheckpointSequenceValidator(1, 2, -4, 5, -6);
+				new CheckpointSequenceValidator(tracker, 1, 2, -4, 5, -6);
 		tracker.registerCheckpointEventHandler(validator);
 
-		for (BufferOrEvent boe : sequence) {
+		Map<Integer, Integer> abortedCheckpoints = new HashMap<Integer, Integer>() {
+			{
+				put(4, 4);
+				put(6, 6);
+			}
+		};
+
+		for (int i = 0; i < sequence.length; i++) {
+			BufferOrEvent boe = sequence[i];
 			if (boe.isBuffer()) {
 				assertEquals(boe, tracker.pollNext().get());
+			}
+			if (abortedCheckpoints.containsKey(i)) {
+				validator.notifyCheckpointAbort(abortedCheckpoints.get(i));
 			}
 			assertTrue(tracker.isEmpty());
 		}
@@ -310,34 +318,33 @@ public class BarrierTrackerTest {
 	public void testMultiChannelAbortCheckpoint() throws Exception {
 		BufferOrEvent[] sequence = {
 				// some buffers and a successful checkpoint
-				createBuffer(0), createBuffer(2), createBuffer(0),
-				createBarrier(1, 1), createBarrier(1, 2),
-				createBuffer(2), createBuffer(1),
-				createBarrier(1, 0),
+				createBuffer(0), createBuffer(2),
+				createBuffer(0), createBarrier(1, 1),
+				createBarrier(1, 2), createBuffer(2),
+				createBuffer(1), createBarrier(1, 0),
 
-				// aborted on last barrier
+				// aborted on last barrier (14th place in sequence)
 				createBuffer(0), createBuffer(2),
 				createBarrier(2, 0), createBarrier(2, 2),
 				createBuffer(0), createBuffer(2),
-				createCancellationBarrier(2, 1),
 
 				// successful checkpoint
 				createBuffer(2), createBuffer(1),
-				createBarrier(3, 1), createBarrier(3, 2), createBarrier(3, 0),
+				createBarrier(3, 1), createBarrier(3, 2),
+				createBarrier(3, 0),
 
-				// abort on first barrier
+				// abort on first barrier (21th place in sequence)
 				createBuffer(0), createBuffer(1),
-				createCancellationBarrier(4, 1), createBarrier(4, 2),
-				createBuffer(0),
+				createBarrier(4, 2), createBuffer(0),
 				createBarrier(4, 0),
 
 				// another successful checkpoint
-				createBuffer(0), createBuffer(1), createBuffer(2),
-				createBarrier(5, 2), createBarrier(5, 1), createBarrier(5, 0),
-
-				// abort multiple cancellations and a barrier after the cancellations
 				createBuffer(0), createBuffer(1),
-				createCancellationBarrier(6, 1), createCancellationBarrier(6, 2),
+				createBuffer(2), createBarrier(5, 2),
+				createBarrier(5, 1), createBarrier(5, 0),
+
+				// abort multiple cancellations and a barrier after the cancellations (31th place in sequence)
+				createBuffer(0), createBuffer(1),
 				createBarrier(6, 0),
 
 				createBuffer(0)
@@ -346,45 +353,25 @@ public class BarrierTrackerTest {
 
 		// negative values mean an expected cancellation call!
 		CheckpointSequenceValidator validator =
-				new CheckpointSequenceValidator(1, -2, 3, -4, 5, -6);
+				new CheckpointSequenceValidator(tracker, 1, -2, 3, -4, 5, -6);
 		tracker.registerCheckpointEventHandler(validator);
 
-		for (BufferOrEvent boe : sequence) {
+		Map<Integer, Integer> abortedCheckpoints = new HashMap<Integer, Integer>() {
+			{
+				put(14, 2);
+				put(21, 4);
+				put(31, 6);
+			}
+		};
+		for (int i = 0; i < sequence.length; i++) {
+			BufferOrEvent boe = sequence[i];
 			if (boe.isBuffer()) {
 				assertEquals(boe, tracker.pollNext().get());
 			}
-		}
-	}
-
-	/**
-	 * Tests that each checkpoint is only aborted once in case of an interleaved cancellation
-	 * barrier arrival of two consecutive checkpoints.
-	 */
-	@Test
-	public void testInterleavedCancellationBarriers() throws Exception {
-		BufferOrEvent[] sequence = {
-			createBarrier(1L, 0),
-			createCancellationBarrier(2L, 0),
-			createCancellationBarrier(1L, 1),
-			createCancellationBarrier(2L, 1),
-			createCancellationBarrier(1L, 2),
-			createCancellationBarrier(2L, 2),
-			createBuffer(0)
-		};
-		tracker = createBarrierTracker(3, sequence);
-
-		AbstractInvokable statefulTask = mock(AbstractInvokable.class);
-
-		tracker.registerCheckpointEventHandler(statefulTask);
-
-		for (BufferOrEvent boe : sequence) {
-			if (boe.isBuffer() || (boe.getEvent().getClass() != CheckpointBarrier.class && boe.getEvent().getClass() != CancelCheckpointMarker.class)) {
-				assertEquals(boe, tracker.pollNext().get());
+			if (abortedCheckpoints.containsKey(i)) {
+				validator.notifyCheckpointAbort(abortedCheckpoints.get(i));
 			}
 		}
-
-		verify(statefulTask, times(1)).abortCheckpointOnBarrier(eq(1L), any(Throwable.class));
-		verify(statefulTask, times(1)).abortCheckpointOnBarrier(eq(2L), any(Throwable.class));
 	}
 
 	// ------------------------------------------------------------------------
@@ -398,10 +385,6 @@ public class BarrierTrackerTest {
 
 	private static BufferOrEvent createBarrier(long id, int channel) {
 		return new BufferOrEvent(new CheckpointBarrier(id, System.currentTimeMillis(), CheckpointOptions.forCheckpointWithDefaultLocation()), channel);
-	}
-
-	private static BufferOrEvent createCancellationBarrier(long id, int channel) {
-		return new BufferOrEvent(new CancelCheckpointMarker(id), channel);
 	}
 
 	private static BufferOrEvent createBuffer(int channel) {
@@ -418,6 +401,14 @@ public class BarrierTrackerTest {
 		private final long[] checkpointIDs;
 
 		private int i = 0;
+
+		private BarrierTracker tracker;
+
+		private CheckpointSequenceValidator(BarrierTracker tracker, long... checkpointIDs) {
+			super(new DummyEnvironment("test", 1, 0));
+			this.tracker = tracker;
+			this.checkpointIDs = checkpointIDs;
+		}
 
 		private CheckpointSequenceValidator(long... checkpointIDs) {
 			super(new DummyEnvironment("test", 1, 0));
@@ -448,20 +439,23 @@ public class BarrierTrackerTest {
 		}
 
 		@Override
-		public void abortCheckpointOnBarrier(long checkpointId, Throwable cause) {
+		public void notifyCheckpointComplete(long checkpointId) throws Exception {
+			throw new UnsupportedOperationException("should never be called");
+		}
+
+		@Override
+		public void notifyCheckpointAbort(long checkpointId) throws Exception {
 			assertTrue("More checkpoints than expected", i < checkpointIDs.length);
 
 			final long expectedId = checkpointIDs[i++];
 			if (expectedId < 0) {
 				assertEquals("wrong checkpoint id for checkpoint abort", -expectedId, checkpointId);
 			} else {
-				fail("got 'abortCheckpointOnBarrier()' when expecting an 'triggerCheckpointOnBarrier()'");
+				fail("got 'notifyCheckpointAbort()' when expecting an 'triggerCheckpointOnBarrier()'");
 			}
-		}
-
-		@Override
-		public void notifyCheckpointComplete(long checkpointId) throws Exception {
-			throw new UnsupportedOperationException("should never be called");
+			if (tracker != null) {
+				tracker.abortCheckpoint(checkpointId);
+			}
 		}
 	}
 }

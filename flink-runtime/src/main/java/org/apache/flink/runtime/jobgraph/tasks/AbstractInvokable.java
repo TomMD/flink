@@ -52,7 +52,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>Any subclass that supports recoverable state and participates in
  * checkpointing needs to override {@link #triggerCheckpoint(CheckpointMetaData, CheckpointOptions, boolean)},
  * {@link #triggerCheckpointOnBarrier(CheckpointMetaData, CheckpointOptions, CheckpointMetrics)},
- * {@link #abortCheckpointOnBarrier(long, Throwable)} and {@link #notifyCheckpointComplete(long)}.
+ * {@link #notifyCheckpointComplete(long)} and {@link #notifyCheckpointAbort(long)}.
  */
 public abstract class AbstractInvokable {
 
@@ -227,17 +227,13 @@ public abstract class AbstractInvokable {
 	}
 
 	/**
-	 * Aborts a checkpoint as the result of receiving possibly some checkpoint barriers,
-	 * but at least one {@link org.apache.flink.runtime.io.network.api.CancelCheckpointMarker}.
-	 *
-	 * <p>This requires implementing tasks to forward a
-	 * {@link org.apache.flink.runtime.io.network.api.CancelCheckpointMarker} to their outputs.
+	 * Aborts a checkpoint as the result of cause, e.g. receive a new checkpoint barrier larger than current, processing the end of partition ot exceeded the alignment limit.
 	 *
 	 * @param checkpointId The ID of the checkpoint to be aborted.
 	 * @param cause The reason why the checkpoint was aborted during alignment
 	 */
-	public void abortCheckpointOnBarrier(long checkpointId, Throwable cause) throws Exception {
-		throw new UnsupportedOperationException(String.format("abortCheckpointOnBarrier not supported by %s", this.getClass().getName()));
+	public void abortCheckpointOnCause(long checkpointId, Throwable cause) throws Exception {
+		throw new UnsupportedOperationException(String.format("abortCheckpointOnCause not supported by %s", this.getClass().getName()));
 	}
 
 	/**
@@ -249,5 +245,16 @@ public abstract class AbstractInvokable {
 	 */
 	public void notifyCheckpointComplete(long checkpointId) throws Exception {
 		throw new UnsupportedOperationException(String.format("notifyCheckpointComplete not supported by %s", this.getClass().getName()));
+	}
+
+	/**
+	 * Invoked when a checkpoint has been aborted, i.e., when the checkpoint coordinator has received a decline message
+	 * from one task and try to abort the targeted checkpoint by notification.
+	 *
+	 * @param checkpointId The ID of the checkpoint that is aborted.
+	 * @throws Exception The notification method may forward its exceptions.
+	 */
+	public void notifyCheckpointAbort(long checkpointId) throws Exception {
+		throw new UnsupportedOperationException(String.format("notifyCheckpointAbort not supported by %s", this.getClass().getName()));
 	}
 }

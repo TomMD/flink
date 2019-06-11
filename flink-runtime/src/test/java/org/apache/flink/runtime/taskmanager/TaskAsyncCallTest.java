@@ -328,11 +328,6 @@ public class TaskAsyncCallTest extends TestLogger {
 		}
 
 		@Override
-		public void abortCheckpointOnBarrier(long checkpointId, Throwable cause) {
-			throw new UnsupportedOperationException("Should not be called");
-		}
-
-		@Override
 		public void notifyCheckpointComplete(long checkpointId) {
 			if (checkpointId != lastCheckpointId && this.error == null) {
 				this.error = new Exception("calls out of order");
@@ -342,6 +337,11 @@ public class TaskAsyncCallTest extends TestLogger {
 			} else if (lastCheckpointId == numCalls) {
 				notifyCheckpointCompleteLatch.trigger();
 			}
+		}
+
+		@Override
+		public void notifyCheckpointAbort(long checkpointId) throws Exception {
+			throw new UnsupportedOperationException("Should not be called");
 		}
 	}
 

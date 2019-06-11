@@ -22,8 +22,6 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
 import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
-import org.apache.flink.runtime.checkpoint.decline.CheckpointDeclineOnCancellationBarrierException;
-import org.apache.flink.runtime.io.network.api.CancelCheckpointMarker;
 import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
 import org.apache.flink.runtime.io.network.partition.consumer.BufferOrEvent;
 import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
@@ -33,8 +31,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayDeque;
+import java.util.Iterator;
+import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * The BarrierTracker keeps track of what checkpoint barriers have been received from
@@ -81,12 +82,16 @@ public class BarrierTracker implements CheckpointBarrierHandler {
 	/** The highest checkpoint ID encountered so far. */
 	private long latestPendingCheckpointID = -1;
 
+	/** The IDs of the checkpoint for which we are notified aborted. */
+	private final NavigableSet<Long> abortedCheckpointIds;
+
 	// ------------------------------------------------------------------------
 
 	public BarrierTracker(InputGate inputGate) {
 		this.inputGate = inputGate;
 		this.totalNumberOfInputChannels = inputGate.getNumberOfInputChannels();
 		this.pendingCheckpoints = new ArrayDeque<>();
+		this.abortedCheckpointIds = new ConcurrentSkipListSet();
 	}
 
 	@Override
@@ -114,9 +119,6 @@ public class BarrierTracker implements CheckpointBarrierHandler {
 			}
 			else if (bufferOrEvent.getEvent().getClass() == CheckpointBarrier.class) {
 				processBarrier((CheckpointBarrier) bufferOrEvent.getEvent(), bufferOrEvent.getChannelIndex());
-			}
-			else if (bufferOrEvent.getEvent().getClass() == CancelCheckpointMarker.class) {
-				processCheckpointAbortBarrier((CancelCheckpointMarker) bufferOrEvent.getEvent(), bufferOrEvent.getChannelIndex());
 			}
 			else {
 				// some other event
@@ -156,12 +158,34 @@ public class BarrierTracker implements CheckpointBarrierHandler {
 		return totalNumberOfInputChannels;
 	}
 
+	@Override
+	public void abortCheckpoint(long checkpointId) {
+		if (checkpointId >= latestPendingCheckpointID) {
+			abortedCheckpointIds.add(checkpointId);
+			synchronized (abortedCheckpointIds) {
+				Iterator<Long> iterator = abortedCheckpointIds.iterator();
+				while (iterator.hasNext()) {
+					if (iterator.next() < latestPendingCheckpointID) {
+						iterator.remove();
+					} else {
+						break;
+					}
+				}
+				while (abortedCheckpointIds.size() > MAX_CHECKPOINTS_TO_TRACK) {
+					abortedCheckpointIds.pollFirst();
+				}
+			}
+		}
+	}
+
 	private void processBarrier(CheckpointBarrier receivedBarrier, int channelIndex) throws Exception {
 		final long barrierId = receivedBarrier.getId();
 
 		// fast path for single channel trackers
 		if (totalNumberOfInputChannels == 1) {
-			notifyCheckpoint(barrierId, receivedBarrier.getTimestamp(), receivedBarrier.getCheckpointOptions());
+			if (!abortedCheckpointIds.contains(barrierId)) {
+				notifyCheckpoint(barrierId, receivedBarrier.getTimestamp(), receivedBarrier.getCheckpointOptions());
+			}
 			return;
 		}
 
@@ -170,6 +194,10 @@ public class BarrierTracker implements CheckpointBarrierHandler {
 			LOG.debug("Received barrier for checkpoint {} from channel {}", barrierId, channelIndex);
 		}
 
+		if (abortedCheckpointIds.contains(barrierId)) {
+			processAbortedCheckpoint(barrierId);
+			return;
+		}
 		// find the checkpoint barrier in the queue of pending barriers
 		CheckpointBarrierCount cbc = null;
 		int pos = 0;
@@ -220,54 +248,18 @@ public class BarrierTracker implements CheckpointBarrierHandler {
 		}
 	}
 
-	private void processCheckpointAbortBarrier(CancelCheckpointMarker barrier, int channelIndex) throws Exception {
-		final long checkpointId = barrier.getCheckpointId();
-
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("Received cancellation barrier for checkpoint {} from channel {}", checkpointId, channelIndex);
-		}
-
-		// fast path for single channel trackers
-		if (totalNumberOfInputChannels == 1) {
-			notifyAbort(checkpointId);
-			return;
-		}
-
+	private void processAbortedCheckpoint(long checkpointId) throws Exception {
 		// -- general path for multiple input channels --
 
 		// find the checkpoint barrier in the queue of pending barriers
 		// while doing this we "abort" all checkpoints before that one
 		CheckpointBarrierCount cbc;
-		while ((cbc = pendingCheckpoints.peekFirst()) != null && cbc.checkpointId() < checkpointId) {
+		while ((cbc = pendingCheckpoints.peekFirst()) != null && cbc.checkpointId() <= checkpointId) {
 			pendingCheckpoints.removeFirst();
-
-			if (cbc.markAborted()) {
-				// abort the subsumed checkpoints if not already done
-				notifyAbort(cbc.checkpointId());
-			}
 		}
 
-		if (cbc != null && cbc.checkpointId() == checkpointId) {
-			// make sure the checkpoint is remembered as aborted
-			if (cbc.markAborted()) {
-				// this was the first time the checkpoint was aborted - notify
-				notifyAbort(checkpointId);
-			}
-
-			// we still count the barriers to be able to remove the entry once all barriers have been seen
-			if (cbc.incrementBarrierCount() == totalNumberOfInputChannels) {
-				// we can remove this entry
-				pendingCheckpoints.removeFirst();
-			}
-		}
-		else if (checkpointId > latestPendingCheckpointID) {
-			notifyAbort(checkpointId);
-
+		if (checkpointId > latestPendingCheckpointID) {
 			latestPendingCheckpointID = checkpointId;
-
-			CheckpointBarrierCount abortedMarker = new CheckpointBarrierCount(checkpointId);
-			abortedMarker.markAborted();
-			pendingCheckpoints.addFirst(abortedMarker);
 
 			// we have removed all other pending checkpoint barrier counts --> no need to check that
 			// we don't exceed the maximum checkpoints to track
@@ -284,13 +276,6 @@ public class BarrierTracker implements CheckpointBarrierHandler {
 				.setAlignmentDurationNanos(0L);
 
 			toNotifyOnCheckpoint.triggerCheckpointOnBarrier(checkpointMetaData, checkpointOptions, checkpointMetrics);
-		}
-	}
-
-	private void notifyAbort(long checkpointId) throws Exception {
-		if (toNotifyOnCheckpoint != null) {
-			toNotifyOnCheckpoint.abortCheckpointOnBarrier(
-					checkpointId, new CheckpointDeclineOnCancellationBarrierException());
 		}
 	}
 

@@ -66,4 +66,12 @@ public interface CheckpointBarrierHandler extends AsyncDataInput<BufferOrEvent> 
 	 * @return number of underlying input channels.
 	 */
 	int getNumberOfInputChannels();
+
+	/**
+	 * Record the checkpoint id is ready to abort.
+	 * Once checkpoint barrier with smaller id received, we would not execute or align that checkpoint.
+	 *
+	 * @param checkpointId the checkpoint id to abort.
+	 */
+	void abortCheckpoint(long checkpointId);
 }

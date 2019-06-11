@@ -25,7 +25,6 @@ import org.apache.flink.core.memory.MemorySegmentFactory;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.checkpoint.CheckpointType;
 import org.apache.flink.runtime.event.AbstractEvent;
-import org.apache.flink.runtime.io.network.api.CancelCheckpointMarker;
 import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
 import org.apache.flink.runtime.io.network.api.EndOfPartitionEvent;
 import org.apache.flink.runtime.io.network.api.EndOfSuperstepEvent;
@@ -57,6 +56,7 @@ public class EventSerializer {
 
 	private static final int OTHER_EVENT = 3;
 
+	// cancel checkpoint marker is already deprecated.
 	private static final int CANCEL_CHECKPOINT_MARKER_EVENT = 4;
 
 	private static final int CHECKPOINT_TYPE_CHECKPOINT = 0;
@@ -79,14 +79,6 @@ public class EventSerializer {
 		}
 		else if (eventClass == EndOfSuperstepEvent.class) {
 			return ByteBuffer.wrap(new byte[] { 0, 0, 0, END_OF_SUPERSTEP_EVENT });
-		}
-		else if (eventClass == CancelCheckpointMarker.class) {
-			CancelCheckpointMarker marker = (CancelCheckpointMarker) event;
-
-			ByteBuffer buf = ByteBuffer.allocate(12);
-			buf.putInt(0, CANCEL_CHECKPOINT_MARKER_EVENT);
-			buf.putLong(4, marker.getCheckpointId());
-			return buf;
 		}
 		else {
 			try {
@@ -129,8 +121,6 @@ public class EventSerializer {
 				return type == CHECKPOINT_BARRIER_EVENT;
 			} else if (eventClass.equals(EndOfSuperstepEvent.class)) {
 				return type == END_OF_SUPERSTEP_EVENT;
-			} else if (eventClass.equals(CancelCheckpointMarker.class)) {
-				return type == CANCEL_CHECKPOINT_MARKER_EVENT;
 			} else {
 				throw new UnsupportedOperationException("Unsupported eventClass = " + eventClass);
 			}
@@ -161,10 +151,6 @@ public class EventSerializer {
 			}
 			else if (type == END_OF_SUPERSTEP_EVENT) {
 				return EndOfSuperstepEvent.INSTANCE;
-			}
-			else if (type == CANCEL_CHECKPOINT_MARKER_EVENT) {
-				long id = buffer.getLong();
-				return new CancelCheckpointMarker(id);
 			}
 			else if (type == OTHER_EVENT) {
 				try {

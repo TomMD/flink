@@ -35,4 +35,6 @@ public interface StreamTaskInput extends NullableAsyncDataInput<StreamElement>, 
 	 * it is unspecified.
 	 */
 	int getLastChannel();
+
+	CheckpointBarrierHandler getBarrierHandler();
 }

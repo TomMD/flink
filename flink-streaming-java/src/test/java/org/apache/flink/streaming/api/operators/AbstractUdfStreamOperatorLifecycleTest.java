@@ -91,6 +91,7 @@ public class AbstractUdfStreamOperatorLifecycleTest {
 			"getMetricGroup[], " +
 			"getOperatorID[], " +
 			"initializeState[], " +
+			"notifyCheckpointAbort[long], " +
 			"notifyCheckpointComplete[long], " +
 			"open[], " +
 			"prepareSnapshotPreBarrier[long], " +

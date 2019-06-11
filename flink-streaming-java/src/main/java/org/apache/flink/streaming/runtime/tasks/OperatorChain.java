@@ -26,7 +26,6 @@ import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.execution.Environment;
-import org.apache.flink.runtime.io.network.api.CancelCheckpointMarker;
 import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
 import org.apache.flink.runtime.io.network.api.writer.RecordWriter;
 import org.apache.flink.runtime.metrics.MetricNames;
@@ -201,13 +200,6 @@ public class OperatorChain<OUT, OP extends StreamOperator<OUT>> implements Strea
 
 	public void broadcastCheckpointBarrier(long id, long timestamp, CheckpointOptions checkpointOptions) throws IOException {
 		CheckpointBarrier barrier = new CheckpointBarrier(id, timestamp, checkpointOptions);
-		for (RecordWriterOutput<?> streamOutput : streamOutputs) {
-			streamOutput.broadcastEvent(barrier);
-		}
-	}
-
-	public void broadcastCheckpointCancelMarker(long id) throws IOException {
-		CancelCheckpointMarker barrier = new CancelCheckpointMarker(id);
 		for (RecordWriterOutput<?> streamOutput : streamOutputs) {
 			streamOutput.broadcastEvent(barrier);
 		}

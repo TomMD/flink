@@ -154,6 +154,21 @@ public class TaskLocalStateStoreImplTest {
 	}
 
 	/**
+	 * Tests pruning of target previous checkpoints if that checkpoint is aborted.
+	 */
+	@Test
+	public void abortCheckpoint() throws Exception {
+
+		final int chkCount = 4;
+		final int aborted = chkCount - 2;
+		List<TaskStateSnapshot> taskStateSnapshots = storeStates(chkCount);
+		taskLocalStateStore.abortCheckpoint(aborted);
+		checkPrunedAndDiscarded(taskStateSnapshots, aborted, aborted);
+		checkStoredAsExpected(taskStateSnapshots, 0, aborted);
+		checkStoredAsExpected(taskStateSnapshots, aborted + 1, chkCount);
+	}
+
+	/**
 	 * Tests that disposal of a {@link TaskLocalStateStoreImpl} works and discards all local states.
 	 */
 	@Test

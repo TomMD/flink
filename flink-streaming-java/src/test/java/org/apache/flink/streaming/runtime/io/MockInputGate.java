@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.runtime.io;
 
+import org.apache.flink.core.testutils.OneShotLatch;
 import org.apache.flink.runtime.event.TaskEvent;
 import org.apache.flink.runtime.io.network.api.EndOfPartitionEvent;
 import org.apache.flink.runtime.io.network.partition.consumer.BufferOrEvent;
@@ -41,15 +42,28 @@ public class MockInputGate extends InputGate {
 
 	private final boolean[] closed;
 
+	private final OneShotLatch stopLatch;
+
+	private int stopLocation;
+
+	private int locationCounter;
+
 	private int closedChannels;
 
 	public MockInputGate(int pageSize, int numberOfChannels, List<BufferOrEvent> bufferOrEvents) {
+		this(pageSize, numberOfChannels, bufferOrEvents, Integer.MAX_VALUE);
+	}
+
+	public MockInputGate(int pageSize, int numberOfChannels, List<BufferOrEvent> bufferOrEvents, int stopLocation) {
 		this.pageSize = pageSize;
 		this.numberOfChannels = numberOfChannels;
-		this.bufferOrEvents = new ArrayDeque<BufferOrEvent>(bufferOrEvents);
+		this.bufferOrEvents = new ArrayDeque<>(bufferOrEvents);
 		this.closed = new boolean[numberOfChannels];
+		this.stopLocation = stopLocation;
 
 		isAvailable = AVAILABLE;
+		locationCounter = 0;
+		this.stopLatch = new OneShotLatch();
 	}
 
 	@Override
@@ -59,6 +73,10 @@ public class MockInputGate extends InputGate {
 
 	@Override
 	public void setup() {
+	}
+
+	public void setStopLocation(int stopLocation) {
+		this.stopLocation = stopLocation;
 	}
 
 	@Override
@@ -73,6 +91,14 @@ public class MockInputGate extends InputGate {
 
 	@Override
 	public Optional<BufferOrEvent> getNext() {
+		locationCounter++;
+		if (locationCounter == stopLocation) {
+			try {
+				stopLatch.await();
+			} catch (Exception e) {
+				throw new RuntimeException("Await timeout.", e);
+			}
+		}
 		BufferOrEvent next = bufferOrEvents.poll();
 		if (next == null) {
 			return Optional.empty();
@@ -105,5 +131,13 @@ public class MockInputGate extends InputGate {
 
 	@Override
 	public void close() {
+	}
+
+	public void triggerLatch() {
+		stopLatch.trigger();
+	}
+
+	public boolean latchWaited() {
+		return stopLatch.getWaitersCount() > 0;
 	}
 }

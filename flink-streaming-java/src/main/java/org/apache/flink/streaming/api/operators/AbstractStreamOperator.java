@@ -483,6 +483,13 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 	}
 
+	@Override
+	public void notifyCheckpointAbort(long checkpointId) throws Exception {
+		if (keyedStateBackend != null) {
+			keyedStateBackend.notifyCheckpointAbort(checkpointId);
+		}
+	}
+
 	// ------------------------------------------------------------------------
 	//  Properties and Services
 	// ------------------------------------------------------------------------
