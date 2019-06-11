@@ -19,6 +19,7 @@
 package org.apache.flink.table.functions;
 
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -87,4 +88,17 @@ import java.util.concurrent.CompletableFuture;
 @Experimental
 public abstract class AsyncTableFunction<T> extends UserDefinedFunction {
 
+	/**
+	 * Returns the result type of the evaluation method with a given signature.
+	 *
+	 * <p>This method needs to be overridden in case Flink's type extraction facilities are not
+	 * sufficient to extract the {@link TypeInformation} based on the return type of the evaluation
+	 * method. Flink's type extraction facilities can handle basic types or
+	 * simple POJOs but might be wrong for more complex, custom, or composite types.
+	 *
+	 * @return {@link TypeInformation} of result type or <code>null</code> if Flink should determine the type
+	 */
+	public TypeInformation<T> getResultType() {
+		return null;
+	}
 }

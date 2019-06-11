@@ -203,6 +203,7 @@ abstract class CommonLookupJoin(
       val asyncLookupFunction = lookupableTableSource
         .getAsyncLookupFunction(lookupFieldNamesInOrder)
       // return type valid check
+      val udtfResultType = asyncLookupFunction.getResultType
       val extractedResultTypeInfo = TypeExtractor.createTypeInfo(
         asyncLookupFunction,
         classOf[AsyncTableFunction[_]],
@@ -211,8 +212,7 @@ abstract class CommonLookupJoin(
       checkUdtfReturnType(
         tableSource.explainSource(),
         producedTypeInfo,
-        // currently, AsyncTableFunction doesn't support custom result type
-        null,
+        udtfResultType,
         extractedResultTypeInfo)
       val futureType = new TypeInformationAnyType(
         new GenericTypeInfo(classOf[CompletableFuture[_]]))
