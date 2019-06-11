@@ -194,7 +194,8 @@ public class JobMasterStopWithSavepointIT extends AbstractTestBase {
 		return miniClusterResource.getMiniCluster().stopWithSavepoint(
 				jobGraph.getJobID(),
 				savepointDirectory.toAbsolutePath().toString(),
-				terminate);
+				terminate,
+				-1L);
 	}
 
 	private JobStatus getJobStatus() throws InterruptedException, ExecutionException {

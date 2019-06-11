@@ -562,12 +562,13 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId> impleme
 			final JobID jobId,
 			final String targetDirectory,
 			final boolean cancelJob,
-			final Time timeout) {
+			final Time timeout,
+			long savepointTimeout) {
 		final CompletableFuture<JobMasterGateway> jobMasterGatewayFuture = getJobMasterGatewayFuture(jobId);
 
 		return jobMasterGatewayFuture.thenCompose(
 			(JobMasterGateway jobMasterGateway) ->
-				jobMasterGateway.triggerSavepoint(targetDirectory, cancelJob, timeout));
+				jobMasterGateway.triggerSavepoint(targetDirectory, cancelJob, timeout, savepointTimeout));
 	}
 
 	@Override
@@ -575,12 +576,13 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId> impleme
 			final JobID jobId,
 			final String targetDirectory,
 			final boolean advanceToEndOfEventTime,
-			final Time timeout) {
+			final Time timeout,
+			final long savepointTimeout) {
 		final CompletableFuture<JobMasterGateway> jobMasterGatewayFuture = getJobMasterGatewayFuture(jobId);
 
 		return jobMasterGatewayFuture.thenCompose(
 				(JobMasterGateway jobMasterGateway) ->
-						jobMasterGateway.stopWithSavepoint(targetDirectory, advanceToEndOfEventTime, timeout));
+						jobMasterGateway.stopWithSavepoint(targetDirectory, advanceToEndOfEventTime, timeout, savepointTimeout));
 	}
 
 	@Override

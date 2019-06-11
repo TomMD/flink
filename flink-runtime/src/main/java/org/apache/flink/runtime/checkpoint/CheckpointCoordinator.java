@@ -366,6 +366,7 @@ public class CheckpointCoordinator {
 	 * @param timestamp The timestamp for the savepoint.
 	 * @param targetLocation Target location for the savepoint, optional. If null, the
 	 *                       state backend's configured default will be used.
+	 * @param timeout The timeout for savepoint.
 	 * @return A future to the completed checkpoint
 	 * @throws IllegalStateException If no savepoint directory has been
 	 *                               specified and no default savepoint directory has been
@@ -373,10 +374,11 @@ public class CheckpointCoordinator {
 	 */
 	public CompletableFuture<CompletedCheckpoint> triggerSavepoint(
 			final long timestamp,
-			@Nullable final String targetLocation) {
+			@Nullable final String targetLocation,
+			final long timeout) {
 
 		final CheckpointProperties properties = CheckpointProperties.forSavepoint();
-		return triggerSavepointInternal(timestamp, properties, false, targetLocation);
+		return triggerSavepointInternal(timestamp, properties, false, targetLocation, timeout);
 	}
 
 	/**
@@ -387,6 +389,7 @@ public class CheckpointCoordinator {
 	 *                              to fire any registered event-time timers.
 	 * @param targetLocation Target location for the savepoint, optional. If null, the
 	 *                       state backend's configured default will be used.
+	 * @param timeout The timeout for synchronous savepoint.
 	 * @return A future to the completed checkpoint
 	 * @throws IllegalStateException If no savepoint directory has been
 	 *                               specified and no default savepoint directory has been
@@ -395,19 +398,24 @@ public class CheckpointCoordinator {
 	public CompletableFuture<CompletedCheckpoint> triggerSynchronousSavepoint(
 			final long timestamp,
 			final boolean advanceToEndOfEventTime,
-			@Nullable final String targetLocation) {
+			@Nullable final String targetLocation,
+			final long timeout) {
 
 		final CheckpointProperties properties = CheckpointProperties.forSyncSavepoint();
-		return triggerSavepointInternal(timestamp, properties, advanceToEndOfEventTime, targetLocation);
+		return triggerSavepointInternal(timestamp, properties, advanceToEndOfEventTime, targetLocation, timeout);
 	}
 
 	private CompletableFuture<CompletedCheckpoint> triggerSavepointInternal(
 			final long timestamp,
 			final CheckpointProperties checkpointProperties,
 			final boolean advanceToEndOfEventTime,
-			@Nullable final String targetLocation) {
+			@Nullable final String targetLocation,
+			final long timeout) {
 
 		checkNotNull(checkpointProperties);
+		checkArgument(timeout == -1L || timeout >= 1L, "The savepoint timeout must be equal to -1 or larger than zero.");
+
+		long savepointTimeout = (timeout == -1L ? this.checkpointTimeout : timeout);
 
 		try {
 			PendingCheckpoint pendingCheckpoint = triggerCheckpoint(
@@ -415,7 +423,8 @@ public class CheckpointCoordinator {
 					checkpointProperties,
 					targetLocation,
 					false,
-					advanceToEndOfEventTime);
+					advanceToEndOfEventTime,
+					savepointTimeout);
 
 			return pendingCheckpoint.getCompletionFuture();
 		} catch (CheckpointException e) {
@@ -436,7 +445,7 @@ public class CheckpointCoordinator {
 	 */
 	public boolean triggerCheckpoint(long timestamp, boolean isPeriodic) {
 		try {
-			triggerCheckpoint(timestamp, checkpointProperties, null, isPeriodic, false);
+			triggerCheckpoint(timestamp, checkpointProperties, null, isPeriodic, false, this.checkpointTimeout);
 			return true;
 		} catch (CheckpointException e) {
 			return false;
@@ -449,7 +458,8 @@ public class CheckpointCoordinator {
 			CheckpointProperties props,
 			@Nullable String externalSavepointLocation,
 			boolean isPeriodic,
-			boolean advanceToEndOfTime) throws CheckpointException {
+			boolean advanceToEndOfTime,
+			long timeout) throws CheckpointException {
 
 		if (advanceToEndOfTime && !(props.isSynchronous() && props.isSavepoint())) {
 			throw new IllegalArgumentException("Only synchronous savepoints are allowed to advance the watermark to MAX.");
@@ -656,7 +666,7 @@ public class CheckpointCoordinator {
 
 					ScheduledFuture<?> cancellerHandle = timer.schedule(
 							canceller,
-							checkpointTimeout, TimeUnit.MILLISECONDS);
+							timeout, TimeUnit.MILLISECONDS);
 
 					if (!checkpoint.setCancellerHandle(cancellerHandle)) {
 						// checkpoint is already disposed!
@@ -665,7 +675,7 @@ public class CheckpointCoordinator {
 
 					// trigger the master hooks for the checkpoint
 					final List<MasterState> masterStates = MasterHooks.triggerMasterHooks(masterHooks.values(),
-							checkpointID, timestamp, executor, Time.milliseconds(checkpointTimeout));
+							checkpointID, timestamp, executor, Time.milliseconds(timeout));
 					for (MasterState s : masterStates) {
 						checkpoint.addMasterState(s);
 					}

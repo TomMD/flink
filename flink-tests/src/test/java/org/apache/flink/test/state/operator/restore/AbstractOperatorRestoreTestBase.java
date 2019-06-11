@@ -138,7 +138,8 @@ public abstract class AbstractOperatorRestoreTestBase extends TestLogger {
 			try {
 				savepointPath = clusterClient.cancelWithSavepoint(
 					jobToMigrate.getJobID(),
-					targetDirectory.getAbsolutePath());
+					targetDirectory.getAbsolutePath(),
+					-1L);
 			} catch (Exception e) {
 				String exceptionString = ExceptionUtils.stringifyException(e);
 				if (!(exceptionString.matches("(.*\n)*.*savepoint for the job .* failed(.*\n)*") // legacy

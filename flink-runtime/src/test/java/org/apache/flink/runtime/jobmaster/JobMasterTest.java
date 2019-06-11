@@ -1428,7 +1428,7 @@ public class JobMasterTest extends TestLogger {
 	}
 
 	/**
-	 * Tests that the timeout in {@link JobMasterGateway#triggerSavepoint(String, boolean, Time)}
+	 * Tests that the timeout in {@link JobMasterGateway#triggerSavepoint(String, boolean, Time, long)}
 	 * is respected.
 	 */
 	@Test
@@ -1459,7 +1459,8 @@ public class JobMasterTest extends TestLogger {
 			public CompletableFuture<String> triggerSavepoint(
 				@Nullable final String targetDirectory,
 				final boolean cancelJob,
-				final Time timeout) {
+				final Time timeout,
+				final long savepointTimeout) {
 				return new CompletableFuture<>();
 			}
 		};
@@ -1469,8 +1470,8 @@ public class JobMasterTest extends TestLogger {
 			startFuture.get(testingTimeout.toMilliseconds(), TimeUnit.MILLISECONDS);
 
 			final JobMasterGateway jobMasterGateway = jobMaster.getSelfGateway(JobMasterGateway.class);
-			final CompletableFuture<String> savepointFutureLowTimeout = jobMasterGateway.triggerSavepoint("/tmp", false, Time.milliseconds(1));
-			final CompletableFuture<String> savepointFutureHighTimeout = jobMasterGateway.triggerSavepoint("/tmp", false, RpcUtils.INF_TIMEOUT);
+			final CompletableFuture<String> savepointFutureLowTimeout = jobMasterGateway.triggerSavepoint("/tmp", false, Time.milliseconds(1), -1L);
+			final CompletableFuture<String> savepointFutureHighTimeout = jobMasterGateway.triggerSavepoint("/tmp", false, RpcUtils.INF_TIMEOUT, -1L);
 
 			try {
 				savepointFutureLowTimeout.get(testingTimeout.getSize(), testingTimeout.getUnit());
