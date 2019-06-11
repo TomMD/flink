@@ -35,7 +35,7 @@ class StreamTableAggregateTests(PyFlinkStreamTableTestCase):
 
         result = t.group_by("c").select("a.sum, c as b")
         result.insert_into("Results")
-        t_env.execute()
+        t_env.exec_env().execute()
         actual = source_sink_utils.results()
 
         expected = ['5,Hello']
