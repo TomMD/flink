@@ -21,6 +21,7 @@ package org.apache.flink.configuration;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.docs.ConfigGroup;
 import org.apache.flink.annotation.docs.ConfigGroups;
+import org.apache.flink.annotation.docs.Documentation;
 
 import static org.apache.flink.configuration.ConfigOptions.key;
 
@@ -29,7 +30,7 @@ import static org.apache.flink.configuration.ConfigOptions.key;
  */
 @PublicEvolving
 @ConfigGroups(groups = @ConfigGroup(name = "NetworkNetty", keyPrefix = "taskmanager.network.netty"))
-public class NetworkEnvironmentOptions {
+public class NettyShuffleEnvironmentOptions {
 
 	// ------------------------------------------------------------------------
 	//  Network General Options
@@ -209,8 +210,13 @@ public class NetworkEnvironmentOptions {
 			.withDeprecatedKeys("taskmanager.net.request-backoff.max")
 			.withDescription("Maximum backoff in milliseconds for partition requests of input channels.");
 
+	@Documentation.ExcludeFromDocumentation("dev use only; likely temporary")
+	public static final ConfigOption<Boolean> RELEASE_EXTERNALLY_MANAGED_PARTITIONS_ON_CONSUMPTION =
+			key("taskmanager.network.partition.release-externally-managed-on-consumption")
+			.defaultValue(true);
+
 	// ------------------------------------------------------------------------
 
 	/** Not intended to be instantiated. */
-	private NetworkEnvironmentOptions() {}
+	private NettyShuffleEnvironmentOptions() {}
 }

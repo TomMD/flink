@@ -107,6 +107,7 @@ import org.apache.flink.runtime.rpc.akka.AkkaRpcService;
 import org.apache.flink.runtime.rpc.akka.AkkaRpcServiceConfiguration;
 import org.apache.flink.runtime.scheduler.LegacySchedulerFactory;
 import org.apache.flink.runtime.scheduler.SchedulerNGFactory;
+import org.apache.flink.runtime.shuffle.NettyShuffleMaster;
 import org.apache.flink.runtime.state.CompletedCheckpointStorageLocation;
 import org.apache.flink.runtime.state.KeyGroupRange;
 import org.apache.flink.runtime.state.OperatorStreamStateHandle;
@@ -307,7 +308,8 @@ public class JobMasterTest extends TestLogger {
 				new TestingOnCompletionActions(),
 				testingFatalErrorHandler,
 				JobMasterTest.class.getClassLoader(),
-				schedulerNGFactory) {
+				schedulerNGFactory,
+				NettyShuffleMaster.INSTANCE) {
 				@Override
 				public void declineCheckpoint(DeclineCheckpoint declineCheckpoint) {
 					declineCheckpointMessageFuture.complete(declineCheckpoint.getReason());
@@ -1453,7 +1455,8 @@ public class JobMasterTest extends TestLogger {
 			new TestingOnCompletionActions(),
 			testingFatalErrorHandler,
 			JobMasterTest.class.getClassLoader(),
-			schedulerNGFactory) {
+			schedulerNGFactory,
+			NettyShuffleMaster.INSTANCE) {
 
 			@Override
 			public CompletableFuture<String> triggerSavepoint(
@@ -1910,7 +1913,8 @@ public class JobMasterTest extends TestLogger {
 			onCompletionActions,
 			testingFatalErrorHandler,
 			JobMasterTest.class.getClassLoader(),
-			schedulerNGFactory);
+			schedulerNGFactory,
+			NettyShuffleMaster.INSTANCE);
 	}
 
 	private JobGraph createSingleVertexJobWithRestartStrategy() throws IOException {

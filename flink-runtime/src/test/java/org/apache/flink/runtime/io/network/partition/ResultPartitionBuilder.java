@@ -20,7 +20,7 @@ package org.apache.flink.runtime.io.network.partition;
 
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.disk.iomanager.IOManagerAsync;
-import org.apache.flink.runtime.io.network.NetworkEnvironment;
+import org.apache.flink.runtime.io.network.NettyShuffleEnvironment;
 import org.apache.flink.runtime.io.network.buffer.BufferPool;
 import org.apache.flink.runtime.io.network.buffer.BufferPoolOwner;
 import org.apache.flink.runtime.io.network.buffer.NetworkBufferPool;
@@ -55,6 +55,8 @@ public class ResultPartitionBuilder {
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	private Optional<FunctionWithException<BufferPoolOwner, BufferPool, IOException>> bufferPoolFactory = Optional.empty();
 
+	private boolean isExternallyManaged;
+
 	public ResultPartitionBuilder setResultPartitionId(ResultPartitionID partitionId) {
 		this.partitionId = partitionId;
 		return this;
@@ -85,7 +87,7 @@ public class ResultPartitionBuilder {
 		return this;
 	}
 
-	public ResultPartitionBuilder setupBufferPoolFactoryFromNetworkEnvironment(NetworkEnvironment environment) {
+	public ResultPartitionBuilder setupBufferPoolFactoryFromNettyShuffleEnvironment(NettyShuffleEnvironment environment) {
 		return setNetworkBuffersPerChannel(environment.getConfiguration().networkBuffersPerChannel())
 			.setFloatingNetworkBuffersPerGate(environment.getConfiguration().floatingNetworkBuffersPerGate())
 			.setNetworkBufferPool(environment.getNetworkBufferPool());
@@ -112,6 +114,11 @@ public class ResultPartitionBuilder {
 		return this;
 	}
 
+	public ResultPartitionBuilder setIsExternallyManaged(boolean isExternallyManaged) {
+		this.isExternallyManaged = isExternallyManaged;
+		return this;
+	}
+
 	public ResultPartition build() {
 		ResultPartitionFactory resultPartitionFactory = new ResultPartitionFactory(
 			partitionManager,
@@ -129,6 +136,7 @@ public class ResultPartitionBuilder {
 			partitionType,
 			numberOfSubpartitions,
 			numTargetKeyGroups,
+			isExternallyManaged,
 			factory);
 	}
 }

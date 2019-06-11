@@ -38,7 +38,17 @@ public class ResultPartitionManager implements ResultPartitionProvider {
 
 	private final Map<ResultPartitionID, ResultPartition> registeredPartitions = new HashMap<>(16);
 
+	private final boolean releaseExternallyManagedPartitionsOnConsumption;
+
 	private boolean isShutdown;
+
+	public ResultPartitionManager() {
+		this.releaseExternallyManagedPartitionsOnConsumption = true;
+	}
+
+	public ResultPartitionManager(boolean releaseExternallyManagedPartitionsOnConsumption) {
+		this.releaseExternallyManagedPartitionsOnConsumption = releaseExternallyManagedPartitionsOnConsumption;
+	}
 
 	public void registerResultPartition(ResultPartition partition) {
 		synchronized (registeredPartitions) {
@@ -113,10 +123,12 @@ public class ResultPartitionManager implements ResultPartitionProvider {
 			final ResultPartition previous = registeredPartitions.remove(partition.getPartitionId());
 			// Release the partition if it was successfully removed
 			if (partition == previous) {
-				partition.release();
-				ResultPartitionID partitionId = partition.getPartitionId();
-				LOG.debug("Released partition {} produced by {}.",
-					partitionId.getPartitionId(), partitionId.getProducerId());
+				if (!partition.isManagedExternally() || releaseExternallyManagedPartitionsOnConsumption) {
+					partition.release();
+					ResultPartitionID partitionId = partition.getPartitionId();
+					LOG.debug("Released partition {} produced by {}.",
+						partitionId.getPartitionId(), partitionId.getProducerId());
+				}
 			}
 		}
 	}

@@ -43,8 +43,8 @@ import org.apache.flink.runtime.executiongraph.TaskInformation;
 import org.apache.flink.runtime.filecache.FileCache;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.disk.iomanager.IOManagerAsync;
-import org.apache.flink.runtime.io.network.NetworkEnvironment;
-import org.apache.flink.runtime.io.network.NetworkEnvironmentBuilder;
+import org.apache.flink.runtime.io.network.NettyShuffleEnvironmentBuilder;
+import org.apache.flink.runtime.shuffle.ShuffleEnvironment;
 import org.apache.flink.runtime.io.network.TaskEventDispatcher;
 import org.apache.flink.runtime.taskexecutor.PartitionProducerStateChecker;
 import org.apache.flink.runtime.io.network.partition.NoOpResultPartitionConsumableNotifier;
@@ -64,6 +64,7 @@ import org.apache.flink.runtime.state.TestLocalRecoveryConfig;
 import org.apache.flink.runtime.taskexecutor.KvStateService;
 import org.apache.flink.runtime.taskexecutor.TaskManagerConfiguration;
 import org.apache.flink.runtime.taskexecutor.TestGlobalAggregateManager;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironmentImpl;
 import org.apache.flink.runtime.taskmanager.CheckpointResponder;
 import org.apache.flink.runtime.taskmanager.NoOpTaskManagerActions;
 import org.apache.flink.runtime.taskmanager.Task;
@@ -168,7 +169,7 @@ public class JvmExitOnFatalErrorTest {
 				final MemoryManager memoryManager = new MemoryManager(1024 * 1024, 1);
 				final IOManager ioManager = new IOManagerAsync();
 
-				final NetworkEnvironment networkEnvironment = new NetworkEnvironmentBuilder().build();
+				final ShuffleEnvironment<?, ?> shuffleEnvironment = new NettyShuffleEnvironmentBuilder().build();
 
 				final TaskManagerRuntimeInfo tmInfo = TaskManagerConfiguration.fromConfiguration(taskManagerConfig);
 
@@ -206,7 +207,7 @@ public class JvmExitOnFatalErrorTest {
 						0,       // targetSlotNumber
 						memoryManager,
 						ioManager,
-						networkEnvironment,
+						new JobAwareShuffleEnvironmentImpl<>(shuffleEnvironment),
 						new KvStateService(new KvStateRegistry(), null, null),
 						new BroadcastVariableManager(),
 						new TaskEventDispatcher(),

@@ -48,7 +48,6 @@ import org.apache.flink.runtime.heartbeat.HeartbeatTarget;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
 import org.apache.flink.runtime.instance.HardwareDescription;
 import org.apache.flink.runtime.instance.InstanceID;
-import org.apache.flink.runtime.io.network.NetworkEnvironment;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionConsumableNotifier;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.jobgraph.tasks.InputSplitProvider;
@@ -83,6 +82,7 @@ import org.apache.flink.runtime.taskexecutor.exceptions.SlotOccupiedException;
 import org.apache.flink.runtime.taskexecutor.exceptions.TaskException;
 import org.apache.flink.runtime.taskexecutor.exceptions.TaskManagerException;
 import org.apache.flink.runtime.taskexecutor.exceptions.TaskSubmissionException;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironment;
 import org.apache.flink.runtime.taskexecutor.rpc.RpcCheckpointResponder;
 import org.apache.flink.runtime.taskexecutor.rpc.RpcGlobalAggregateManager;
 import org.apache.flink.runtime.taskexecutor.rpc.RpcInputSplitProvider;
@@ -169,7 +169,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 	private final TaskExecutorLocalStateStoresManager localStateStoresManager;
 
 	/** The network component in the task manager. */
-	private final NetworkEnvironment networkEnvironment;
+	private final JobAwareShuffleEnvironment<?, ?> shuffleEnvironment;
 
 	/** The kvState registration service in the task manager. */
 	private final KvStateService kvStateService;
@@ -238,7 +238,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 		this.jobLeaderService = taskExecutorServices.getJobLeaderService();
 		this.taskManagerLocation = taskExecutorServices.getTaskManagerLocation();
 		this.localStateStoresManager = taskExecutorServices.getTaskManagerStateStore();
-		this.networkEnvironment = taskExecutorServices.getNetworkEnvironment();
+		this.shuffleEnvironment = taskExecutorServices.getShuffleEnvironment();
 		this.kvStateService = taskExecutorServices.getKvStateService();
 		this.resourceManagerLeaderRetriever = haServices.getResourceManagerLeaderRetriever();
 
@@ -266,12 +266,13 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 		this.currentRegistrationTimeoutId = null;
 
 		this.stackTraceSampleService = new StackTraceSampleService(rpcService.getScheduledExecutor());
+
+		taskExecutorServices.getShuffleEnvironment().setPartitionFailedOrFinishedListener(this::notifyFinalizedPartition);
 	}
 
 	@Override
 	public CompletableFuture<Boolean> canBeReleased() {
-		return CompletableFuture.completedFuture(
-			taskExecutorServices.getNetworkEnvironment().getUnreleasedPartitions().isEmpty());
+		return CompletableFuture.completedFuture(shuffleEnvironment.getPartitionsOccupyingLocalResources().isEmpty());
 	}
 
 	// ------------------------------------------------------------------------
@@ -533,7 +534,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 				tdd.getTargetSlotNumber(),
 				taskExecutorServices.getMemoryManager(),
 				taskExecutorServices.getIOManager(),
-				taskExecutorServices.getNetworkEnvironment(),
+				taskExecutorServices.getShuffleEnvironment(),
 				taskExecutorServices.getKvStateService(),
 				taskExecutorServices.getBroadcastVariableManager(),
 				taskExecutorServices.getTaskEventDispatcher(),
@@ -615,7 +616,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 					CompletableFuture.runAsync(
 						() -> {
 							try {
-								if (!networkEnvironment.updatePartitionInfo(executionAttemptID, partitionInfo)) {
+								if (!shuffleEnvironment.updatePartitionInfo(executionAttemptID, partitionInfo)) {
 									log.debug(
 										"Discard update for input gate partition {} of result {} in task {}. " +
 											"The partition is no longer available.",
@@ -641,15 +642,20 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 	}
 
 	@Override
-	public void releasePartitions(Collection<ResultPartitionID> partitionIds) {
+	public void releasePartitions(JobID jobId, Collection<ResultPartitionID> partitionIds) {
 		try {
-			networkEnvironment.releasePartitions(partitionIds);
+			shuffleEnvironment.releaseFinishedPartitions(jobId, partitionIds);
+			closeJobManagerConnectionIfNoAllocatedResources(jobId);
 		} catch (Throwable t) {
 			// TODO: Do we still need this catch branch?
 			onFatalError(t);
 		}
 
 		// TODO: Maybe it's better to return an Acknowledge here to notify the JM about the success/failure with an Exception
+	}
+
+	private void notifyFinalizedPartition(JobID jobId) {
+		runAsync(() -> closeJobManagerConnectionIfNoAllocatedResources(jobId));
 	}
 
 	// ----------------------------------------------------------------------
@@ -1142,6 +1148,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 				jobMasterGateway);
 		jobManagerConnections.put(jobManagerResourceID, newJobManagerConnection);
 		jobManagerTable.put(jobId, newJobManagerConnection);
+		shuffleEnvironment.markJobActive(jobId);
 
 		// monitor the job manager as heartbeat target
 		jobManagerHeartbeatManager.monitorTarget(jobManagerResourceID, new HeartbeatTarget<AccumulatorReport>() {
@@ -1250,6 +1257,8 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
 	private void disassociateFromJobManager(JobManagerConnection jobManagerConnection, Exception cause) throws IOException {
 		checkNotNull(jobManagerConnection);
+
+		shuffleEnvironment.releaseAllFinishedPartitionsForJobAndMarkJobInactive(jobManagerConnection.getJobID());
 
 		final KvStateRegistry kvStateRegistry = kvStateService.getKvStateRegistry();
 
@@ -1377,20 +1386,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 				}
 
 				if (jobId != null) {
-					// check whether we still have allocated slots for the same job
-					if (taskSlotTable.getAllocationIdsPerJob(jobId).isEmpty()) {
-						// we can remove the job from the job leader service
-						try {
-							jobLeaderService.removeJob(jobId);
-						} catch (Exception e) {
-							log.info("Could not remove job {} from JobLeaderService.", jobId, e);
-						}
-
-						closeJobManagerConnection(
-							jobId,
-							new FlinkException("TaskExecutor " + getAddress() +
-								" has no more allocated slots for job " + jobId + '.'));
-					}
+					closeJobManagerConnectionIfNoAllocatedResources(jobId);
 				}
 			}
 		} catch (SlotNotFoundException e) {
@@ -1398,6 +1394,23 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 		}
 
 		localStateStoresManager.releaseLocalStateForAllocationId(allocationId);
+	}
+
+	private void closeJobManagerConnectionIfNoAllocatedResources(JobID jobId) {
+		// check whether we still have allocated slots for the same job
+		if (taskSlotTable.getAllocationIdsPerJob(jobId).isEmpty() && !shuffleEnvironment.hasPartitionsOccupyingLocalResources(jobId)) {
+			// we can remove the job from the job leader service
+			try {
+				jobLeaderService.removeJob(jobId);
+			} catch (Exception e) {
+				log.info("Could not remove job {} from JobLeaderService.", jobId, e);
+			}
+
+			closeJobManagerConnection(
+				jobId,
+				new FlinkException("TaskExecutor " + getAddress() +
+					" has no more allocated slots for job " + jobId + '.'));
+		}
 	}
 
 	private void timeoutSlot(AllocationID allocationId, UUID ticket) {

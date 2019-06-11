@@ -49,7 +49,6 @@ import org.apache.flink.runtime.executiongraph.JobInformation;
 import org.apache.flink.runtime.executiongraph.TaskInformation;
 import org.apache.flink.runtime.filecache.FileCache;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
-import org.apache.flink.runtime.io.network.NetworkEnvironment;
 import org.apache.flink.runtime.io.network.TaskEventDispatcher;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.io.network.partition.PartitionProducerStateProvider;
@@ -68,6 +67,7 @@ import org.apache.flink.runtime.state.TaskStateManager;
 import org.apache.flink.runtime.taskexecutor.GlobalAggregateManager;
 import org.apache.flink.runtime.taskexecutor.KvStateService;
 import org.apache.flink.runtime.taskexecutor.PartitionProducerStateChecker;
+import org.apache.flink.runtime.taskexecutor.partition.JobAwareShuffleEnvironment;
 import org.apache.flink.runtime.util.FatalExitExceptionHandler;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.ExceptionUtils;
@@ -283,7 +283,7 @@ public class Task implements Runnable, TaskActions, PartitionProducerStateProvid
 		int targetSlotNumber,
 		MemoryManager memManager,
 		IOManager ioManager,
-		NetworkEnvironment networkEnvironment,
+		JobAwareShuffleEnvironment<?, ?> shuffleEnvironment,
 		KvStateService kvStateService,
 		BroadcastVariableManager bcVarManager,
 		TaskEventDispatcher taskEventDispatcher,
@@ -368,12 +368,13 @@ public class Task implements Runnable, TaskActions, PartitionProducerStateProvid
 		final MetricGroup inputGroup = networkGroup.addGroup("Input");
 
 		// produced intermediate result partitions
-		final ResultPartitionWriter[] resultPartitionWriters = networkEnvironment.createResultPartitionWriters(
+		final ResultPartitionWriter[] resultPartitionWriters = shuffleEnvironment.createResultPartitionWriters(
+			jobId,
 			taskNameWithSubtaskAndId,
 			executionId,
 			resultPartitionDeploymentDescriptors,
 			outputGroup,
-			buffersGroup);
+			buffersGroup).toArray(new ResultPartitionWriter[] {});
 
 		this.consumableNotifyingPartitionWriters = ConsumableNotifyingResultPartitionWriterDecorator.decorate(
 			resultPartitionDeploymentDescriptors,
@@ -383,14 +384,14 @@ public class Task implements Runnable, TaskActions, PartitionProducerStateProvid
 			resultPartitionConsumableNotifier);
 
 		// consumed intermediate result partitions
-		InputGate[] gates = networkEnvironment.createInputGates(
+		final InputGate[] gates = shuffleEnvironment.createInputGates(
 			taskNameWithSubtaskAndId,
 			executionId,
 			this,
 			inputGateDeploymentDescriptors,
 			metrics.getIOMetricGroup(),
 			inputGroup,
-			buffersGroup);
+			buffersGroup).toArray(new InputGate[] {});
 
 		this.inputGates = new InputGate[gates.length];
 		int counter = 0;

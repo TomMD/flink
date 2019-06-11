@@ -23,6 +23,7 @@ import org.apache.flink.util.TestLogger;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -59,5 +60,27 @@ public class ResultPartitionManagerTest extends TestLogger {
 
 		partitionManager.registerResultPartition(partition);
 		partitionManager.createSubpartitionView(partition.getPartitionId(), 0, new NoOpBufferAvailablityListener());
+	}
+
+	@Test
+	public void testExternallyManagedPartitionReleaseIfFlagDisabled() {
+		final ResultPartitionManager partitionManager = new ResultPartitionManager(false);
+		final ResultPartition partition = new ResultPartitionBuilder().setIsExternallyManaged(true).build();
+
+		partitionManager.registerResultPartition(partition);
+		partitionManager.onConsumedPartition(partition);
+
+		assertThat(partition.isReleased(), is(false));
+	}
+
+	@Test
+	public void testExternallyManagedPartitionReleaseIfFlagEnabled() {
+		final ResultPartitionManager partitionManager = new ResultPartitionManager(true);
+		final ResultPartition partition = new ResultPartitionBuilder().setIsExternallyManaged(true).build();
+
+		partitionManager.registerResultPartition(partition);
+		partitionManager.onConsumedPartition(partition);
+
+		assertThat(partition.isReleased(), is(true));
 	}
 }
