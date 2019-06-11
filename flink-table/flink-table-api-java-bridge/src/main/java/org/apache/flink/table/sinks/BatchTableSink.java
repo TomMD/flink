@@ -25,7 +25,7 @@ import org.apache.flink.table.api.Table;
  *
  * @param <T> Type of {@link DataSet} that this {@link TableSink} expects and supports.
  *
- * @deprecated use {@link BoundedTableSink} instead.
+ * @deprecated use {@link OutputFormatTableSink} instead.
  */
 @Deprecated
 public interface BatchTableSink<T> extends TableSink<T> {

@@ -28,7 +28,7 @@ import org.apache.flink.table.runtime.utils.TableProgramsCollectionTestBase
 import org.apache.flink.table.runtime.utils.TableProgramsTestBase.TableConfigMode
 import org.apache.flink.table.sinks.CsvTableSink
 import org.apache.flink.table.utils.MemoryTableSourceSinkUtil
-import org.apache.flink.table.utils.MemoryTableSourceSinkUtil.UnsafeMemoryBoundedTableSink
+import org.apache.flink.table.utils.MemoryTableSourceSinkUtil.UnsafeMemoryOutputFormatTableSink
 import org.apache.flink.test.util.TestBaseUtils
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -81,7 +81,7 @@ class TableSinkITCase(
 
     val fieldNames = Array("c", "b")
     val fieldTypes: Array[TypeInformation[_]] = Array(Types.STRING, Types.LONG)
-    val sink = new UnsafeMemoryBoundedTableSink
+    val sink = new UnsafeMemoryOutputFormatTableSink
     tEnv.registerTableSink("testSink", sink.configure(fieldNames, fieldTypes))
 
     val input = CollectionDataSets.get3TupleDataSet(env)

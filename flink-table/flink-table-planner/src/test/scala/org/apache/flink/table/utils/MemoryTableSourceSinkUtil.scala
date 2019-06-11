@@ -125,7 +125,7 @@ object MemoryTableSourceSinkUtil {
     }
   }
 
-  final class UnsafeMemoryBoundedTableSink extends BoundedTableSink[Row] {
+  final class UnsafeMemoryOutputFormatTableSink extends OutputFormatTableSink[Row] {
 
     var fieldNames: Array[String] = _
     var fieldTypes: Array[TypeInformation[_]] = _
@@ -139,7 +139,7 @@ object MemoryTableSourceSinkUtil {
     override def configure(
         fieldNames: Array[String],
         fieldTypes: Array[TypeInformation[_]]): TableSink[Row] = {
-      val newSink = new UnsafeMemoryBoundedTableSink
+      val newSink = new UnsafeMemoryOutputFormatTableSink
       newSink.fieldNames = fieldNames
       newSink.fieldTypes = fieldTypes
       newSink

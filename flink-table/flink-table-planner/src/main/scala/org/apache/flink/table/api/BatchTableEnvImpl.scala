@@ -78,8 +78,8 @@ abstract class BatchTableEnvImpl(
 
   override protected  def validateTableSink(configuredSink: TableSink[_]): Unit = {
     if (!configuredSink.isInstanceOf[BatchTableSink[_]] &&
-        !configuredSink.isInstanceOf[BoundedTableSink[_]]) {
-      throw new TableException("Only BatchTableSink and BoundedTableSink can be registered " +
+        !configuredSink.isInstanceOf[OutputFormatTableSink[_]]) {
+      throw new TableException("Only BatchTableSink and OutputFormatTableSink can be registered " +
         "in BatchTableEnvironment.")
     }
   }
@@ -119,7 +119,7 @@ abstract class BatchTableEnvImpl(
         val result: DataSet[T] = translate(table, batchQueryConfig)(outputType)
         // Give the DataSet to the TableSink to emit it.
         batchSink.emitDataSet(result)
-      case boundedSink: BoundedTableSink[T] =>
+      case boundedSink: OutputFormatTableSink[T] =>
         val outputType = fromDataTypeToLegacyInfo(sink.getConsumedDataType)
           .asInstanceOf[TypeInformation[T]]
         // translate the Table into a DataSet and provide the type that the TableSink expects.
@@ -132,7 +132,7 @@ abstract class BatchTableEnvImpl(
             boundedSink.getTableSchema.getFieldNames))
       case _ =>
         throw new TableException(
-          "BatchTableSink or BoundedTableSink required to emit batch Table.")
+          "BatchTableSink or OutputFormatTableSink required to emit batch Table.")
     }
   }
 

@@ -29,7 +29,7 @@ import org.apache.flink.table.api.Table;
  * @param <T> Type of the bounded {@link OutputFormat} that this {@link TableSink} expects and supports.
  */
 @Experimental
-public abstract class BoundedTableSink<T> implements StreamTableSink<T> {
+public abstract class OutputFormatTableSink<T> implements StreamTableSink<T> {
 
 	/**
 	 * Returns an {@link OutputFormat} for writing the data of the table.
