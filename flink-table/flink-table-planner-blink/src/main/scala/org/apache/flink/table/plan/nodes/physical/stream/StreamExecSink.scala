@@ -28,7 +28,7 @@ import org.apache.flink.table.dataformat.BaseRow
 import org.apache.flink.table.plan.`trait`.{AccMode, AccModeTraitDef}
 import org.apache.flink.table.plan.nodes.calcite.Sink
 import org.apache.flink.table.plan.nodes.exec.{ExecNode, StreamExecNode}
-import org.apache.flink.table.plan.util.UpdatingPlanChecker
+import org.apache.flink.table.plan.util.{SinkUtil, UpdatingPlanChecker}
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.types.logical.TimestampType
 import org.apache.flink.table.types.utils.TypeConversions.fromDataTypeToLegacyInfo
@@ -115,7 +115,8 @@ class StreamExecSink[T](
                 "RetractStreamTableSink, or UpsertStreamTableSink.")
         }
         val dataStream = new DataStream(tableEnv.execEnv, transformation)
-        streamTableSink.emitDataStream(dataStream).getTransformation
+        streamTableSink.emitDataStream(dataStream)
+        SinkUtil.getNewlyAddedSinkTransformation(tableEnv.execEnv)
 
       case streamTableSink: DataStreamTableSink[_] =>
         // In case of table to stream through BatchTableEnvironment#translateToDataStream,

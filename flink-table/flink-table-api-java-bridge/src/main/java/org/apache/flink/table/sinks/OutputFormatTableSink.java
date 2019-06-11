@@ -16,23 +16,28 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.sources
+package org.apache.flink.table.sinks;
 
-import org.apache.flink.streaming.api.datastream.DataStream
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
+import org.apache.flink.annotation.Experimental;
+import org.apache.flink.api.common.io.OutputFormat;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.table.api.Table;
 
 /**
-  * Defines an external stream table and provides access to its data.
-  *
-  * @tparam T Type of the [[DataStream]] created by this [[TableSource]].
-  */
-trait StreamTableSource[T] extends TableSource[T] {
+ * Defines an external {@link TableSink} to emit a bounded {@link Table}.
+ *
+ * @param <T> Type of the bounded {@link OutputFormat} that this {@link TableSink} expects and supports.
+ */
+@Experimental
+public abstract class OutputFormatTableSink<T> implements StreamTableSink<T> {
 
-  /**
-    * Returns the data of the table as a [[DataStream]].
-    *
-    * NOTE: This method is for internal use only for defining a [[TableSource]].
-    * Do not use it in Table API programs.
-    */
-  def getDataStream(execEnv: StreamExecutionEnvironment): DataStream[T]
+	/**
+	 * Returns an {@link OutputFormat} for writing the data of the table.
+	 */
+	public abstract OutputFormat<T> getOutputFormat();
+
+	@Override
+	public final void emitDataStream(DataStream<T> dataStream) {
+		dataStream.writeUsingOutputFormat(getOutputFormat());
+	}
 }
