@@ -55,6 +55,7 @@ import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
+import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * This failover strategy uses flip1.RestartPipelinedRegionStrategy to make task failover decisions.
@@ -280,6 +281,7 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 		// build the underlying new generation failover strategy when the executionGraph vertices are all added,
 		// otherwise the failover topology will not be correctly built.
 		// currently it's safe to add it here, as this method is invoked only once in production code.
+		checkState(restartPipelinedRegionStrategy == null, "notifyNewVertices() must be called only once");
 		this.restartPipelinedRegionStrategy = new RestartPipelinedRegionStrategy(
 			new DefaultFailoverTopology(executionGraph));
 	}
