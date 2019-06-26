@@ -247,7 +247,6 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 	}
 
 	private void failGlobal(final Throwable cause) {
-		// fail globally to get the executionGraph to a consistent state
 		executionGraph.failGlobal(cause);
 	}
 
