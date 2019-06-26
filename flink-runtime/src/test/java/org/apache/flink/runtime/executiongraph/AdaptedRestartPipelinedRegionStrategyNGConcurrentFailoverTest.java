@@ -58,7 +58,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 	public static final TestingComponentMainThreadExecutor.Resource EXECUTOR_RESOURCE =
 		new TestingComponentMainThreadExecutor.Resource();
 
-	private final TestingComponentMainThreadExecutor testMainThreadUtil =
+	private final TestingComponentMainThreadExecutor testMainThreadExecutor =
 		EXECUTOR_RESOURCE.getComponentMainThreadTestExecutor();
 
 	/**
@@ -104,24 +104,24 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		final ExecutionVertex ev22 = vertexIterator.next();
 
 		// start job scheduling
-		testMainThreadUtil.execute(eg::scheduleForExecution);
+		testMainThreadExecutor.execute(eg::scheduleForExecution);
 
 		// fail ev11 to trigger region failover of {ev11}, {ev21}, {ev22}
-		testMainThreadUtil.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("task failure 1")));
+		testMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("task failure 1")));
 		assertEquals(ExecutionState.FAILED, ev11.getExecutionState());
 		assertEquals(ExecutionState.DEPLOYING, ev12.getExecutionState());
 		assertEquals(ExecutionState.CANCELED, ev21.getExecutionState());
 		assertEquals(ExecutionState.CANCELED, ev22.getExecutionState());
 
 		// fail ev12 to trigger region failover of {ev12}, {ev21}, {ev22}
-		testMainThreadUtil.execute(() -> ev12.getCurrentExecutionAttempt().fail(new Exception("task failure 2")));
+		testMainThreadExecutor.execute(() -> ev12.getCurrentExecutionAttempt().fail(new Exception("task failure 2")));
 		assertEquals(ExecutionState.FAILED, ev11.getExecutionState());
 		assertEquals(ExecutionState.FAILED, ev12.getExecutionState());
 		assertEquals(ExecutionState.CANCELED, ev21.getExecutionState());
 		assertEquals(ExecutionState.CANCELED, ev22.getExecutionState());
 
 		// complete region failover blocker to trigger region failover recovery
-		testMainThreadUtil.execute(() -> failoverStrategy.getBlockerFuture().complete(null));
+		testMainThreadExecutor.execute(() -> failoverStrategy.getBlockerFuture().complete(null));
 
 		// verify that all tasks are recovered and no task is restarted more than once
 		assertEquals(ExecutionState.DEPLOYING, ev11.getExecutionState());
@@ -177,10 +177,10 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		final ExecutionVertex ev22 = vertexIterator.next();
 
 		// start job scheduling
-		testMainThreadUtil.execute(eg::scheduleForExecution);
+		testMainThreadExecutor.execute(eg::scheduleForExecution);
 
 		// fail ev11 to trigger region failover of {ev11}, {ev21}, {ev22}
-		testMainThreadUtil.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("task failure")));
+		testMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("task failure")));
 		assertEquals(JobStatus.RUNNING, eg.getState());
 		assertEquals(ExecutionState.FAILED, ev11.getExecutionState());
 		assertEquals(ExecutionState.DEPLOYING, ev12.getExecutionState());
@@ -188,7 +188,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		assertEquals(ExecutionState.CANCELED, ev22.getExecutionState());
 
 		// trigger global failover cancelling and immediately recovery
-		testMainThreadUtil.execute(() -> {
+		testMainThreadExecutor.execute(() -> {
 			eg.failGlobal(new Exception("Test global failure"));
 			ev12.getCurrentExecutionAttempt().completeCancelling();
 			restartStrategy.triggerNextAction();
@@ -203,7 +203,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		assertEquals(1, ev22.getCurrentExecutionAttempt().getAttemptNumber());
 
 		// complete region failover blocker to trigger region failover
-		testMainThreadUtil.execute(() -> failoverStrategy.getBlockerFuture().complete(null));
+		testMainThreadExecutor.execute(() -> failoverStrategy.getBlockerFuture().complete(null));
 
 		// verify that no task is restarted by region failover
 		assertEquals(ExecutionState.DEPLOYING, ev11.getExecutionState());
@@ -267,7 +267,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		JobGraph jg = new JobGraph(jid, "testjob", v1, v2);
 		graph.attachJobGraph(jg.getVerticesSortedTopologicallyFromSources());
 
-		graph.start(testMainThreadUtil.getMainThreadExecutor());
+		graph.start(testMainThreadExecutor.getMainThreadExecutor());
 
 		return graph;
 	}
