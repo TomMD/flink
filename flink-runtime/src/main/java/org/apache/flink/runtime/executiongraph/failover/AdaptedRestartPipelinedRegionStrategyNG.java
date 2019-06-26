@@ -66,11 +66,11 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 	/** The execution graph on which this FailoverStrategy works. */
 	private final ExecutionGraph executionGraph;
 
-	/** The underlying new generation region failover strategy. */
-	private RestartPipelinedRegionStrategy restartPipelinedRegionStrategy;
-
 	/** The versioner helps to maintain execution vertex versions. */
 	private final ExecutionVertexVersioner executionVertexVersioner;
+
+	/** The underlying new generation region failover strategy. */
+	private RestartPipelinedRegionStrategy restartPipelinedRegionStrategy;
 
 	public AdaptedRestartPipelinedRegionStrategyNG(final ExecutionGraph executionGraph) {
 		this.executionGraph = checkNotNull(executionGraph);
