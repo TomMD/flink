@@ -28,6 +28,7 @@ import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
 import org.apache.flink.runtime.checkpoint.CheckpointProperties;
 import org.apache.flink.runtime.checkpoint.CheckpointRetentionPolicy;
 import org.apache.flink.runtime.checkpoint.CheckpointStatsTracker;
+import org.apache.flink.runtime.checkpoint.CompletedCheckpointStore;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.checkpoint.PendingCheckpoint;
 import org.apache.flink.runtime.checkpoint.StandaloneCheckpointIDCounter;
@@ -73,6 +74,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
+import static org.apache.flink.util.Preconditions.checkState;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -260,12 +262,16 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 		final ExecutionVertex ev21 = vertexIterator.next();
 		final ExecutionVertex ev22 = vertexIterator.next();
 
+		final CheckpointCoordinator checkpointCoordinator = eg.getCheckpointCoordinator();
+		checkState(checkpointCoordinator != null);
+
 		testingMainThreadExecutor.execute(() -> acknowledgeAllCheckpoints(
-			checkpointId, eg.getCheckpointCoordinator(), eg.getAllExecutionVertices().iterator()));
+			checkpointId, checkpointCoordinator, eg.getAllExecutionVertices().iterator()));
 
 		// verify checkpoint has been completed successfully.
-		assertEquals(1, eg.getCheckpointCoordinator().getCheckpointStore().getNumberOfRetainedCheckpoints());
-		assertEquals(checkpointId, eg.getCheckpointCoordinator().getCheckpointStore().getLatestCheckpoint(false).getCheckpointID());
+		final CompletedCheckpointStore checkpointStore = checkpointCoordinator.getCheckpointStore();
+		assertEquals(1, checkpointStore.getNumberOfRetainedCheckpoints());
+		assertEquals(checkpointId, checkpointStore.getLatestCheckpoint(false).getCheckpointID());
 
 		testingMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
 
