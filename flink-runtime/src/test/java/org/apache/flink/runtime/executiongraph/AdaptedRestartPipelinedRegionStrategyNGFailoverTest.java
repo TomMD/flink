@@ -212,7 +212,6 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	 */
 	@Test
 	public void testFailurePropagationToUnderlyingStrategy() throws Exception {
-		// create a batch job graph with LAZY_FROM_SOURCES schedule mode
 		final JobGraph jobGraph = createBatchJobGraph();
 		final ExecutionGraph eg = createExecutionGraph(jobGraph);
 
