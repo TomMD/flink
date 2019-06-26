@@ -90,7 +90,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	public static final TestingComponentMainThreadExecutor.Resource EXECUTOR_RESOURCE =
 		new TestingComponentMainThreadExecutor.Resource();
 
-	private final TestingComponentMainThreadExecutor testMainThreadUtil =
+	private final TestingComponentMainThreadExecutor testingMainThreadExecutor =
 		EXECUTOR_RESOURCE.getComponentMainThreadTestExecutor();
 
 	/**
@@ -121,14 +121,14 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		// trigger task failure of ev11
 		// vertices { ev11, ev21 } should be affected
-		testMainThreadUtil.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
+		testingMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
 
 		// verify vertex states and complete cancellation
 		assertVertexInState(ExecutionState.FAILED, ev11);
 		assertVertexInState(ExecutionState.DEPLOYING, ev12);
 		assertVertexInState(ExecutionState.CANCELING, ev21);
 		assertVertexInState(ExecutionState.DEPLOYING, ev22);
-		testMainThreadUtil.execute(() -> ev21.getCurrentExecutionAttempt().completeCancelling());
+		testingMainThreadExecutor.execute(() -> ev21.getCurrentExecutionAttempt().completeCancelling());
 
 		// verify vertex states
 		// in eager mode, all affected vertices should be scheduled in failover
@@ -175,14 +175,14 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		// trigger task failure of ev11
 		// regions {ev11}, {ev21}, {ev22} should be affected
-		testMainThreadUtil.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
+		testingMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
 
 		// verify vertex states and complete cancellation
 		assertVertexInState(ExecutionState.FAILED, ev11);
 		assertVertexInState(ExecutionState.DEPLOYING, ev12);
 		assertVertexInState(ExecutionState.CANCELED, ev21);
 		assertVertexInState(ExecutionState.CANCELED, ev22);
-		testMainThreadUtil.execute(() -> failoverStrategy.getBlockerFuture().complete(null));
+		testingMainThreadExecutor.execute(() -> failoverStrategy.getBlockerFuture().complete(null));
 
 		// verify vertex states
 		// only vertices with consumable inputs can be scheduled
@@ -226,7 +226,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 		final ExecutionVertex ev21 = vertexIterator.next();
 
 		// trigger downstream regions to schedule
-		testMainThreadUtil.execute(() -> {
+		testingMainThreadExecutor.execute(() -> {
 			// finish upstream regions to trigger scheduling of downstream regions
 			ev11.getCurrentExecutionAttempt().markFinished();
 			ev12.getCurrentExecutionAttempt().markFinished();
@@ -238,7 +238,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 				ev11.getProducedPartitions().keySet().iterator().next(),
 				ev11.getCurrentExecutionAttempt().getAttemptId()),
 			new Exception("Test failure"));
-		testMainThreadUtil.execute(() -> ev21.getCurrentExecutionAttempt().fail(taskFailureCause));
+		testingMainThreadExecutor.execute(() -> ev21.getCurrentExecutionAttempt().fail(taskFailureCause));
 
 		// verify that the restarted task is the same as the underlying strategy suggested
 		assertEquals(
@@ -263,21 +263,21 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 		final ExecutionVertex ev21 = vertexIterator.next();
 		final ExecutionVertex ev22 = vertexIterator.next();
 
-		testMainThreadUtil.execute(() -> acknowledgeAllCheckpoints(
+		testingMainThreadExecutor.execute(() -> acknowledgeAllCheckpoints(
 			checkpointId, eg.getCheckpointCoordinator(), eg.getAllExecutionVertices().iterator()));
 
 		// verify checkpoint has been completed successfully.
 		assertEquals(1, eg.getCheckpointCoordinator().getCheckpointStore().getNumberOfRetainedCheckpoints());
 		assertEquals(checkpointId, eg.getCheckpointCoordinator().getCheckpointStore().getLatestCheckpoint(false).getCheckpointID());
 
-		testMainThreadUtil.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
+		testingMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
 
 		// ensure vertex state and complete cancellation
 		assertVertexInState(ExecutionState.FAILED, ev11);
 		assertVertexInState(ExecutionState.DEPLOYING, ev12);
 		assertVertexInState(ExecutionState.CANCELING, ev21);
 		assertVertexInState(ExecutionState.DEPLOYING, ev22);
-		testMainThreadUtil.execute(() -> ev21.getCurrentExecutionAttempt().completeCancelling());
+		testingMainThreadExecutor.execute(() -> ev21.getCurrentExecutionAttempt().completeCancelling());
 
 		verifyCheckpointRestoredAsExpected(checkpointId, eg);
 	}
@@ -309,13 +309,13 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 		final ExecutionVertex ev22 = vertexIterator.next();
 
 		// finish upstream regions so that all the blocking result partitions should be finished and consumable
-		testMainThreadUtil.execute(() -> {
+		testingMainThreadExecutor.execute(() -> {
 			// finish upstream regions to trigger scheduling of downstream regions
 			ev11.getCurrentExecutionAttempt().markFinished();
 			ev12.getCurrentExecutionAttempt().markFinished();
 		});
 
-		testMainThreadUtil.execute(() -> {
+		testingMainThreadExecutor.execute(() -> {
 			// force FINISHED ev11 to fail to reset its partition
 			strategy.onTaskFailure(ev11.getCurrentExecutionAttempt(), new FlinkException("Fail for testing"));
 
@@ -342,7 +342,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		final ExecutionVertex ev = eg.getAllExecutionVertices().iterator().next();
 
-		testMainThreadUtil.execute(() -> {
+		testingMainThreadExecutor.execute(() -> {
 			ev.fail(new Exception("Test Exception"));
 
 			for (ExecutionVertex evs : eg.getAllExecutionVertices()) {
@@ -459,8 +459,8 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		eg.setScheduleMode(jobGraph.getScheduleMode());
 
-		eg.start(testMainThreadUtil.getMainThreadExecutor());
-		testMainThreadUtil.execute(() -> {
+		eg.start(testingMainThreadExecutor.getMainThreadExecutor());
+		testingMainThreadExecutor.execute(() -> {
 			eg.scheduleForExecution();
 
 			if (checkpointId >= 0) {
