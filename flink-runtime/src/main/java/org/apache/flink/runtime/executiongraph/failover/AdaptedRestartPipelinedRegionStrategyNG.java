@@ -61,7 +61,6 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 
-	/** The log object used for debugging. */
 	private static final Logger LOG = LoggerFactory.getLogger(AdaptedRestartPipelinedRegionStrategyNG.class);
 
 	/** The execution graph on which this FailoverStrategy works. */
@@ -80,7 +79,6 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 
 	@Override
 	public void onTaskFailure(final Execution taskExecution, final Throwable cause) {
-		// skip the failover if global restart strategy suppresses restarts
 		if (!executionGraph.getRestartStrategy().canRestart()) {
 			// delegate the failure to a global fail that will check the restart strategy and not restart
 			LOG.info("Fail to pass the restart strategy validation in region failover. Fallback to fail global.");
@@ -88,7 +86,6 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 			return;
 		}
 
-		// skip local failover if is in global failover
 		if (!isLocalFailoverValid(executionGraph.getGlobalModVersion())) {
 			LOG.info("Skip current region failover as a global failover is ongoing.");
 			return;
@@ -97,19 +94,15 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 		final ExecutionVertexID vertexID = getExecutionVertexID(taskExecution.getVertex());
 
 		final Set<ExecutionVertexID> tasksToRestart = restartPipelinedRegionStrategy.getTasksNeedingRestart(vertexID, cause);
-
-		// restart tasks at once
 		restartTasks(tasksToRestart);
 	}
 
 	@VisibleForTesting
 	protected void restartTasks(final Set<ExecutionVertexID> verticesToRestart) {
-		// record current versions
 		final long globalModVersion = executionGraph.getGlobalModVersion();
 		final Set<ExecutionVertexVersion> vertexVersions = new HashSet<>(
 			executionVertexVersioner.recordVertexModifications(verticesToRestart).values());
 
-		// cancel tasks involved in this task failure
 		cancelTasks(verticesToRestart)
 			.thenAccept(
 				(Object ignored) -> {
@@ -145,7 +138,6 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 				})
 			.whenComplete(
 				(Object ignored, Throwable t) -> {
-					// fail globally if any error happens
 					if (t != null) {
 						LOG.info("Unexpected error happens in region failover. Fail globally.", t);
 						failGlobal(t);
