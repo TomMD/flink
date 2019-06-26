@@ -65,7 +65,6 @@ import org.apache.flink.util.TestLogger;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -590,7 +589,6 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	 */
 	static class TestAdaptedRestartPipelinedRegionStrategyNG extends AdaptedRestartPipelinedRegionStrategyNG {
 
-		@Nonnull
 		private CompletableFuture<?> blockerFuture;
 
 		private Set<ExecutionVertexID> lastTasksToRestart;
@@ -600,7 +598,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 			this.blockerFuture = CompletableFuture.completedFuture(null);
 		}
 
-		void setBlockerFuture(@Nonnull CompletableFuture<?> blockerFuture) {
+		void setBlockerFuture(CompletableFuture<?> blockerFuture) {
 			this.blockerFuture = blockerFuture;
 		}
 
