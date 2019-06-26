@@ -32,7 +32,6 @@ import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.JobStatus;
 import org.apache.flink.runtime.jobgraph.JobVertex;
-import org.apache.flink.runtime.jobmaster.slotpool.SlotProvider;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
 import org.apache.flink.runtime.testtasks.NoOpInvokable;
 import org.apache.flink.util.TestLogger;
@@ -84,14 +83,12 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		//  - validate that each task is restarted only once
 
 		final JobID jid = new JobID();
-		final SimpleSlotProvider slotProvider = new SimpleSlotProvider(jid, DEFAULT_PARALLELISM);
 		final TestRestartStrategy restartStrategy = TestRestartStrategy.manuallyTriggered();
 
 		final ExecutionGraph eg = createExecutionGraph(
 			jid,
 			TestAdaptedRestartPipelinedRegionStrategyNG::new,
-			restartStrategy,
-			slotProvider);
+			restartStrategy);
 
 		final TestAdaptedRestartPipelinedRegionStrategyNG failoverStrategy =
 			(TestAdaptedRestartPipelinedRegionStrategyNG) eg.getFailoverStrategy();
@@ -157,14 +154,12 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		//  - validate that the local recovery does not restart tasks
 
 		final JobID jid = new JobID();
-		final SimpleSlotProvider slotProvider = new SimpleSlotProvider(jid, DEFAULT_PARALLELISM);
 		final TestRestartStrategy restartStrategy = TestRestartStrategy.manuallyTriggered();
 
 		final ExecutionGraph eg = createExecutionGraph(
 			jid,
 			TestAdaptedRestartPipelinedRegionStrategyNG::new,
-			restartStrategy,
-			slotProvider);
+			restartStrategy);
 
 		final TestAdaptedRestartPipelinedRegionStrategyNG failoverStrategy =
 			(TestAdaptedRestartPipelinedRegionStrategyNG) eg.getFailoverStrategy();
@@ -234,12 +229,12 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 	 * 4 regions. Each consists of one individual execution vertex.
 	 */
 	private ExecutionGraph createExecutionGraph(
-		JobID jid,
-		Factory failoverStrategy,
-		RestartStrategy restartStrategy,
-		SlotProvider slotProvider) throws Exception {
+			JobID jid,
+			Factory failoverStrategy,
+			RestartStrategy restartStrategy) throws Exception {
 
 		final JobInformation jobInformation = new DummyJobInformation(jid, "test job");
+		final SimpleSlotProvider slotProvider = new SimpleSlotProvider(jid, DEFAULT_PARALLELISM);
 
 		final Time timeout = Time.seconds(10L);
 		final ExecutionGraph graph = new ExecutionGraph(
