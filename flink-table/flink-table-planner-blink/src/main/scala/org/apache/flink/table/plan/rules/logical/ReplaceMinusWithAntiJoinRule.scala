@@ -18,6 +18,9 @@
 
 package org.apache.flink.table.plan.rules.logical
 
+import org.apache.flink.table.plan.util.SetOpRewriteUtil.generateEqualsCondition
+
+import org.apache.calcite.plan.RelOptRule.{any, operand}
 import org.apache.calcite.plan.{RelOptRule, RelOptRuleCall}
 import org.apache.calcite.rel.core._
 
@@ -26,17 +29,15 @@ import scala.collection.JavaConversions._
 /**
   * Planner rule that replaces distinct [[Minus]] (SQL keyword: EXCEPT) with
   * a distinct [[Aggregate]] on an ANTI [[Join]].
-  *
-  * <p>Note: Not support Minus All.
   */
-class ReplaceMinusWithAntiJoinRule extends ReplaceSetOpWithJoinRuleBase(
-  classOf[Minus],
+class ReplaceMinusWithAntiJoinRule extends RelOptRule(
+  operand(classOf[Minus], any),
+  RelFactories.LOGICAL_BUILDER,
   "ReplaceMinusWithAntiJoinRule") {
 
   override def matches(call: RelOptRuleCall): Boolean = {
     val minus: Minus = call.rel(0)
-    // not support minus all now.
-    minus.isDistinct
+    minus.isDistinct && minus.getInputs.size() == 2
   }
 
   override def onMatch(call: RelOptRuleCall): Unit = {
@@ -46,7 +47,7 @@ class ReplaceMinusWithAntiJoinRule extends ReplaceSetOpWithJoinRuleBase(
 
     val relBuilder = call.builder
     val keys = 0 until left.getRowType.getFieldCount
-    val conditions = generateCondition(relBuilder, left, right, keys)
+    val conditions = generateEqualsCondition(relBuilder, left, right, keys)
 
     relBuilder.push(left)
     relBuilder.push(right)
