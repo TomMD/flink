@@ -68,8 +68,7 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 	private final ExecutionGraph executionGraph;
 
 	/** The underlying new generation region failover strategy. */
-	@VisibleForTesting
-	protected RestartPipelinedRegionStrategy restartPipelinedRegionStrategy;
+	private RestartPipelinedRegionStrategy restartPipelinedRegionStrategy;
 
 	/** The versioner helps to maintain execution vertex versions. */
 	private final ExecutionVertexVersioner executionVertexVersioner;

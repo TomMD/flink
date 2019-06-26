@@ -36,7 +36,6 @@ import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.failover.AdaptedRestartPipelinedRegionStrategyNG;
-import org.apache.flink.runtime.executiongraph.failover.flip1.RestartPipelinedRegionStrategy;
 import org.apache.flink.runtime.executiongraph.restart.InfiniteDelayRestartStrategy;
 import org.apache.flink.runtime.executiongraph.restart.NoRestartStrategy;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategy;
@@ -74,9 +73,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -238,12 +239,10 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 			new Exception("Test failure"));
 		testingMainThreadExecutor.execute(() -> ev21.getCurrentExecutionAttempt().fail(taskFailureCause));
 
-		// verify that the restarted task is the same as the underlying strategy suggested
-		assertEquals(
-			failoverStrategy.getRestartPipelinedRegionStrategy().getTasksNeedingRestart(
-				new ExecutionVertexID(ev21.getJobvertexId(), ev21.getParallelSubtaskIndex()),
-				taskFailureCause),
-			failoverStrategy.getLastTasksToCancel());
+		assertThat(failoverStrategy.getLastTasksToCancel(), containsInAnyOrder(
+			new ExecutionVertexID(ev11.getJobvertexId(), 0),
+			new ExecutionVertexID(ev21.getJobvertexId(), 0),
+			new ExecutionVertexID(ev21.getJobvertexId(), 1)));
 	}
 
 	/**
@@ -621,10 +620,6 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		Set<ExecutionVertexID> getLastTasksToCancel() {
 			return lastTasksToRestart;
-		}
-
-		RestartPipelinedRegionStrategy getRestartPipelinedRegionStrategy() {
-			return restartPipelinedRegionStrategy;
 		}
 	}
 }
