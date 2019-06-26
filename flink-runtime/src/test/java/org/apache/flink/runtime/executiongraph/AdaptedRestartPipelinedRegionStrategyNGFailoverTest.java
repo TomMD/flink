@@ -549,9 +549,9 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	 * to complete the expected checkpoint.
 	 */
 	private void acknowledgeAllCheckpoints(
-		final long checkpointId,
-		final CheckpointCoordinator checkpointCoordinator,
-		final Iterator<ExecutionVertex> executionVertices) throws IOException, CheckpointException {
+			final long checkpointId,
+			final CheckpointCoordinator checkpointCoordinator,
+			final Iterator<ExecutionVertex> executionVertices) throws IOException, CheckpointException {
 
 		while (executionVertices.hasNext()) {
 			final ExecutionVertex executionVertex = executionVertices.next();
