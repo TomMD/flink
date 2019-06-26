@@ -239,9 +239,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		RestartStrategy restartStrategy,
 		SlotProvider slotProvider) throws Exception {
 
-		final JobInformation jobInformation = new DummyJobInformation(
-			jid,
-			"test job");
+		final JobInformation jobInformation = new DummyJobInformation(jid, "test job");
 
 		final Time timeout = Time.seconds(10L);
 		final ExecutionGraph graph = new ExecutionGraph(
