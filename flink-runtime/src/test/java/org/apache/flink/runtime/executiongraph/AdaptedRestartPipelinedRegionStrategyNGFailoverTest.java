@@ -18,22 +18,7 @@
 
 package org.apache.flink.runtime.executiongraph;
 
-import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
-import org.apache.flink.mock.Whitebox;
 import org.apache.flink.runtime.akka.AkkaUtils;
-import org.apache.flink.runtime.checkpoint.CheckpointCoordinator;
-import org.apache.flink.runtime.checkpoint.CheckpointCoordinatorTest;
-import org.apache.flink.runtime.checkpoint.CheckpointException;
-import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
-import org.apache.flink.runtime.checkpoint.CheckpointProperties;
-import org.apache.flink.runtime.checkpoint.CheckpointRetentionPolicy;
-import org.apache.flink.runtime.checkpoint.CheckpointStatsTracker;
-import org.apache.flink.runtime.checkpoint.CompletedCheckpointStore;
-import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
-import org.apache.flink.runtime.checkpoint.PendingCheckpoint;
-import org.apache.flink.runtime.checkpoint.StandaloneCheckpointIDCounter;
-import org.apache.flink.runtime.checkpoint.StandaloneCompletedCheckpointStore;
-import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.failover.AdaptedRestartPipelinedRegionStrategyNG;
@@ -48,16 +33,9 @@ import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.JobStatus;
 import org.apache.flink.runtime.jobgraph.JobVertex;
-import org.apache.flink.runtime.jobgraph.JobVertexID;
-import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.jobgraph.ScheduleMode;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
-import org.apache.flink.runtime.jobgraph.tasks.CheckpointCoordinatorConfiguration;
-import org.apache.flink.runtime.messages.checkpoint.AcknowledgeCheckpoint;
 import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
-import org.apache.flink.runtime.state.CheckpointStorageCoordinatorView;
-import org.apache.flink.runtime.state.OperatorStateHandle;
-import org.apache.flink.runtime.state.memory.MemoryStateBackend;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
 import org.apache.flink.util.FlinkException;
 import org.apache.flink.util.TestLogger;
@@ -65,23 +43,15 @@ import org.apache.flink.util.TestLogger;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-import static org.apache.flink.util.Preconditions.checkState;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link AdaptedRestartPipelinedRegionStrategyNG} failover handling.
@@ -112,8 +82,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	public void testRegionFailoverInEagerMode() throws Exception {
 		// create a streaming job graph with EAGER schedule mode
 		final JobGraph jobGraph = createStreamingJobGraph();
-		final long checkpointId = 42L;
-		final ExecutionGraph eg = createExecutionGraph(jobGraph, checkpointId);
+		final ExecutionGraph eg = createExecutionGraph(jobGraph);
 
 		final Iterator<ExecutionVertex> vertexIterator = eg.getAllExecutionVertices().iterator();
 		final ExecutionVertex ev11 = vertexIterator.next();
@@ -245,44 +214,6 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 			new ExecutionVertexID(ev11.getJobvertexId(), 0),
 			new ExecutionVertexID(ev21.getJobvertexId(), 0),
 			new ExecutionVertexID(ev21.getJobvertexId(), 1)));
-	}
-
-	/**
-	 * Tests that checkpointing is working correctly in region failover.
-	 */
-	@Test
-	public void testCheckpointingInRegionFailover() throws Exception {
-		final JobGraph jobGraph = createStreamingJobGraph();
-		final long checkpointId = 42L;
-		final ExecutionGraph eg = createExecutionGraph(jobGraph, checkpointId);
-
-		final Iterator<ExecutionVertex> vertexIterator = eg.getAllExecutionVertices().iterator();
-		final ExecutionVertex ev11 = vertexIterator.next();
-		final ExecutionVertex ev12 = vertexIterator.next();
-		final ExecutionVertex ev21 = vertexIterator.next();
-		final ExecutionVertex ev22 = vertexIterator.next();
-
-		final CheckpointCoordinator checkpointCoordinator = eg.getCheckpointCoordinator();
-		checkState(checkpointCoordinator != null);
-
-		testingMainThreadExecutor.execute(() -> acknowledgeAllCheckpoints(
-			checkpointId, checkpointCoordinator, eg.getAllExecutionVertices().iterator()));
-
-		// verify checkpoint has been completed successfully.
-		final CompletedCheckpointStore checkpointStore = checkpointCoordinator.getCheckpointStore();
-		assertEquals(1, checkpointStore.getNumberOfRetainedCheckpoints());
-		assertEquals(checkpointId, checkpointStore.getLatestCheckpoint(false).getCheckpointID());
-
-		testingMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
-
-		// ensure vertex state and complete cancellation
-		assertVertexInState(ExecutionState.FAILED, ev11);
-		assertVertexInState(ExecutionState.DEPLOYING, ev12);
-		assertVertexInState(ExecutionState.CANCELING, ev21);
-		assertVertexInState(ExecutionState.DEPLOYING, ev22);
-		testingMainThreadExecutor.execute(() -> ev21.getCurrentExecutionAttempt().completeCancelling());
-
-		verifyCheckpointRestoredAsExpected(checkpointId, eg);
 	}
 
 	/**
@@ -422,25 +353,12 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	}
 
 	private ExecutionGraph createExecutionGraph(final JobGraph jobGraph) throws Exception {
-		return createExecutionGraph(jobGraph, -1L);
-	}
-
-	private ExecutionGraph createExecutionGraph(final JobGraph jobGraph, final long checkpointId) throws Exception {
-		final RestartStrategy restartStrategy = new InfiniteDelayRestartStrategy(10);
-		return createExecutionGraph(jobGraph, restartStrategy, checkpointId);
+		return createExecutionGraph(jobGraph, new InfiniteDelayRestartStrategy(10));
 	}
 
 	private ExecutionGraph createExecutionGraph(
 		final JobGraph jobGraph,
 		final RestartStrategy restartStrategy) throws Exception {
-
-		return createExecutionGraph(jobGraph, restartStrategy, -1L);
-	}
-
-	private ExecutionGraph createExecutionGraph(
-		final JobGraph jobGraph,
-		final RestartStrategy restartStrategy,
-		final long checkpointId) throws Exception {
 
 		final SimpleSlotProvider slotProvider = new SimpleSlotProvider(jobGraph.getJobID(), 14);
 
@@ -456,134 +374,16 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 			slotProvider);
 		eg.attachJobGraph(jobGraph.getVerticesSortedTopologicallyFromSources());
 
-		if (checkpointId >= 0) {
-			enableCheckpointing(eg);
-		}
-
 		eg.setScheduleMode(jobGraph.getScheduleMode());
 
 		eg.start(testingMainThreadExecutor.getMainThreadExecutor());
-		testingMainThreadExecutor.execute(() -> {
-			eg.scheduleForExecution();
-
-			if (checkpointId >= 0) {
-				attachPendingCheckpoints(checkpointId, eg);
-			}
-		});
+		testingMainThreadExecutor.execute(eg::scheduleForExecution);
 
 		return eg;
 	}
 
 	private static void assertVertexInState(final ExecutionState state, final ExecutionVertex vertex) {
 		assertEquals(state, vertex.getExecutionState());
-	}
-
-	private static void enableCheckpointing(final ExecutionGraph eg) {
-		final ArrayList<ExecutionJobVertex> jobVertices = new ArrayList<>(eg.getAllVertices().values());
-		final CheckpointCoordinatorConfiguration chkConfig = new CheckpointCoordinatorConfiguration(
-			1000,
-			100,
-			0,
-			1,
-			CheckpointRetentionPolicy.RETAIN_ON_CANCELLATION,
-			true,
-			false,
-			0);
-		eg.enableCheckpointing(
-			chkConfig,
-			jobVertices,
-			jobVertices,
-			jobVertices,
-			Collections.emptyList(),
-			new StandaloneCheckpointIDCounter(),
-			new StandaloneCompletedCheckpointStore(1),
-			new MemoryStateBackend(),
-			new CheckpointStatsTracker(
-				0,
-				jobVertices,
-				mock(CheckpointCoordinatorConfiguration.class),
-				new UnregisteredMetricsGroup()));
-	}
-
-	/**
-	 * Attach pending checkpoints of chk-{checkpointId} and chk-{checkpointId+1} to the execution graph.
-	 * If {@link #acknowledgeAllCheckpoints(long, CheckpointCoordinator, Iterator)} called then,
-	 * chk-{{checkpointId}} would become the completed checkpoint.
-	 */
-	private void attachPendingCheckpoints(final long checkpointId, final ExecutionGraph eg) throws IOException {
-		final Map<Long, PendingCheckpoint> pendingCheckpoints = new HashMap<>();
-		final Map<ExecutionAttemptID, ExecutionVertex> verticesToConfirm = new HashMap<>();
-		eg.getAllExecutionVertices().forEach(e -> {
-			Execution ee = e.getCurrentExecutionAttempt();
-			if (ee != null) {
-				verticesToConfirm.put(ee.getAttemptId(), e);
-			}
-		});
-
-		final CheckpointCoordinator checkpointCoordinator = eg.getCheckpointCoordinator();
-		assertNotNull(checkpointCoordinator);
-		final CheckpointStorageCoordinatorView checkpointStorage = checkpointCoordinator.getCheckpointStorage();
-		pendingCheckpoints.put(checkpointId, new PendingCheckpoint(
-			eg.getJobID(),
-			checkpointId,
-			0L,
-			verticesToConfirm,
-			CheckpointProperties.forCheckpoint(CheckpointRetentionPolicy.RETAIN_ON_FAILURE),
-			checkpointStorage.initializeLocationForCheckpoint(checkpointId),
-			eg.getFutureExecutor()));
-
-		final long newCheckpointId = checkpointId + 1;
-		pendingCheckpoints.put(newCheckpointId, new PendingCheckpoint(
-			eg.getJobID(),
-			newCheckpointId,
-			0L,
-			verticesToConfirm,
-			CheckpointProperties.forCheckpoint(CheckpointRetentionPolicy.RETAIN_ON_FAILURE),
-			checkpointStorage.initializeLocationForCheckpoint(newCheckpointId),
-			eg.getFutureExecutor()));
-		Whitebox.setInternalState(checkpointCoordinator, "pendingCheckpoints", pendingCheckpoints);
-	}
-
-	/**
-	 * Let the checkpoint coordinator receive all acknowledges from given executionVertices
-	 * to complete the expected checkpoint.
-	 */
-	private void acknowledgeAllCheckpoints(
-			final long checkpointId,
-			final CheckpointCoordinator checkpointCoordinator,
-			final Iterator<ExecutionVertex> executionVertices) throws IOException, CheckpointException {
-
-		while (executionVertices.hasNext()) {
-			final ExecutionVertex executionVertex = executionVertices.next();
-			for (int index = 0; index < executionVertex.getJobVertex().getParallelism(); index++) {
-				final JobVertexID jobVertexID = executionVertex.getJobvertexId();
-				final OperatorStateHandle opStateBackend = CheckpointCoordinatorTest.generatePartitionableStateHandle(
-					jobVertexID, index, 2, 8, false);
-				final OperatorSubtaskState operatorSubtaskState = new OperatorSubtaskState(
-					opStateBackend, null, null, null);
-				final TaskStateSnapshot taskOperatorSubtaskStates = new TaskStateSnapshot();
-				taskOperatorSubtaskStates.putSubtaskStateByOperatorID(OperatorID.fromJobVertexID(jobVertexID), operatorSubtaskState);
-
-				final AcknowledgeCheckpoint acknowledgeCheckpoint = new AcknowledgeCheckpoint(
-					executionVertex.getJobId(),
-					executionVertex.getJobVertex().getTaskVertices()[index].getCurrentExecutionAttempt().getAttemptId(),
-					checkpointId,
-					new CheckpointMetrics(),
-					taskOperatorSubtaskStates);
-
-				checkpointCoordinator.receiveAcknowledgeMessage(acknowledgeCheckpoint, "Unknown location");
-			}
-		}
-	}
-
-	private void verifyCheckpointRestoredAsExpected(final long checkpointId, final ExecutionGraph eg) throws Exception {
-		// pending checkpoints have already been cancelled.
-		assertNotNull(eg.getCheckpointCoordinator());
-		assertTrue(eg.getCheckpointCoordinator().getPendingCheckpoints().isEmpty());
-
-		// verify checkpoint has been restored successfully.
-		assertEquals(1, eg.getCheckpointCoordinator().getCheckpointStore().getNumberOfRetainedCheckpoints());
-		assertEquals(checkpointId, eg.getCheckpointCoordinator().getCheckpointStore().getLatestCheckpoint(false).getCheckpointID());
 	}
 
 	/**
