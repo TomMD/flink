@@ -83,7 +83,7 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 		if (!executionGraph.getRestartStrategy().canRestart()) {
 			// delegate the failure to a global fail that will check the restart strategy and not restart
 			LOG.info("Fail to pass the restart strategy validation in region failover. Fallback to fail global.");
-			executionGraph.failGlobal(cause);
+			failGlobal(cause);
 			return;
 		}
 
