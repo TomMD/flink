@@ -114,7 +114,6 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 		cancelTasks(verticesToRestart)
 			.thenAccept(
 				(Object ignored) -> {
-					// skip local failover if is in global failover
 					if (!isLocalFailoverValid(globalModVersion)) {
 						LOG.info("Skip current region failover as a global failover is ongoing.");
 						return;
