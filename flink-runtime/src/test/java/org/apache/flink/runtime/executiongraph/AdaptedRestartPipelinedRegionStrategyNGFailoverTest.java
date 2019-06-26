@@ -116,7 +116,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	}
 
 	/**
-	 * Tests for scenes that a task fails for its own error, in which case the
+	 * Tests for scenario where a task fails for its own error, in which case the
 	 * region containing the failed task and its consumer regions should be restarted.
 	 * <pre>
 	 *     (v11) -+-> (v21)
@@ -130,13 +130,8 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	 */
 	@Test
 	public void testRegionFailoverForRegionInternalErrorsInLazyMode() throws Exception {
-		// create a batch job graph with LAZY_FROM_SOURCES schedule mode
 		final JobGraph jobGraph = createBatchJobGraph();
 		final ExecutionGraph eg = createExecutionGraph(jobGraph);
-
-		final TestAdaptedRestartPipelinedRegionStrategyNG failoverStrategy =
-			(TestAdaptedRestartPipelinedRegionStrategyNG) eg.getFailoverStrategy();
-		failoverStrategy.setBlockerFuture(new CompletableFuture<>());
 
 		final Iterator<ExecutionVertex> vertexIterator = eg.getAllExecutionVertices().iterator();
 		final ExecutionVertex ev11 = vertexIterator.next();
@@ -147,13 +142,6 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 		// trigger task failure of ev11
 		// regions {ev11}, {ev21}, {ev22} should be affected
 		testingMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
-
-		// verify vertex states and complete cancellation
-		assertVertexInState(ExecutionState.FAILED, ev11);
-		assertVertexInState(ExecutionState.DEPLOYING, ev12);
-		assertVertexInState(ExecutionState.CANCELED, ev21);
-		assertVertexInState(ExecutionState.CANCELED, ev22);
-		testingMainThreadExecutor.execute(() -> failoverStrategy.getBlockerFuture().complete(null));
 
 		// verify vertex states
 		// only vertices with consumable inputs can be scheduled
