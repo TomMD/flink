@@ -24,8 +24,6 @@ import org.apache.flink.runtime.blob.VoidBlobWriter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.AdaptedRestartPipelinedRegionStrategyNGFailoverTest.TestAdaptedRestartPipelinedRegionStrategyNG;
 import org.apache.flink.runtime.executiongraph.failover.AdaptedRestartPipelinedRegionStrategyNG;
-import org.apache.flink.runtime.executiongraph.failover.FailoverStrategy.Factory;
-import org.apache.flink.runtime.executiongraph.restart.RestartStrategy;
 import org.apache.flink.runtime.executiongraph.utils.SimpleSlotProvider;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
 import org.apache.flink.runtime.jobgraph.DistributionPattern;
@@ -36,6 +34,7 @@ import org.apache.flink.runtime.testingUtils.TestingUtils;
 import org.apache.flink.runtime.testtasks.NoOpInvokable;
 import org.apache.flink.util.TestLogger;
 
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -51,6 +50,8 @@ import static org.junit.Assert.assertEquals;
  */
 public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest extends TestLogger {
 
+	private static final JobID TEST_JOB_ID = new JobID();
+
 	private static final int DEFAULT_PARALLELISM = 2;
 
 	@ClassRule
@@ -59,6 +60,12 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 
 	private final TestingComponentMainThreadExecutor testMainThreadExecutor =
 		EXECUTOR_RESOURCE.getComponentMainThreadTestExecutor();
+	private TestRestartStrategy manuallyTriggeredRestartStrategy;
+
+	@Before
+	public void setUp() throws Exception {
+		manuallyTriggeredRestartStrategy = TestRestartStrategy.manuallyTriggered();
+	}
 
 	/**
 	 * Tests that 2 concurrent region failovers can lead to a properly vertex state.
@@ -82,13 +89,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		//  - resume local recovery actions
 		//  - validate that each task is restarted only once
 
-		final JobID jid = new JobID();
-		final TestRestartStrategy restartStrategy = TestRestartStrategy.manuallyTriggered();
-
-		final ExecutionGraph eg = createExecutionGraph(
-			jid,
-			TestAdaptedRestartPipelinedRegionStrategyNG::new,
-			restartStrategy);
+		final ExecutionGraph eg = createExecutionGraph();
 
 		final TestAdaptedRestartPipelinedRegionStrategyNG failoverStrategy =
 			(TestAdaptedRestartPipelinedRegionStrategyNG) eg.getFailoverStrategy();
@@ -153,13 +154,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		//  - resume in local recovery action
 		//  - validate that the local recovery does not restart tasks
 
-		final JobID jid = new JobID();
-		final TestRestartStrategy restartStrategy = TestRestartStrategy.manuallyTriggered();
-
-		final ExecutionGraph eg = createExecutionGraph(
-			jid,
-			TestAdaptedRestartPipelinedRegionStrategyNG::new,
-			restartStrategy);
+		final ExecutionGraph eg = createExecutionGraph();
 
 		final TestAdaptedRestartPipelinedRegionStrategyNG failoverStrategy =
 			(TestAdaptedRestartPipelinedRegionStrategyNG) eg.getFailoverStrategy();
@@ -186,7 +181,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		testMainThreadExecutor.execute(() -> {
 			eg.failGlobal(new Exception("Test global failure"));
 			ev12.getCurrentExecutionAttempt().completeCancelling();
-			restartStrategy.triggerNextAction();
+			manuallyTriggeredRestartStrategy.triggerNextAction();
 		});
 
 		// verify the job state and vertex attempt number
@@ -228,13 +223,10 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 	 * </pre>
 	 * 4 regions. Each consists of one individual execution vertex.
 	 */
-	private ExecutionGraph createExecutionGraph(
-			JobID jid,
-			Factory failoverStrategy,
-			RestartStrategy restartStrategy) throws Exception {
+	private ExecutionGraph createExecutionGraph() throws Exception {
 
-		final JobInformation jobInformation = new DummyJobInformation(jid, "test job");
-		final SimpleSlotProvider slotProvider = new SimpleSlotProvider(jid, DEFAULT_PARALLELISM);
+		final JobInformation jobInformation = new DummyJobInformation(TEST_JOB_ID, "test job");
+		final SimpleSlotProvider slotProvider = new SimpleSlotProvider(TEST_JOB_ID, DEFAULT_PARALLELISM);
 
 		final Time timeout = Time.seconds(10L);
 		final ExecutionGraph graph = new ExecutionGraph(
@@ -242,8 +234,8 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 			TestingUtils.defaultExecutor(),
 			TestingUtils.defaultExecutor(),
 			timeout,
-			restartStrategy,
-			failoverStrategy,
+			manuallyTriggeredRestartStrategy,
+			TestAdaptedRestartPipelinedRegionStrategyNG::new,
 			slotProvider,
 			getClass().getClassLoader(),
 			VoidBlobWriter.getInstance(),
@@ -259,7 +251,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 
 		v2.connectNewDataSetAsInput(v1, DistributionPattern.ALL_TO_ALL, ResultPartitionType.BLOCKING);
 
-		JobGraph jg = new JobGraph(jid, "testjob", v1, v2);
+		JobGraph jg = new JobGraph(TEST_JOB_ID, "testjob", v1, v2);
 		graph.attachJobGraph(jg.getVerticesSortedTopologicallyFromSources());
 
 		graph.start(testMainThreadExecutor.getMainThreadExecutor());
