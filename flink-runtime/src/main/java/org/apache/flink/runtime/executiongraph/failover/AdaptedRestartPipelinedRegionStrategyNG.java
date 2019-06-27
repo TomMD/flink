@@ -52,6 +52,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
@@ -104,15 +105,10 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 		final Set<ExecutionVertexVersion> vertexVersions = new HashSet<>(
 			executionVertexVersioner.recordVertexModifications(verticesToRestart).values());
 
-		cancelTasks(verticesToRestart)
-			.thenRun(resetAndRescheduleTasks(globalModVersion, vertexVersions))
-			.whenComplete(
-				(Object ignored, Throwable t) -> {
-					if (t != null) {
-						LOG.info("Unexpected error happens in region failover. Fail globally.", t);
-						failGlobal(t);
-					}
-				});
+		FutureUtils.assertNoException(
+			cancelTasks(verticesToRestart)
+				.thenRun(resetAndRescheduleTasks(globalModVersion, vertexVersions))
+				.handle(failGlobalOnError()));
 	}
 
 	private Runnable resetAndRescheduleTasks(final long globalModVersion, final Set<ExecutionVertexVersion> vertexVersions) {
@@ -146,6 +142,16 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 			} catch (Exception e) {
 				throw new CompletionException(e);
 			}
+		};
+	}
+
+	private BiFunction<Object, Throwable, Object> failGlobalOnError() {
+		return (Object ignored, Throwable t) -> {
+			if (t != null) {
+				LOG.info("Unexpected error happens in region failover. Fail globally.", t);
+				failGlobal(t);
+			}
+			return null;
 		};
 	}
 
