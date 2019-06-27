@@ -43,8 +43,9 @@ import org.apache.flink.util.TestLogger;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -402,9 +403,9 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		@Override
 		protected CompletableFuture<?> cancelTasks(final Set<ExecutionVertexID> vertices) {
-			ArrayList<CompletableFuture<?>> terminationAndBlocker = new ArrayList<>(2);
-			terminationAndBlocker.add(super.cancelTasks(vertices));
-			terminationAndBlocker.add(blockerFuture);
+			final List<CompletableFuture<?>> terminationAndBlocker = Arrays.asList(
+				super.cancelTasks(vertices),
+				blockerFuture);
 			return FutureUtils.waitForAll(terminationAndBlocker);
 		}
 
