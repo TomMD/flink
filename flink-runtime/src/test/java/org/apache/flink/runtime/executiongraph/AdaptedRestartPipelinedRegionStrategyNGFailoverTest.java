@@ -346,8 +346,8 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	}
 
 	private ExecutionGraph createExecutionGraph(
-		final JobGraph jobGraph,
-		final RestartStrategy restartStrategy) throws Exception {
+			final JobGraph jobGraph,
+			final RestartStrategy restartStrategy) throws Exception {
 
 		final SimpleSlotProvider slotProvider = new SimpleSlotProvider(jobGraph.getJobID(), 14);
 
