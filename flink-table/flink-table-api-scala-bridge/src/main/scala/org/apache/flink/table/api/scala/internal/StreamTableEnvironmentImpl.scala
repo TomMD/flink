@@ -272,9 +272,7 @@ object StreamTableEnvironmentImpl {
       executionEnvironment: StreamExecutionEnvironment)
     : StreamTableEnvironmentImpl = {
     val executor = lookupExecutor(executionEnvironment)
-    val functionCatalog = new FunctionCatalog(
-      catalogManager.getCurrentCatalog,
-      catalogManager.getCurrentDatabase)
+    val functionCatalog = new FunctionCatalog(catalogManager)
     new StreamTableEnvironmentImpl(
       catalogManager,
       functionCatalog,
