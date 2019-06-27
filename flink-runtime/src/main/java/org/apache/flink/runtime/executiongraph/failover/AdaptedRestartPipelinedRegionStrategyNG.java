@@ -105,38 +105,7 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 			executionVertexVersioner.recordVertexModifications(verticesToRestart).values());
 
 		cancelTasks(verticesToRestart)
-			.thenRun(
-				() -> {
-					if (!isLocalFailoverValid(globalModVersion)) {
-						LOG.info("Skip current region failover as a global failover is ongoing.");
-						return;
-					}
-
-					// found out vertices which are still valid to restart.
-					// some vertices involved in this failover may be modified if another region
-					// failover happens during the cancellation stage of this failover.
-					// Will ignore the modified vertices as the other failover will deal with them.
-					final Set<ExecutionVertex> unmodifiedVertices = executionVertexVersioner
-						.getUnmodifiedExecutionVertices(vertexVersions)
-						.stream()
-						.map(this::getExecutionVertex)
-						.collect(Collectors.toSet());
-
-					try {
-						LOG.info("Finally restart {} tasks to recover from task failure.", unmodifiedVertices.size());
-
-						// reset tasks to CREATED state and reload state
-						resetTasks(unmodifiedVertices, globalModVersion);
-
-						// re-schedule tasks
-						rescheduleTasks(unmodifiedVertices, globalModVersion);
-					} catch (GlobalModVersionMismatch e) {
-						// happens when a global recovery happens concurrently to the regional recovery
-						// just stop this local failover
-					} catch (Exception e) {
-						throw new CompletionException(e);
-					}
-				})
+			.thenRun(resetAndRescheduleTasks(globalModVersion, vertexVersions))
 			.whenComplete(
 				(Object ignored, Throwable t) -> {
 					if (t != null) {
@@ -144,6 +113,40 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 						failGlobal(t);
 					}
 				});
+	}
+
+	private Runnable resetAndRescheduleTasks(final long globalModVersion, final Set<ExecutionVertexVersion> vertexVersions) {
+		return () -> {
+			if (!isLocalFailoverValid(globalModVersion)) {
+				LOG.info("Skip current region failover as a global failover is ongoing.");
+				return;
+			}
+
+			// found out vertices which are still valid to restart.
+			// some vertices involved in this failover may be modified if another region
+			// failover happens during the cancellation stage of this failover.
+			// Will ignore the modified vertices as the other failover will deal with them.
+			final Set<ExecutionVertex> unmodifiedVertices = executionVertexVersioner
+				.getUnmodifiedExecutionVertices(vertexVersions)
+				.stream()
+				.map(this::getExecutionVertex)
+				.collect(Collectors.toSet());
+
+			try {
+				LOG.info("Finally restart {} tasks to recover from task failure.", unmodifiedVertices.size());
+
+				// reset tasks to CREATED state and reload state
+				resetTasks(unmodifiedVertices, globalModVersion);
+
+				// re-schedule tasks
+				rescheduleTasks(unmodifiedVertices, globalModVersion);
+			} catch (GlobalModVersionMismatch e) {
+				// happens when a global recovery happens concurrently to the regional recovery
+				// just stop this local failover
+			} catch (Exception e) {
+				throw new CompletionException(e);
+			}
+		};
 	}
 
 	@VisibleForTesting
