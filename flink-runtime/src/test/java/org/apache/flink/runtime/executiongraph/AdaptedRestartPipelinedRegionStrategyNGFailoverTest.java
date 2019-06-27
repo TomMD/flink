@@ -22,7 +22,9 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.clusterframework.types.SlotProfile;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.concurrent.FutureUtils;
+import org.apache.flink.runtime.concurrent.ManuallyTriggeredScheduledExecutor;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.failover.AdaptedRestartPipelinedRegionStrategyNG;
 import org.apache.flink.runtime.executiongraph.restart.InfiniteDelayRestartStrategy;
@@ -49,7 +51,6 @@ import org.apache.flink.util.FlinkException;
 import org.apache.flink.util.TestLogger;
 
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 import javax.annotation.Nullable;
@@ -75,17 +76,16 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 	private static final JobID TEST_JOB_ID = new JobID();
 
-	@ClassRule
-	public static final TestingComponentMainThreadExecutor.Resource EXECUTOR_RESOURCE =
-		new TestingComponentMainThreadExecutor.Resource();
-
-	private final TestingComponentMainThreadExecutor testingMainThreadExecutor =
-		EXECUTOR_RESOURCE.getComponentMainThreadTestExecutor();
+	private ComponentMainThreadExecutor componentMainThreadExecutor;
 
 	private FailingSlotProviderDecorator slotProvider;
 
+	private ManuallyTriggeredScheduledExecutor manualMainThreadExecutor;
+
 	@Before
-	public void setUp() throws Exception {
+	public void setUp() {
+		manualMainThreadExecutor = new ManuallyTriggeredScheduledExecutor();
+		componentMainThreadExecutor = new ScheduledExecutorToComponentMainThreadExecutorAdapter(manualMainThreadExecutor, Thread.currentThread());
 		slotProvider = new FailingSlotProviderDecorator(new SimpleSlotProvider(TEST_JOB_ID, 14));
 	}
 
@@ -116,14 +116,16 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		// trigger task failure of ev11
 		// vertices { ev11, ev21 } should be affected
-		testingMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
+		ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception"));
+		manualMainThreadExecutor.triggerAll();
 
 		// verify vertex states and complete cancellation
 		assertVertexInState(ExecutionState.FAILED, ev11);
 		assertVertexInState(ExecutionState.DEPLOYING, ev12);
 		assertVertexInState(ExecutionState.CANCELING, ev21);
 		assertVertexInState(ExecutionState.DEPLOYING, ev22);
-		testingMainThreadExecutor.execute(() -> ev21.getCurrentExecutionAttempt().completeCancelling());
+		ev21.getCurrentExecutionAttempt().completeCancelling();
+		manualMainThreadExecutor.triggerAll();
 
 		// verify vertex states
 		// in eager mode, all affected vertices should be scheduled in failover
@@ -165,7 +167,8 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		// trigger task failure of ev11
 		// regions {ev11}, {ev21}, {ev22} should be affected
-		testingMainThreadExecutor.execute(() -> ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
+		ev11.getCurrentExecutionAttempt().fail(new Exception("Test Exception"));
+		manualMainThreadExecutor.triggerAll();
 
 		// verify vertex states
 		// only vertices with consumable inputs can be scheduled
@@ -208,7 +211,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 		final ExecutionVertex ev21 = vertexIterator.next();
 
 		// trigger downstream regions to schedule
-		testingMainThreadExecutor.execute(() -> {
+		componentMainThreadExecutor.execute(() -> {
 			// finish upstream regions to trigger scheduling of downstream regions
 			ev11.getCurrentExecutionAttempt().markFinished();
 			ev12.getCurrentExecutionAttempt().markFinished();
@@ -220,7 +223,8 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 				ev11.getProducedPartitions().keySet().iterator().next(),
 				ev11.getCurrentExecutionAttempt().getAttemptId()),
 			new Exception("Test failure"));
-		testingMainThreadExecutor.execute(() -> ev21.getCurrentExecutionAttempt().fail(taskFailureCause));
+		ev21.getCurrentExecutionAttempt().fail(taskFailureCause);
+		manualMainThreadExecutor.triggerAll();
 
 		assertThat(failoverStrategy.getLastTasksToCancel(), containsInAnyOrder(
 			new ExecutionVertexID(ev11.getJobvertexId(), 0),
@@ -255,20 +259,19 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 		final ExecutionVertex ev22 = vertexIterator.next();
 
 		// finish upstream regions so that all the blocking result partitions should be finished and consumable
-		testingMainThreadExecutor.execute(() -> {
-			// finish upstream regions to trigger scheduling of downstream regions
-			ev11.getCurrentExecutionAttempt().markFinished();
-			ev12.getCurrentExecutionAttempt().markFinished();
-		});
 
-		testingMainThreadExecutor.execute(() -> {
-			// force FINISHED ev11 to fail to reset its partition
-			strategy.onTaskFailure(ev11.getCurrentExecutionAttempt(), new FlinkException("Fail for testing"));
+		// finish upstream regions to trigger scheduling of downstream regions
+		ev11.getCurrentExecutionAttempt().markFinished();
+		ev12.getCurrentExecutionAttempt().markFinished();
 
-			// complete cancelling
-			ev21.getCurrentExecutionAttempt().completeCancelling();
-			ev22.getCurrentExecutionAttempt().completeCancelling();
-		});
+		// force FINISHED ev11 to fail to reset its partition
+		strategy.onTaskFailure(ev11.getCurrentExecutionAttempt(), new FlinkException("Fail for testing"));
+
+		// complete cancelling
+		ev21.getCurrentExecutionAttempt().completeCancelling();
+		ev22.getCurrentExecutionAttempt().completeCancelling();
+
+		manualMainThreadExecutor.triggerAll();
 
 		// the blocking result partitions should be no more consumable after the resetting
 		IntermediateResult result = ev11.getJobVertex().getProducedDataSets()[0];
@@ -288,13 +291,14 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		final ExecutionVertex ev = eg.getAllExecutionVertices().iterator().next();
 
-		testingMainThreadExecutor.execute(() -> {
-			ev.fail(new Exception("Test Exception"));
+		ev.fail(new Exception("Test Exception"));
 
-			for (ExecutionVertex evs : eg.getAllExecutionVertices()) {
-				evs.getCurrentExecutionAttempt().completeCancelling();
-			}
-		});
+		for (ExecutionVertex evs : eg.getAllExecutionVertices()) {
+			evs.getCurrentExecutionAttempt().completeCancelling();
+		}
+
+		manualMainThreadExecutor.triggerAll();
+
 		assertEquals(JobStatus.FAILED, eg.getState());
 	}
 
@@ -311,11 +315,11 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		final long globalModVersionBeforeFailure = eg.getGlobalModVersion();
 
-		testingMainThreadExecutor.execute(() -> {
-			slotProvider.setFailSlotAllocation(true);
-			ev11.fail(new Exception("Test Exception"));
-			completeCancelling(ev11, ev12, ev21, ev22);
-		});
+		slotProvider.setFailSlotAllocation(true);
+		ev11.fail(new Exception("Test Exception"));
+		completeCancelling(ev11, ev12, ev21, ev22);
+
+		manualMainThreadExecutor.triggerAll();
 
 		final long globalModVersionAfterFailure = eg.getGlobalModVersion();
 
@@ -410,8 +414,9 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		eg.setScheduleMode(jobGraph.getScheduleMode());
 
-		eg.start(testingMainThreadExecutor.getMainThreadExecutor());
-		testingMainThreadExecutor.execute(eg::scheduleForExecution);
+		eg.start(componentMainThreadExecutor);
+		eg.scheduleForExecution();
+		manualMainThreadExecutor.triggerAll();
 
 		return eg;
 	}

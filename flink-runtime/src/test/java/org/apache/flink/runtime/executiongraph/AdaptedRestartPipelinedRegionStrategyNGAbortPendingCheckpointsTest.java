@@ -26,6 +26,8 @@ import org.apache.flink.runtime.checkpoint.CheckpointRetentionPolicy;
 import org.apache.flink.runtime.checkpoint.CheckpointStatsTracker;
 import org.apache.flink.runtime.checkpoint.StandaloneCheckpointIDCounter;
 import org.apache.flink.runtime.checkpoint.StandaloneCompletedCheckpointStore;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
+import org.apache.flink.runtime.concurrent.ManuallyTriggeredScheduledExecutor;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.failover.AdaptedRestartPipelinedRegionStrategyNG;
 import org.apache.flink.runtime.executiongraph.restart.InfiniteDelayRestartStrategy;
@@ -40,7 +42,7 @@ import org.apache.flink.runtime.taskmanager.TaskExecutionState;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
 import org.apache.flink.util.TestLogger;
 
-import org.junit.ClassRule;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -59,12 +61,15 @@ import static org.junit.Assert.assertThat;
  */
 public class AdaptedRestartPipelinedRegionStrategyNGAbortPendingCheckpointsTest extends TestLogger {
 
-	@ClassRule
-	public static final TestingComponentMainThreadExecutor.Resource EXECUTOR_RESOURCE =
-		new TestingComponentMainThreadExecutor.Resource();
+	private ManuallyTriggeredScheduledExecutor manualMainThreadExecutor;
 
-	private final TestingComponentMainThreadExecutor testingMainThreadExecutor =
-		EXECUTOR_RESOURCE.getComponentMainThreadTestExecutor();
+	private ComponentMainThreadExecutor componentMainThreadExecutor;
+
+	@Before
+	public void setUp() {
+		manualMainThreadExecutor = new ManuallyTriggeredScheduledExecutor();
+		componentMainThreadExecutor = new ScheduledExecutorToComponentMainThreadExecutorAdapter(manualMainThreadExecutor, Thread.currentThread());
+	}
 
 	@Test
 	public void abortPendingCheckpointsWhenRestartingTasks() throws Exception {
@@ -89,14 +94,15 @@ public class AdaptedRestartPipelinedRegionStrategyNGAbortPendingCheckpointsTest 
 	}
 
 	private void setTaskRunning(final ExecutionGraph executionGraph, final ExecutionVertex executionVertex) {
-		testingMainThreadExecutor.execute(() -> executionGraph.updateState(
+		executionGraph.updateState(
 			new TaskExecutionState(executionGraph.getJobID(),
 				executionVertex.getCurrentExecutionAttempt().getAttemptId(),
-				ExecutionState.RUNNING)));
+				ExecutionState.RUNNING));
 	}
 
 	private void failVertex(final ExecutionVertex onlyExecutionVertex) {
-		testingMainThreadExecutor.execute(() -> onlyExecutionVertex.getCurrentExecutionAttempt().fail(new Exception("Test Exception")));
+		onlyExecutionVertex.getCurrentExecutionAttempt().fail(new Exception("Test Exception"));
+		manualMainThreadExecutor.triggerAll();
 	}
 
 	private static JobGraph createStreamingJobGraph() {
@@ -124,8 +130,9 @@ public class AdaptedRestartPipelinedRegionStrategyNGAbortPendingCheckpointsTest 
 		executionGraph.attachJobGraph(jobGraph.getVerticesSortedTopologicallyFromSources());
 		enableCheckpointing(executionGraph);
 		executionGraph.setScheduleMode(jobGraph.getScheduleMode());
-		executionGraph.start(testingMainThreadExecutor.getMainThreadExecutor());
-		testingMainThreadExecutor.execute(executionGraph::scheduleForExecution);
+		executionGraph.start(componentMainThreadExecutor);
+		executionGraph.scheduleForExecution();
+		manualMainThreadExecutor.triggerAll();
 		return executionGraph;
 	}
 
