@@ -61,6 +61,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 
 	private final TestingComponentMainThreadExecutor testMainThreadExecutor =
 		EXECUTOR_RESOURCE.getComponentMainThreadTestExecutor();
+
 	private TestRestartStrategy manuallyTriggeredRestartStrategy;
 
 	@Before
