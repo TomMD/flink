@@ -24,6 +24,7 @@ import org.apache.flink.runtime.blob.VoidBlobWriter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.AdaptedRestartPipelinedRegionStrategyNGFailoverTest.TestAdaptedRestartPipelinedRegionStrategyNG;
 import org.apache.flink.runtime.executiongraph.failover.AdaptedRestartPipelinedRegionStrategyNG;
+import org.apache.flink.runtime.executiongraph.failover.FailoverStrategy;
 import org.apache.flink.runtime.executiongraph.utils.SimpleSlotProvider;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
 import org.apache.flink.runtime.jobgraph.DistributionPattern;
@@ -204,6 +205,21 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 		assertEquals(1, ev12.getCurrentExecutionAttempt().getAttemptNumber());
 		assertEquals(1, ev21.getCurrentExecutionAttempt().getAttemptNumber());
 		assertEquals(1, ev22.getCurrentExecutionAttempt().getAttemptNumber());
+	}
+
+	@Test
+	public void testSkipFailoverIfExecutionStateIsNotRunning() throws Exception {
+		final ExecutionGraph executionGraph = createExecutionGraph();
+
+		final Iterator<ExecutionVertex> vertexIterator = executionGraph.getAllExecutionVertices().iterator();
+		final ExecutionVertex firstVertex = vertexIterator.next();
+
+		testMainThreadExecutor.execute(executionGraph::cancel);
+
+		final FailoverStrategy failoverStrategy = executionGraph.getFailoverStrategy();
+		testMainThreadExecutor.execute(() -> failoverStrategy.onTaskFailure(firstVertex.getCurrentExecutionAttempt(), new Exception("Test Exception")));
+
+		assertEquals(ExecutionState.CANCELED, firstVertex.getExecutionState());
 	}
 
 	// ------------------------------------------------------------------------
