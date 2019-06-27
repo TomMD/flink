@@ -105,8 +105,8 @@ public class AdaptedRestartPipelinedRegionStrategyNG extends FailoverStrategy {
 			executionVertexVersioner.recordVertexModifications(verticesToRestart).values());
 
 		cancelTasks(verticesToRestart)
-			.thenAccept(
-				(Object ignored) -> {
+			.thenRun(
+				() -> {
 					if (!isLocalFailoverValid(globalModVersion)) {
 						LOG.info("Skip current region failover as a global failover is ongoing.");
 						return;
