@@ -210,12 +210,9 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 		final ExecutionVertex ev12 = vertexIterator.next();
 		final ExecutionVertex ev21 = vertexIterator.next();
 
-		// trigger downstream regions to schedule
-		componentMainThreadExecutor.execute(() -> {
-			// finish upstream regions to trigger scheduling of downstream regions
-			ev11.getCurrentExecutionAttempt().markFinished();
-			ev12.getCurrentExecutionAttempt().markFinished();
-		});
+		// finish upstream regions to trigger scheduling of downstream regions
+		ev11.getCurrentExecutionAttempt().markFinished();
+		ev12.getCurrentExecutionAttempt().markFinished();
 
 		// trigger task failure of ev21 on consuming data from ev11
 		Exception taskFailureCause = new PartitionConnectionException(
