@@ -43,6 +43,8 @@ public class NettyShuffleEnvironmentBuilder {
 
 	private int floatingNetworkBuffersPerGate = 8;
 
+	private long requestSegmentsTimeoutInMillis = 30000L;
+
 	private boolean isCreditBased = true;
 
 	private boolean isNetworkDetailedMetrics = false;
@@ -92,6 +94,10 @@ public class NettyShuffleEnvironmentBuilder {
 		return this;
 	}
 
+	public void setRequestSegmentsTimeoutInMillis(long requestSegmentsTimeoutInMillis) {
+		this.requestSegmentsTimeoutInMillis = requestSegmentsTimeoutInMillis;
+	}
+
 	public NettyShuffleEnvironmentBuilder setIsCreditBased(boolean isCreditBased) {
 		this.isCreditBased = isCreditBased;
 		return this;
@@ -126,6 +132,7 @@ public class NettyShuffleEnvironmentBuilder {
 				partitionRequestMaxBackoff,
 				networkBuffersPerChannel,
 				floatingNetworkBuffersPerGate,
+				requestSegmentsTimeoutInMillis,
 				isCreditBased,
 				isNetworkDetailedMetrics,
 				nettyConfig),
