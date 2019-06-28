@@ -27,13 +27,13 @@ import org.apache.flink.table.catalog.CatalogDatabase;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.CatalogFunction;
 import org.apache.flink.table.catalog.CatalogPartition;
+import org.apache.flink.table.catalog.CatalogPartitionImpl;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.CatalogTableImpl;
 import org.apache.flink.table.catalog.CatalogView;
 import org.apache.flink.table.catalog.CatalogViewImpl;
 import org.apache.flink.table.catalog.GenericCatalogFunction;
-import org.apache.flink.table.catalog.GenericCatalogPartition;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.config.CatalogConfig;
 import org.apache.flink.table.catalog.config.CatalogTableConfig;
@@ -621,8 +621,10 @@ public class HiveCatalog extends AbstractCatalog {
 		checkNotNull(partitionSpec, "CatalogPartitionSpec cannot be null");
 		checkNotNull(partition, "Partition cannot be null");
 
-		if (!(partition instanceof HiveCatalogPartition)) {
-			throw new CatalogException("Currently only supports HiveCatalogPartition");
+		boolean isGeneric = Boolean.valueOf(partition.getProperties().get(CatalogConfig.IS_GENERIC));
+
+		if (isGeneric) {
+			throw new CatalogException("Currently only supports non-generic CatalogPartition");
 		}
 
 		Table hiveTable = getHiveTable(tablePath);
@@ -713,7 +715,14 @@ public class HiveCatalog extends AbstractCatalog {
 
 		try {
 			Partition hivePartition = getHivePartition(tablePath, partitionSpec);
-			return instantiateCatalogPartition(hivePartition);
+
+			Map<String, String> properties = hivePartition.getParameters();
+
+			properties.put(HivePartitionConfig.PARTITION_LOCATION, hivePartition.getSd().getLocation());
+
+			return new CatalogPartitionImpl(
+				hivePartition.getParameters(),
+				hivePartition.getSd().getLocation());
 		} catch (NoSuchObjectException | MetaException | TableNotExistException | PartitionSpecInvalidException e) {
 			throw new PartitionNotExistException(getName(), tablePath, partitionSpec, e);
 		} catch (TException e) {
@@ -729,8 +738,10 @@ public class HiveCatalog extends AbstractCatalog {
 		checkNotNull(partitionSpec, "CatalogPartitionSpec cannot be null");
 		checkNotNull(newPartition, "New partition cannot be null");
 
-		if (!(newPartition instanceof HiveCatalogPartition)) {
-			throw new CatalogException("Currently only supports HiveCatalogPartition");
+		boolean isGeneric = Boolean.valueOf(newPartition.getProperties().get(CatalogConfig.IS_GENERIC));
+
+		if (isGeneric) {
+			throw new CatalogException("Currently only supports non-generic CatalogPartition");
 		}
 
 		// Explicitly check if the partition exists or not
@@ -769,11 +780,12 @@ public class HiveCatalog extends AbstractCatalog {
 
 	// make sure both table and partition are generic, or neither is
 	private static void ensureTableAndPartitionMatch(Table hiveTable, CatalogPartition catalogPartition) {
-		boolean isGeneric = Boolean.valueOf(hiveTable.getParameters().get(FLINK_PROPERTY_IS_GENERIC));
-		if ((isGeneric && catalogPartition instanceof HiveCatalogPartition) ||
-			(!isGeneric && catalogPartition instanceof GenericCatalogPartition)) {
+		boolean tableIsGeneric = Boolean.valueOf(hiveTable.getParameters().get(CatalogConfig.IS_GENERIC));
+		boolean partitionIsGeneric = Boolean.valueOf(catalogPartition.getProperties().get(CatalogConfig.IS_GENERIC));
+
+		if (tableIsGeneric != partitionIsGeneric) {
 			throw new CatalogException(String.format("Cannot handle %s partition for %s table",
-				catalogPartition.getClass().getName(), isGeneric ? "generic" : "non-generic"));
+				catalogPartition.getClass().getName(), tableIsGeneric ? "generic" : "non-generic"));
 		}
 	}
 
@@ -790,15 +802,14 @@ public class HiveCatalog extends AbstractCatalog {
 			}
 		}
 		// TODO: handle GenericCatalogPartition
-		HiveCatalogPartition hiveCatalogPartition = (HiveCatalogPartition) catalogPartition;
 		StorageDescriptor sd = hiveTable.getSd().deepCopy();
-		sd.setLocation(hiveCatalogPartition.getLocation());
-		return HiveTableUtil.createHivePartition(hiveTable.getDbName(), hiveTable.getTableName(), partValues,
-				sd, hiveCatalogPartition.getProperties());
-	}
-
-	private static CatalogPartition instantiateCatalogPartition(Partition hivePartition) {
-		return new HiveCatalogPartition(hivePartition.getParameters(), hivePartition.getSd().getLocation());
+		sd.setLocation(catalogPartition.getProperties().remove(HivePartitionConfig.PARTITION_LOCATION));
+		return HiveTableUtil.createHivePartition(
+				hiveTable.getDbName(),
+				hiveTable.getTableName(),
+				partValues,
+				sd,
+				catalogPartition.getProperties());
 	}
 
 	private void ensurePartitionedTable(ObjectPath tablePath, Table hiveTable) throws TableNotPartitionedException {

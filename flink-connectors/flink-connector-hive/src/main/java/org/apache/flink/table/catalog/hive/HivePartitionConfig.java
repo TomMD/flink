@@ -16,31 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.catalog;
-
-import java.util.Map;
-
-import static org.apache.flink.util.Preconditions.checkNotNull;
+package org.apache.flink.table.catalog.hive;
 
 /**
- * An abstract catalog partition implementation.
+ * Configs for partition in {@link HiveCatalog}.
  */
-public abstract class AbstractCatalogPartition implements CatalogPartition {
-	private final Map<String, String> properties;
-	private final String comment;
-
-	public AbstractCatalogPartition(Map<String, String> properties, String comment) {
-		this.properties = checkNotNull(properties, "properties cannot be null");
-		this.comment = comment;
-	}
-
-	@Override
-	public Map<String, String> getProperties() {
-		return properties;
-	}
-
-	public String getComment() {
-		return comment;
-	}
-
+public class HivePartitionConfig {
+	public static final String PARTITION_LOCATION = "partition.location";
 }
