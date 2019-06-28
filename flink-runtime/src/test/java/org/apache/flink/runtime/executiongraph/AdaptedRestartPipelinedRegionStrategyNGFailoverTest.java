@@ -354,7 +354,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 
 		v2.connectNewDataSetAsInput(v1, DistributionPattern.POINTWISE, ResultPartitionType.PIPELINED);
 
-		final JobGraph jobGraph = new JobGraph(TEST_JOB_ID, "Testjob" ,v1, v2);
+		final JobGraph jobGraph = new JobGraph(TEST_JOB_ID, "Testjob", v1, v2);
 		jobGraph.setScheduleMode(ScheduleMode.EAGER);
 
 		return jobGraph;
@@ -477,7 +477,6 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 	private static class FailingSlotProviderDecorator implements SlotProvider {
 
 		private final SlotProvider delegate;
-
 
 		private boolean failSlotAllocation = false;
 
