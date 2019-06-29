@@ -106,7 +106,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
@@ -956,10 +955,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	}
 
 	private CompletableFuture<Void> scheduleLazy() {
-		final List<ExecutionVertex> executionVertices = StreamSupport
-			.stream(getAllExecutionVertices().spliterator(), false)
-			.collect(Collectors.toList());
-		return SchedulingUtils.scheduleLazy(executionVertices, this);
+		return SchedulingUtils.scheduleLazy(getAllExecutionVertices(), this);
 	}
 
 	/**
@@ -967,10 +963,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	 * The future can also be completed exceptionally if an error happened.
 	 */
 	private CompletableFuture<Void> scheduleEager() {
-		final List<ExecutionVertex> executionVertices = StreamSupport
-			.stream(getAllExecutionVertices().spliterator(), false)
-			.collect(Collectors.toList());
-		return SchedulingUtils.scheduleEager(executionVertices, this);
+		return SchedulingUtils.scheduleEager(getAllExecutionVertices(), this);
 	}
 
 	public void cancel() {

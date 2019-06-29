@@ -33,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -50,19 +49,19 @@ public class SchedulingUtils {
 	/**
 	 * Schedule vertices lazy. That means only vertices satisfying its input constraint will be scheduled.
 	 *
-	 * @param vertices A list of topologically sorted vertices to schedule.
+	 * @param vertices Topologically sorted vertices to schedule.
 	 * @param executionGraph The graph the given vertices belongs to.
 	 */
 	public static CompletableFuture<Void> scheduleLazy(
-		final List<ExecutionVertex> vertices,
-		final ExecutionGraph executionGraph) {
+			final Iterable<ExecutionVertex> vertices,
+			final ExecutionGraph executionGraph) {
 
 		executionGraph.assertRunningInJobMasterMainThread();
 
 		final Set<AllocationID> previousAllocations = computePriorAllocationIdsIfRequiredByScheduling(
 			vertices, executionGraph.getSlotProvider());
 
-		final ArrayList<CompletableFuture<Void>> schedulingFutures = new ArrayList<>(vertices.size());
+		final ArrayList<CompletableFuture<Void>> schedulingFutures = new ArrayList<>();
 		for (ExecutionVertex executionVertex : vertices) {
 			// only schedule vertex when its input constraint is satisfied
 			if (executionVertex.getJobVertex().getJobVertex().isInputVertex() ||
@@ -84,12 +83,12 @@ public class SchedulingUtils {
 	/**
 	 * Schedule vertices lazy. That means all vertices will be scheduled at once.
 	 *
-	 * @param vertices A list of topologically sorted vertices to schedule.
+	 * @param vertices Topologically sorted vertices to schedule.
 	 * @param executionGraph The graph the given vertices belongs to.
 	 */
 	public static CompletableFuture<Void> scheduleEager(
-		final List<ExecutionVertex> vertices,
-		final ExecutionGraph executionGraph) {
+			final Iterable<ExecutionVertex> vertices,
+			final ExecutionGraph executionGraph) {
 
 		executionGraph.assertRunningInJobMasterMainThread();
 
@@ -102,7 +101,7 @@ public class SchedulingUtils {
 		final boolean queued = executionGraph.isQueuedSchedulingAllowed();
 
 		// collecting all the slots may resize and fail in that operation without slots getting lost
-		final ArrayList<CompletableFuture<Execution>> allAllocationFutures = new ArrayList<>(vertices.size());
+		final ArrayList<CompletableFuture<Execution>> allAllocationFutures = new ArrayList<>();
 
 		final Set<AllocationID> allPreviousAllocationIds = Collections.unmodifiableSet(
 			computePriorAllocationIdsIfRequiredByScheduling(vertices, executionGraph.getSlotProvider()));
@@ -185,13 +184,13 @@ public class SchedulingUtils {
 	}
 
 	/**
-	 * Returns the result of {@link #computePriorAllocationIds(Collection)},
+	 * Returns the result of {@link #computePriorAllocationIds(Iterable)},
 	 * but only if the scheduling really requires it.
 	 * Otherwise this method simply returns an empty set.
 	 */
 	private static Set<AllocationID> computePriorAllocationIdsIfRequiredByScheduling(
-		final Collection<ExecutionVertex> vertices,
-		final SlotProvider slotProvider) {
+			final Iterable<ExecutionVertex> vertices,
+			final SlotProvider slotProvider) {
 		// This is a temporary optimization to avoid computing all previous allocations if not required
 		// This can go away when we progress with the implementation of the Scheduler.
 		if (slotProvider instanceof Scheduler &&
@@ -206,8 +205,8 @@ public class SchedulingUtils {
 	/**
 	 * Computes and returns a set with the prior allocation ids for given execution vertices.
 	 */
-	private static Set<AllocationID> computePriorAllocationIds(final Collection<ExecutionVertex> vertices) {
-		HashSet<AllocationID> allPreviousAllocationIds = new HashSet<>(vertices.size());
+	private static Set<AllocationID> computePriorAllocationIds(final Iterable<ExecutionVertex> vertices) {
+		HashSet<AllocationID> allPreviousAllocationIds = new HashSet<>();
 		for (ExecutionVertex executionVertex : vertices) {
 			AllocationID latestPriorAllocation = executionVertex.getLatestPriorAllocation();
 			if (latestPriorAllocation != null) {
