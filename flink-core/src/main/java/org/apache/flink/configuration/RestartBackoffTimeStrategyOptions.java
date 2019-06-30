@@ -25,6 +25,16 @@ import org.apache.flink.annotation.PublicEvolving;
  */
 @PublicEvolving
 public class RestartBackoffTimeStrategyOptions {
+
+	/**
+	 * Class name of the RestartBackoffTimeStrategy implementation to use.
+	 */
+	@PublicEvolving
+	public static final ConfigOption<String> RESTART_BACKOFF_TIME_STRATEGY_CLASS_NAME = ConfigOptions
+		.key("restart-backoff-time-strategy.class-name")
+		.noDefaultValue()
+		.withDescription("Class name of the RestartBackoffTimeStrategy implementation to use.");
+
 	/**
 	 * Maximum number of failures in given time interval {@link #RESTART_BACKOFF_TIME_STRATEGY_FAILURE_RATE_FAILURE_RATE_INTERVAL}
 	 * before failing a job in FailureRateRestartBackoffTimeStrategy.
@@ -36,7 +46,8 @@ public class RestartBackoffTimeStrategyOptions {
 		.withDescription("Maximum number of failures in given time interval before failing a job.");
 
 	/**
-	 * Time interval in which greater amount of failures than {@link #RESTART_BACKOFF_TIME_STRATEGY_FAILURE_RATE_MAX_FAILURES_PER_INTERVAL}
+	 * Time interval (milli-seconds) in which greater amount of failures than
+	 * {@link #RESTART_BACKOFF_TIME_STRATEGY_FAILURE_RATE_MAX_FAILURES_PER_INTERVAL}
 	 * causes job fail in FailureRateRestartBackoffTimeStrategy.
 	 */
 	@PublicEvolving
@@ -46,7 +57,7 @@ public class RestartBackoffTimeStrategyOptions {
 		.withDescription("Time interval in milliseconds for measuring failure rate.");
 
 	/**
-	 * Backoff time between two consecutive restart attempts in FailureRateRestartBackoffTimeStrategy.
+	 * Backoff time (milli-seconds) between two consecutive restart attempts in FailureRateRestartBackoffTimeStrategy.
 	 */
 	@PublicEvolving
 	public static final ConfigOption<Long> RESTART_BACKOFF_TIME_STRATEGY_FAILURE_RATE_FAILURE_RATE_BACKOFF_TIME = ConfigOptions
@@ -64,7 +75,7 @@ public class RestartBackoffTimeStrategyOptions {
 		.withDescription("Maximum number of attempts the fixed delay restart strategy will try before failing a job.");
 
 	/**
-	 * Backoff time between two consecutive restart attempts in FixedDelayRestartBackoffTimeStrategy.
+	 * Backoff time (milli-seconds) between two consecutive restart attempts in FixedDelayRestartBackoffTimeStrategy.
 	 */
 	@PublicEvolving
 	public static final ConfigOption<Long> RESTART_BACKOFF_TIME_STRATEGY_FIXED_DELAY_BACKOFF_TIME = ConfigOptions
