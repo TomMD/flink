@@ -615,7 +615,11 @@ class StreamExecutionEnvironment(javaEnv: JavaEnv) {
     
     val cleanFun = scalaClean(function)
     val typeInfo = implicitly[TypeInformation[T]]
-    asScalaStream(javaEnv.addSource(cleanFun).returns(typeInfo))
+    if (function.isInstanceOf[ResultTypeQueryable[_]]) {
+      asScalaStream(javaEnv.addSource(cleanFun).returns(typeInfo))
+    } else {
+      asScalaStream(javaEnv.addSource(cleanFun, typeInfo))
+    }
   }
 
   /**
