@@ -755,7 +755,7 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 	 *
 	 * @return whether the input constraint is satisfied
 	 */
-	boolean checkInputDependencyConstraints() {
+	public boolean checkInputDependencyConstraints() {
 		if (getInputDependencyConstraint() == InputDependencyConstraint.ANY) {
 			// InputDependencyConstraint == ANY
 			return IntStream.range(0, inputEdges.length).anyMatch(this::isInputConsumable);
