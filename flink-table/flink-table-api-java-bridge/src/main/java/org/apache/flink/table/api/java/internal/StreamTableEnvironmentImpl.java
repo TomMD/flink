@@ -114,9 +114,7 @@ public final class StreamTableEnvironmentImpl extends TableEnvironmentImpl imple
 			CatalogManager catalogManager,
 			TableConfig tableConfig,
 			StreamExecutionEnvironment executionEnvironment) {
-		FunctionCatalog functionCatalog = new FunctionCatalog(
-			catalogManager.getCurrentCatalog(),
-			catalogManager.getCurrentDatabase());
+		FunctionCatalog functionCatalog = new FunctionCatalog(catalogManager);
 		Executor executor = lookupExecutor(executionEnvironment);
 		Planner planner = PlannerFactory.lookupPlanner(executor, tableConfig, functionCatalog, catalogManager);
 		return new StreamTableEnvironmentImpl(
