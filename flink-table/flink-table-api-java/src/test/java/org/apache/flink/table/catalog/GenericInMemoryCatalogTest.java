@@ -157,11 +157,6 @@ public class GenericInMemoryCatalogTest extends CatalogTestBase {
 		return true;
 	}
 
-	@Override
-	public CatalogPartition createPartition() {
-		return new GenericCatalogPartition(getBatchTableProperties(), "Generic batch table");
-	}
-
 	private CatalogColumnStatistics createColumnStats() {
 		CatalogColumnStatisticsDataBoolean booleanColStats = new CatalogColumnStatisticsDataBoolean(55L, 45L, 5L);
 		CatalogColumnStatisticsDataLong longColStats = new CatalogColumnStatisticsDataLong(-123L, 763322L, 23L, 79L);

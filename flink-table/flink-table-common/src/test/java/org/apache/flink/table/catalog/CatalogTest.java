@@ -758,13 +758,13 @@ public abstract class CatalogTest {
 
 		assertEquals(Collections.singletonList(createPartitionSpec()), catalog.listPartitions(path1));
 		assertEquals(Collections.singletonList(createPartitionSpec()), catalog.listPartitions(path1, createPartitionSpecSubset()));
-		checkEquals(createPartition(), catalog.getPartition(path1, createPartitionSpec()));
+		CatalogTestUtil.checkEquals(createPartition(), catalog.getPartition(path1, createPartitionSpec()));
 
 		catalog.createPartition(path1, createAnotherPartitionSpec(), createPartition(), false);
 
 		assertEquals(Arrays.asList(createPartitionSpec(), createAnotherPartitionSpec()), catalog.listPartitions(path1));
 		assertEquals(Arrays.asList(createPartitionSpec(), createAnotherPartitionSpec()), catalog.listPartitions(path1, createPartitionSpecSubset()));
-		checkEquals(createPartition(), catalog.getPartition(path1, createAnotherPartitionSpec()));
+		CatalogTestUtil.checkEquals(createPartition(), catalog.getPartition(path1, createAnotherPartitionSpec()));
 	}
 
 	@Test
@@ -907,7 +907,7 @@ public abstract class CatalogTest {
 
 		assertEquals(Collections.singletonList(createPartitionSpec()), catalog.listPartitions(path1));
 		CatalogPartition cp = catalog.getPartition(path1, createPartitionSpec());
-		checkEquals(createPartition(), cp);
+		CatalogTestUtil.checkEquals(createPartition(), cp);
 		assertNull(cp.getProperties().get("k"));
 
 		CatalogPartition another = createPartition();
@@ -916,7 +916,7 @@ public abstract class CatalogTest {
 
 		assertEquals(Collections.singletonList(createPartitionSpec()), catalog.listPartitions(path1));
 		cp = catalog.getPartition(path1, createPartitionSpec());
-		checkEquals(another, cp);
+		CatalogTestUtil.checkEquals(another, cp);
 		assertEquals("v", cp.getProperties().get("k"));
 	}
 
@@ -1328,10 +1328,6 @@ public abstract class CatalogTest {
 	protected void checkEquals(CatalogFunction f1, CatalogFunction f2) {
 		assertEquals(f1.getClassName(), f2.getClassName());
 		assertEquals(f1.getProperties(), f2.getProperties());
-	}
-
-	protected void checkEquals(CatalogPartition expected, CatalogPartition actual) {
-		assertEquals(expected.getProperties(), actual.getProperties());
 	}
 
 	protected void checkEquals(CatalogColumnStatistics cs1, CatalogColumnStatistics cs2) {
