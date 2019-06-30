@@ -20,53 +20,56 @@ package org.apache.flink.table.types.inference.validators;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.functions.FunctionDefinition;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.inference.ArgumentCount;
 import org.apache.flink.table.types.inference.CallContext;
 import org.apache.flink.table.types.inference.InputTypeValidator;
 import org.apache.flink.table.types.inference.Signature;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
+import org.apache.flink.table.types.logical.utils.LogicalTypeChecks;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 /**
- * Validator that does not perform any validation and always passes.
+ * A validator that passes if the arguments are of given {@link LogicalTypeRoot}.
  */
 @Internal
-public class PassingTypeValidator implements InputTypeValidator {
+public class TypeRootTypeValidator implements InputTypeValidator {
 
-	private static final PassingArgumentCount PASSING_ARGUMENT_COUNT = new PassingArgumentCount();
+	private final List<LogicalTypeRoot> expectedArgumentTypes;
+
+	public TypeRootTypeValidator(List<LogicalTypeRoot> expectedArgumentTypes) {
+		this.expectedArgumentTypes = expectedArgumentTypes;
+	}
 
 	@Override
 	public ArgumentCount getArgumentCount() {
-		return PASSING_ARGUMENT_COUNT;
+		return new ExactArgumentCount(expectedArgumentTypes.size());
 	}
 
 	@Override
 	public boolean validate(CallContext callContext, boolean throwOnFailure) {
+		List<DataType> argumentDataTypes = callContext.getArgumentDataTypes();
+		for (int i = 0; i < expectedArgumentTypes.size(); i++) {
+			LogicalType actualType = argumentDataTypes.get(i).getLogicalType();
+			LogicalTypeRoot expectedTypeRoot = expectedArgumentTypes.get(i);
+			if (!LogicalTypeChecks.hasRoot(actualType, expectedTypeRoot)) {
+				return false;
+			}
+		}
+
 		return true;
 	}
 
 	@Override
 	public List<Signature> getExpectedSignatures(FunctionDefinition definition) {
-		return Collections.singletonList(Signature.newInstance().arg("*"));
-	}
-
-	private static class PassingArgumentCount implements ArgumentCount {
-
-		@Override
-		public boolean isValidCount(int count) {
-			return true;
+		Signature signature = Signature.newInstance();
+		for (LogicalTypeRoot argumentFamily : expectedArgumentTypes) {
+			signature = signature.arg(argumentFamily.toString());
 		}
 
-		@Override
-		public Optional<Integer> getMinCount() {
-			return Optional.empty();
-		}
-
-		@Override
-		public Optional<Integer> getMaxCount() {
-			return Optional.empty();
-		}
+		return Collections.singletonList(signature);
 	}
 }
