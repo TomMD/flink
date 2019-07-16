@@ -957,7 +957,7 @@ public class FlinkKinesisConsumerTest {
 		expectedResults.add(new Watermark(-4));
 		// verify watermark
 		awaitRecordCount(results, expectedResults.size());
-		assertEquals("element count", expectedResults.size(), results.size());
+		assertEquals("element count " + results, expectedResults.size(), results.size());
 		assertThat(results, org.hamcrest.Matchers.contains(expectedResults.toArray()));
 		assertEquals(0, TestWatermarkTracker.WATERMARK.get());
 
