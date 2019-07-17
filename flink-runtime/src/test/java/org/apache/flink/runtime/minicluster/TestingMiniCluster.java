@@ -20,6 +20,7 @@ package org.apache.flink.runtime.minicluster;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.blob.BlobServer;
+import org.apache.flink.runtime.clusterframework.types.ResourceID;
 import org.apache.flink.runtime.dispatcher.DispatcherGateway;
 import org.apache.flink.runtime.dispatcher.MemoryArchivedExecutionGraphStore;
 import org.apache.flink.runtime.entrypoint.component.DispatcherResourceManagerComponent;
@@ -28,6 +29,7 @@ import org.apache.flink.runtime.heartbeat.HeartbeatServices;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
 import org.apache.flink.runtime.metrics.MetricRegistry;
 import org.apache.flink.runtime.rpc.FatalErrorHandler;
+import org.apache.flink.runtime.taskexecutor.TaskExecutor;
 import org.apache.flink.runtime.webmonitor.retriever.MetricQueryServiceRetriever;
 
 import javax.annotation.Nonnull;
@@ -35,7 +37,10 @@ import javax.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -72,9 +77,26 @@ public class TestingMiniCluster extends MiniCluster {
 	}
 
 	@Nonnull
-	@Override
-	public CompletableFuture<Void> terminateTaskExecutor(int index) {
-		return super.terminateTaskExecutor(index);
+	public CompletableFuture<Void> terminateTaskExecutorRandomly() throws Exception {
+		synchronized (getLock()) {
+			final Map<ResourceID, TaskExecutor> taskExecutors = getTaskManagers();
+			if (taskExecutors.isEmpty()) {
+				throw new Exception("There is no task executor to terminate");
+			}
+			final Random random = new Random();
+			final int selected = random.nextInt(taskExecutors.size());
+			int i = 0;
+			final Iterator<TaskExecutor> it = taskExecutors.values().iterator();
+			while (it.hasNext()) {
+				final TaskExecutor taskExecutor = it.next();
+				if (i++ == selected) {
+					it.remove();
+					return taskExecutor.closeAsync();
+				}
+			}
+		}
+
+		throw new Exception("Should not reach here, task managers has been changed outside lock");
 	}
 
 	@Override

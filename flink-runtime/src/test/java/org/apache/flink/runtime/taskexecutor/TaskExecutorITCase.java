@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -95,7 +96,7 @@ public class TaskExecutorITCase extends TestLogger {
 		final CompletableFuture<JobResult> jobResultFuture = submitJobAndWaitUntilRunning(jobGraph);
 
 		// kill one TaskExecutor which should fail the job execution
-		miniCluster.terminateTaskExecutor(0);
+		miniCluster.terminateTaskExecutorRandomly();
 
 		final JobResult jobResult = jobResultFuture.get();
 
@@ -122,7 +123,12 @@ public class TaskExecutorITCase extends TestLogger {
 		// start an additional TaskExecutor
 		miniCluster.startTaskExecutor();
 
-		miniCluster.terminateTaskExecutor(0).get(); // this should fail the job
+		try {
+			miniCluster.terminateTaskExecutorRandomly().get(); // this should fail the job
+		} catch (ExecutionException e) {
+			// we need this catching till FLINK-11630 has been resolved
+			log.info("Terminate task executor randomly caused an exception, just ignore it", e);
+		}
 
 		BlockingOperator.unblock();
 
