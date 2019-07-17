@@ -62,12 +62,22 @@ public class BaseMapSerializer extends TypeSerializer<BaseMap> {
 	private transient BinaryArrayWriter reuseKeyWriter;
 	private transient BinaryArrayWriter reuseValueWriter;
 
-	public BaseMapSerializer(LogicalType keyType, LogicalType valueType) {
+	public BaseMapSerializer(LogicalType keyType, LogicalType valueType, ExecutionConfig config) {
 		this.keyType = keyType;
 		this.valueType = valueType;
 
-		this.keySerializer = InternalSerializers.create(keyType, new ExecutionConfig());
-		this.valueSerializer = InternalSerializers.create(valueType, new ExecutionConfig());
+		this.keySerializer = InternalSerializers.create(keyType, config);
+		this.valueSerializer = InternalSerializers.create(valueType, config);
+	}
+
+	private BaseMapSerializer(
+			LogicalType keyType, LogicalType valueType,
+			TypeSerializer keySerializer, TypeSerializer valueSerializer) {
+		this.keyType = keyType;
+		this.valueType = valueType;
+
+		this.keySerializer = keySerializer;
+		this.valueSerializer = valueSerializer;
 	}
 
 	@Override
@@ -77,7 +87,7 @@ public class BaseMapSerializer extends TypeSerializer<BaseMap> {
 
 	@Override
 	public TypeSerializer<BaseMap> duplicate() {
-		return new BaseMapSerializer(keyType, valueType);
+		return new BaseMapSerializer(keyType, valueType, keySerializer.duplicate(), valueSerializer.duplicate());
 	}
 
 	@Override
@@ -264,7 +274,7 @@ public class BaseMapSerializer extends TypeSerializer<BaseMap> {
 
 		@Override
 		public TypeSerializer<BaseMap> restoreSerializer() {
-			return new BaseMapSerializer(previousKeyType, previousValueType);
+			return new BaseMapSerializer(previousKeyType, previousValueType, new ExecutionConfig());
 		}
 
 		@Override

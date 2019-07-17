@@ -23,6 +23,8 @@ import org.junit.Test;
 
 import java.math.BigDecimal;
 
+import static org.junit.Assert.assertEquals;
+
 /**
  * Test for {@link Decimal}.
  */
@@ -113,5 +115,13 @@ public class DecimalTest {
 		Assert.assertNull(Decimal.fromBigDecimal(new BigDecimal(Long.MAX_VALUE), 5, 0));
 		Assert.assertEquals(0, Decimal.zero(20, 2).toBigDecimal().intValue());
 		Assert.assertEquals(0, Decimal.zero(20, 2).toBigDecimal().intValue());
+	}
+
+	@Test
+	public void testToString() {
+		String val = "0.0000000000000000001";
+		assertEquals(val, Decimal.castFrom(val, 39, val.length() - 2).toString());
+		val = "123456789012345678901234567890123456789";
+		assertEquals(val, Decimal.castFrom(val, 39, 0).toString());
 	}
 }

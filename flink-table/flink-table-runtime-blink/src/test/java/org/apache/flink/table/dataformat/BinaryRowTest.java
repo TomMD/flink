@@ -18,24 +18,48 @@
 
 package org.apache.flink.table.dataformat;
 
+import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.api.common.typeutils.base.LocalDateSerializer;
+import org.apache.flink.api.common.typeutils.base.LocalDateTimeSerializer;
+import org.apache.flink.api.common.typeutils.base.LocalTimeSerializer;
+import org.apache.flink.api.common.typeutils.base.SqlDateSerializer;
+import org.apache.flink.api.common.typeutils.base.SqlTimeSerializer;
+import org.apache.flink.api.common.typeutils.base.SqlTimestampSerializer;
 import org.apache.flink.api.common.typeutils.base.StringSerializer;
+import org.apache.flink.api.java.typeutils.GenericTypeInfo;
+import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.core.memory.MemorySegmentFactory;
 import org.apache.flink.runtime.io.disk.RandomAccessInputView;
 import org.apache.flink.runtime.io.disk.RandomAccessOutputView;
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.table.typeutils.BaseRowSerializer;
 import org.apache.flink.table.typeutils.BinaryRowSerializer;
+import org.apache.flink.table.util.BoundaryTestUtil;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -43,6 +67,8 @@ import static org.apache.flink.table.dataformat.BinaryString.fromBytes;
 import static org.apache.flink.table.dataformat.BinaryString.fromString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -61,9 +87,12 @@ public class BinaryRowTest {
 		MemorySegment segment = MemorySegmentFactory.wrap(new byte[100]);
 		BinaryRow row = new BinaryRow(2);
 		row.pointTo(segment, 10, 48);
-		assertTrue(row.getSegments()[0] == segment);
+		assertSame(row.getSegments()[0], segment);
 		row.setInt(0, 5);
 		row.setDouble(1, 5.8D);
+
+		assertEquals("[0,5,5.8]", row.toOriginString(
+			DataTypes.INT().getLogicalType(), DataTypes.DOUBLE().getLogicalType()));
 	}
 
 	@Test
@@ -85,7 +114,7 @@ public class BinaryRowTest {
 		assertTrue(row.isNullAt(0));
 		assertEquals(55, row.getShort(5));
 		assertEquals(22, row.getLong(2));
-		assertEquals(true, row.getBoolean(4));
+		assertTrue(row.getBoolean(4));
 		assertEquals((byte) 66, row.getByte(6));
 		assertEquals(77f, row.getFloat(7), 0);
 	}
@@ -131,7 +160,7 @@ public class BinaryRowTest {
 	}
 
 	@Test
-	public void testWriteString() throws IOException {
+	public void testWriteString() {
 		{
 			// litter byte[]
 			BinaryRow row = new BinaryRow(1);
@@ -242,7 +271,7 @@ public class BinaryRowTest {
 		assertEquals((byte) 99, row.getByte(2));
 		assertEquals(87.1d, row.getDouble(6), 0);
 		assertEquals(26.1f, row.getFloat(7), 0);
-		assertEquals(true, row.getBoolean(1));
+		assertTrue(row.getBoolean(1));
 		assertEquals("1234567", row.getString(3).toString());
 		assertEquals("12345678", row.getString(5).toString());
 		assertEquals("啦啦啦啦啦我是快乐的粉刷匠", row.getString(9).toString());
@@ -269,7 +298,7 @@ public class BinaryRowTest {
 	}
 
 	@Test
-	public void anyNullTest() throws IOException {
+	public void anyNullTest() {
 		{
 			BinaryRow row = new BinaryRow(3);
 			BinaryRowWriter writer = new BinaryRowWriter(row);
@@ -302,7 +331,7 @@ public class BinaryRowTest {
 	}
 
 	@Test
-	public void testSingleSegmentBinaryRowHashCode() throws IOException {
+	public void testSingleSegmentBinaryRowHashCode() {
 		final Random rnd = new Random(System.currentTimeMillis());
 		// test hash stabilization
 		BinaryRow row = new BinaryRow(13);
@@ -347,7 +376,7 @@ public class BinaryRowTest {
 	}
 
 	@Test
-	public void testHeaderSize() throws IOException {
+	public void testHeaderSize() {
 		assertEquals(8, BinaryRow.calculateBitSetWidthInBytes(56));
 		assertEquals(16, BinaryRow.calculateBitSetWidthInBytes(57));
 		assertEquals(16, BinaryRow.calculateBitSetWidthInBytes(120));
@@ -355,7 +384,7 @@ public class BinaryRowTest {
 	}
 
 	@Test
-	public void testHeader() throws IOException {
+	public void testHeader() {
 		BinaryRow row = new BinaryRow(2);
 		BinaryRowWriter writer = new BinaryRowWriter(row);
 
@@ -411,7 +440,7 @@ public class BinaryRowTest {
 	}
 
 	@Test
-	public void testGeneric() {
+	public void testGenericString() {
 		BinaryRow row = new BinaryRow(3);
 		BinaryRowWriter writer = new BinaryRowWriter(row);
 		BinaryGeneric<String> hahah = new BinaryGeneric<>("hahah", StringSerializer.INSTANCE);
@@ -426,6 +455,109 @@ public class BinaryRowTest {
 		assertTrue(row.isNullAt(1));
 		BinaryGeneric<String> generic2 = row.getGeneric(2);
 		assertEquals(hahah, generic2);
+	}
+
+	@Test
+	public void testGenericObject() throws Exception {
+
+		GenericTypeInfo<MyObj> info = new GenericTypeInfo<>(MyObj.class);
+		TypeSerializer<MyObj> genericSerializer = info.createSerializer(new ExecutionConfig());
+
+		BinaryRow row = new BinaryRow(4);
+		BinaryRowWriter writer = new BinaryRowWriter(row);
+		writer.writeInt(0, 0);
+
+		BinaryGeneric<MyObj> myObj1 = new BinaryGeneric<>(new MyObj(0, 1), genericSerializer);
+		writer.writeGeneric(1, myObj1);
+		BinaryGeneric<MyObj> myObj2 = new BinaryGeneric<>(new MyObj(123, 5.0), genericSerializer);
+		myObj2.ensureMaterialized();
+		writer.writeGeneric(2, myObj2);
+		BinaryGeneric<MyObj> myObj3 = new BinaryGeneric<>(new MyObj(1, 1), genericSerializer);
+		writer.writeGeneric(3, myObj3);
+		writer.complete();
+
+		assertTestGenericObjectRow(row, genericSerializer);
+
+		// getBytes from var-length memorySegments.
+		BinaryRowSerializer serializer = new BinaryRowSerializer(4);
+		MemorySegment[] memorySegments = new MemorySegment[3];
+		ArrayList<MemorySegment> memorySegmentList = new ArrayList<>();
+		for (int i = 0; i < 3; i++) {
+			memorySegments[i] = MemorySegmentFactory.wrap(new byte[64]);
+			memorySegmentList.add(memorySegments[i]);
+		}
+		RandomAccessOutputView out = new RandomAccessOutputView(memorySegments, 64);
+		serializer.serializeToPages(row, out);
+
+		BinaryRow mapRow = serializer.mapFromPages(new RandomAccessInputView(memorySegmentList, 64));
+		assertTestGenericObjectRow(mapRow, genericSerializer);
+	}
+
+	@Test
+	public void testDateAndTime() {
+		BinaryRow row = new BinaryRow(7);
+		BinaryRowWriter writer = new BinaryRowWriter(row);
+
+		LocalDate localDate = LocalDate.of(2019, 7, 16);
+		LocalTime localTime = LocalTime.of(17, 31);
+		LocalDateTime localDateTime = LocalDateTime.of(localDate, localTime);
+
+		writer.writeInt(0, 0);
+		writer.writeGeneric(1, new BinaryGeneric<>(new Date(123), SqlDateSerializer.INSTANCE));
+		writer.writeGeneric(2, new BinaryGeneric<>(new Time(456), SqlTimeSerializer.INSTANCE));
+		writer.writeGeneric(3, new BinaryGeneric<>(new Timestamp(789), SqlTimestampSerializer.INSTANCE));
+		writer.writeGeneric(4, new BinaryGeneric<>(localDate, LocalDateSerializer.INSTANCE));
+		writer.writeGeneric(5, new BinaryGeneric<>(localTime, LocalTimeSerializer.INSTANCE));
+		writer.writeGeneric(6, new BinaryGeneric<>(localDateTime, LocalDateTimeSerializer.INSTANCE));
+		writer.complete();
+
+		assertEquals(new Date(123), BinaryGeneric.getJavaObjectFromBinaryGeneric(
+			row.getGeneric(1), SqlDateSerializer.INSTANCE));
+		assertEquals(new Time(456), BinaryGeneric.getJavaObjectFromBinaryGeneric(
+			row.getGeneric(2), SqlTimeSerializer.INSTANCE));
+		assertEquals(new Timestamp(789), BinaryGeneric.getJavaObjectFromBinaryGeneric(
+			row.getGeneric(3), SqlTimestampSerializer.INSTANCE));
+		assertEquals(localDate, BinaryGeneric.getJavaObjectFromBinaryGeneric(
+			row.getGeneric(4), LocalDateSerializer.INSTANCE));
+		assertEquals(localTime, BinaryGeneric.getJavaObjectFromBinaryGeneric(
+			row.getGeneric(5), LocalTimeSerializer.INSTANCE));
+		assertEquals(localDateTime, BinaryGeneric.getJavaObjectFromBinaryGeneric(
+			row.getGeneric(6), LocalDateTimeSerializer.INSTANCE));
+	}
+
+	@Test
+	public void allSizeSerializeTest() throws IOException {
+		int segSize = 64;
+		int segTotalNumber = 3;
+
+		BinaryRow row = new BinaryRow(1);
+		BinaryRowWriter writer = new BinaryRowWriter(row);
+		Random random = new Random();
+		byte[] bytes = new byte[1024];
+		random.nextBytes(bytes);
+		writer.writeBinary(0, bytes);
+		writer.complete();
+
+		MemorySegment[] memorySegments = new MemorySegment[segTotalNumber];
+		Map<MemorySegment, Integer> msIndex = new HashMap<>();
+		for (int i = 0; i < segTotalNumber; i++) {
+			memorySegments[i] = MemorySegmentFactory.wrap(new byte[segSize]);
+			msIndex.put(memorySegments[i], i);
+		}
+
+		BinaryRowSerializer serializer = new BinaryRowSerializer(1);
+
+		int rowSizeInt = 4;
+		int rowFixLength = 16;
+		for (int i = 0; i < segSize; i++) {
+			int maxRowSize = (segSize * segTotalNumber) - i - rowSizeInt;
+			if (segSize - i < rowFixLength + rowSizeInt) {
+				maxRowSize -= segSize - i;
+			}
+			for (int j = rowFixLength; j < maxRowSize; j++) {
+				testSerialize(row, memorySegments, msIndex, serializer, i, j);
+			}
+		}
 	}
 
 	@Test
@@ -444,6 +576,100 @@ public class BinaryRowTest {
 	}
 
 	@Test
+	public void testZeroOutPaddingGeneric() {
+
+		GenericTypeInfo<MyObj> info = new GenericTypeInfo<>(MyObj.class);
+		TypeSerializer<MyObj> genericSerializer = info.createSerializer(new ExecutionConfig());
+
+		Random random = new Random();
+		byte[] bytes = new byte[1024];
+
+		BinaryRow row = new BinaryRow(1);
+		BinaryRowWriter writer = new BinaryRowWriter(row);
+
+		// let's random the bytes
+		writer.reset();
+		random.nextBytes(bytes);
+		writer.writeBinary(0, bytes);
+		writer.reset();
+		writer.writeGeneric(0, new BinaryGeneric<>(new MyObj(0, 1), genericSerializer));
+		writer.complete();
+		int hash1 = row.hashCode();
+
+		writer.reset();
+		random.nextBytes(bytes);
+		writer.writeBinary(0, bytes);
+		writer.reset();
+		writer.writeGeneric(0, new BinaryGeneric<>(new MyObj(0, 1), genericSerializer));
+		writer.complete();
+		int hash2 = row.hashCode();
+
+		assertEquals(hash1, hash2);
+	}
+
+	@Test
+	public void testZeroOutPaddingString() {
+
+		Random random = new Random();
+		byte[] bytes = new byte[1024];
+
+		BinaryRow row = new BinaryRow(1);
+		BinaryRowWriter writer = new BinaryRowWriter(row);
+
+		writer.reset();
+		random.nextBytes(bytes);
+		writer.writeBinary(0, bytes);
+		writer.reset();
+		writer.writeString(0, BinaryString.fromString("wahahah"));
+		writer.complete();
+		int hash1 = row.hashCode();
+
+		writer.reset();
+		random.nextBytes(bytes);
+		writer.writeBinary(0, bytes);
+		writer.reset();
+		writer.writeString(0, BinaryString.fromString("wahahah"));
+		writer.complete();
+		int hash2 = row.hashCode();
+
+		assertEquals(hash1, hash2);
+	}
+
+	@Test
+	public void testHashAndCopy() throws IOException {
+		MemorySegment[] segments = new MemorySegment[3];
+		for (int i = 0; i < 3; i++) {
+			segments[i] = MemorySegmentFactory.wrap(new byte[64]);
+		}
+		RandomAccessOutputView out = new RandomAccessOutputView(segments, 64);
+		BinaryRowSerializer serializer = new BinaryRowSerializer(2);
+
+		BinaryRow row = new BinaryRow(2);
+		BinaryRowWriter writer = new BinaryRowWriter(row);
+		writer.writeString(0, BinaryString.fromString("hahahahahahahahahahahahahahahahahahahhahahahahahahahahah"));
+		writer.writeString(1, BinaryString.fromString("hahahahahahahahahahahahahahahahahahahhahahahahahahahahaa"));
+		writer.complete();
+		serializer.serializeToPages(row, out);
+
+		ArrayList<MemorySegment> segmentList = new ArrayList<>(Arrays.asList(segments));
+		RandomAccessInputView input = new RandomAccessInputView(segmentList, 64, 64);
+
+		BinaryRow mapRow = serializer.mapFromPages(input);
+		assertEquals(row, mapRow);
+		assertEquals(row.getString(0), mapRow.getString(0));
+		assertEquals(row.getString(1), mapRow.getString(1));
+		assertNotEquals(row.getString(0), mapRow.getString(1));
+
+		assertEquals(row.hashCode(), mapRow.hashCode());
+		assertEquals(row.getString(0).hashCode(), mapRow.getString(0).hashCode());
+		assertEquals(row.getString(1).hashCode(), mapRow.getString(1).hashCode());
+
+		assertEquals(row.copy(), mapRow.copy());
+		assertEquals(row.getString(0).copy(), mapRow.getString(0).copy());
+		assertEquals(row.getString(1).copy(), mapRow.getString(1).copy());
+	}
+
+	@Test
 	public void testBinary() {
 		BinaryRow row = new BinaryRow(2);
 		BinaryRowWriter writer = new BinaryRowWriter(row);
@@ -455,5 +681,189 @@ public class BinaryRowTest {
 
 		Assert.assertArrayEquals(bytes1, row.getBinary(0));
 		Assert.assertArrayEquals(bytes2, row.getBinary(1));
+	}
+
+	@Test
+	public void testSerStringToKryo() throws IOException {
+		KryoSerializer<BinaryString> serializer = new KryoSerializer<>(
+			BinaryString.class, new ExecutionConfig());
+
+		BinaryString string = BinaryString.fromString("hahahahaha");
+		RandomAccessOutputView out = new RandomAccessOutputView(
+			new MemorySegment[]{MemorySegmentFactory.wrap(new byte[1024])}, 64);
+		serializer.serialize(string, out);
+
+		RandomAccessInputView input = new RandomAccessInputView(
+			new ArrayList<>(Collections.singletonList(out.getCurrentSegment())), 64, 64);
+		BinaryString newStr = serializer.deserialize(input);
+
+		assertEquals(string, newStr);
+	}
+
+	@Test
+	public void testSerializerPages() throws IOException {
+		// Boundary tests
+		BinaryRow row24 = BoundaryTestUtil.get24BytesBinaryRow();
+		BinaryRow row160 = BoundaryTestUtil.get160BytesBinaryRow();
+		testSerializerPagesInternal(row24, row160);
+		testSerializerPagesInternal(row24, BoundaryTestUtil.getVarSeg160BytesBinaryRow(row160));
+	}
+
+	private void testSerializerPagesInternal(BinaryRow row24, BinaryRow row160) throws IOException {
+		BinaryRowSerializer serializer = new BinaryRowSerializer(2);
+
+		// 1. test middle row with just on the edge1
+		{
+			MemorySegment[] segments = new MemorySegment[4];
+			for (int i = 0; i < segments.length; i++) {
+				segments[i] = MemorySegmentFactory.wrap(new byte[64]);
+			}
+			RandomAccessOutputView out = new RandomAccessOutputView(segments, segments[0].size());
+			serializer.serializeToPages(row24, out);
+			serializer.serializeToPages(row160, out);
+			serializer.serializeToPages(row24, out);
+
+			RandomAccessInputView in = new RandomAccessInputView(
+				new ArrayList<>(Arrays.asList(segments)),
+				segments[0].size(),
+				out.getCurrentPositionInSegment());
+
+			BinaryRow retRow = new BinaryRow(2);
+			List<BinaryRow> rets = new ArrayList<>();
+			while (true) {
+				try {
+					retRow = serializer.mapFromPages(retRow, in);
+				} catch (EOFException e) {
+					break;
+				}
+				rets.add(retRow.copy());
+			}
+			assertEquals(row24, rets.get(0));
+			assertEquals(row160, rets.get(1));
+			assertEquals(row24, rets.get(2));
+		}
+
+		// 2. test middle row with just on the edge2
+		{
+			MemorySegment[] segments = new MemorySegment[7];
+			for (int i = 0; i < segments.length; i++) {
+				segments[i] = MemorySegmentFactory.wrap(new byte[64]);
+			}
+			RandomAccessOutputView out = new RandomAccessOutputView(segments, segments[0].size());
+			serializer.serializeToPages(row24, out);
+			serializer.serializeToPages(row160, out);
+			serializer.serializeToPages(row160, out);
+
+			RandomAccessInputView in = new RandomAccessInputView(
+				new ArrayList<>(Arrays.asList(segments)),
+				segments[0].size(),
+				out.getCurrentPositionInSegment());
+
+			BinaryRow retRow = new BinaryRow(2);
+			List<BinaryRow> rets = new ArrayList<>();
+			while (true) {
+				try {
+					retRow = serializer.mapFromPages(retRow, in);
+				} catch (EOFException e) {
+					break;
+				}
+				rets.add(retRow.copy());
+			}
+			assertEquals(row24, rets.get(0));
+			assertEquals(row160, rets.get(1));
+			assertEquals(row160, rets.get(2));
+		}
+
+		// 3. test last row with just on the edge
+		{
+			MemorySegment[] segments = new MemorySegment[3];
+			for (int i = 0; i < segments.length; i++) {
+				segments[i] = MemorySegmentFactory.wrap(new byte[64]);
+			}
+			RandomAccessOutputView out = new RandomAccessOutputView(segments, segments[0].size());
+			serializer.serializeToPages(row24, out);
+			serializer.serializeToPages(row160, out);
+
+			RandomAccessInputView in = new RandomAccessInputView(
+				new ArrayList<>(Arrays.asList(segments)),
+				segments[0].size(),
+				out.getCurrentPositionInSegment());
+
+			BinaryRow retRow = new BinaryRow(2);
+			List<BinaryRow> rets = new ArrayList<>();
+			while (true) {
+				try {
+					retRow = serializer.mapFromPages(retRow, in);
+				} catch (EOFException e) {
+					break;
+				}
+				rets.add(retRow.copy());
+			}
+			assertEquals(row24, rets.get(0));
+			assertEquals(row160, rets.get(1));
+		}
+	}
+
+	private void testSerialize(
+			BinaryRow row, MemorySegment[] memorySegments,
+			Map<MemorySegment, Integer> msIndex, BinaryRowSerializer serializer, int position,
+			int rowSize) throws IOException {
+		RandomAccessOutputView out = new RandomAccessOutputView(memorySegments, 64);
+		out.skipBytesToWrite(position);
+		row.setTotalSize(rowSize);
+
+		serializer.serializeToPages(row, out);
+
+		int segNumber = msIndex.get(out.getCurrentSegment()) + 1;
+		int lastSegSize = out.getCurrentPositionInSegment();
+
+		ArrayList<MemorySegment> segments = new ArrayList<>(Arrays.asList(memorySegments).subList(0, segNumber));
+		RandomAccessInputView input = new RandomAccessInputView(segments, 64, lastSegSize);
+		input.skipBytesToRead(position);
+		BinaryRow mapRow = serializer.mapFromPages(input);
+
+		assertEquals(row, mapRow);
+	}
+
+	private void assertTestGenericObjectRow(BinaryRow row, TypeSerializer<MyObj> serializer) {
+		assertEquals(0, row.getInt(0));
+		BinaryGeneric<MyObj> binaryGeneric1 = row.getGeneric(1);
+		BinaryGeneric<MyObj> binaryGeneric2 = row.getGeneric(2);
+		BinaryGeneric<MyObj> binaryGeneric3 = row.getGeneric(3);
+		assertEquals(new MyObj(0, 1), BinaryGeneric.getJavaObjectFromBinaryGeneric(binaryGeneric1, serializer));
+		assertEquals(new MyObj(123, 5.0), BinaryGeneric.getJavaObjectFromBinaryGeneric(binaryGeneric2, serializer));
+		assertEquals(new MyObj(1, 1), BinaryGeneric.getJavaObjectFromBinaryGeneric(binaryGeneric3, serializer));
+	}
+
+	/**
+	 * Test class.
+	 */
+	public static class MyObj {
+		public int i;
+		public double j;
+
+		MyObj(int i, double j) {
+			this.i = i;
+			this.j = j;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) {
+				return true;
+			}
+			if (o == null || getClass() != o.getClass()) {
+				return false;
+			}
+
+			MyObj myObj = (MyObj) o;
+
+			return i == myObj.i && Double.compare(myObj.j, j) == 0;
+		}
+
+		@Override
+		public String toString() {
+			return "MyObj{" + "i=" + i + ", j=" + j + '}';
+		}
 	}
 }
