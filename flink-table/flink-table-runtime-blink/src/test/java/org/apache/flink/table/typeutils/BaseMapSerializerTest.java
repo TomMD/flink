@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.typeutils;
 
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.SerializerTestBase;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.dataformat.BaseMap;
@@ -56,7 +57,7 @@ public class BaseMapSerializerTest extends SerializerTestBase<BaseMap> {
 	}
 
 	private static BaseMapSerializer newSer() {
-		return new BaseMapSerializer(INT, STRING);
+		return new BaseMapSerializer(INT, STRING, new ExecutionConfig());
 	}
 
 	@Override

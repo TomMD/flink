@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.dataformat;
 
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.base.StringSerializer;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.core.memory.MemorySegmentFactory;
@@ -101,17 +102,17 @@ public class BinaryArrayTest {
 			writer.complete();
 
 			assertTrue(array.isNullAt(0));
-			assertEquals(true, array.getBoolean(1));
+			assertTrue(array.getBoolean(1));
 			array.setBoolean(0, true);
-			assertEquals(true, array.getBoolean(0));
+			assertTrue(array.getBoolean(0));
 			array.setNullBoolean(0);
 			assertTrue(array.isNullAt(0));
 
 			BinaryArray newArray = splitArray(array);
 			assertTrue(newArray.isNullAt(0));
-			assertEquals(true, newArray.getBoolean(1));
+			assertTrue(newArray.getBoolean(1));
 			newArray.setBoolean(0, true);
-			assertEquals(true, newArray.getBoolean(0));
+			assertTrue(newArray.getBoolean(0));
 			newArray.setNullBoolean(0);
 			assertTrue(newArray.isNullAt(0));
 
@@ -236,17 +237,17 @@ public class BinaryArrayTest {
 			writer.complete();
 
 			assertTrue(array.isNullAt(0));
-			assertTrue(25 == array.getFloat(1));
+			assertEquals(25, array.getFloat(1), 0.0);
 			array.setFloat(0, 5);
-			assertTrue(5 == array.getFloat(0));
+			assertEquals(5, array.getFloat(0), 0.0);
 			array.setNullFloat(0);
 			assertTrue(array.isNullAt(0));
 
 			BinaryArray newArray = splitArray(array);
 			assertTrue(newArray.isNullAt(0));
-			assertTrue(25 == newArray.getFloat(1));
+			assertEquals(25, newArray.getFloat(1), 0.0);
 			newArray.setFloat(0, 5);
-			assertTrue(5 == newArray.getFloat(0));
+			assertEquals(5, newArray.getFloat(0), 0.0);
 			newArray.setNullFloat(0);
 			assertTrue(newArray.isNullAt(0));
 
@@ -263,17 +264,17 @@ public class BinaryArrayTest {
 			writer.complete();
 
 			assertTrue(array.isNullAt(0));
-			assertTrue(25 == array.getDouble(1));
+			assertEquals(25, array.getDouble(1), 0.0);
 			array.setDouble(0, 5);
-			assertTrue(5 == array.getDouble(0));
+			assertEquals(5, array.getDouble(0), 0.0);
 			array.setNullDouble(0);
 			assertTrue(array.isNullAt(0));
 
 			BinaryArray newArray = splitArray(array);
 			assertTrue(newArray.isNullAt(0));
-			assertTrue(25 == newArray.getDouble(1));
+			assertEquals(25, newArray.getDouble(1), 0.0);
 			newArray.setDouble(0, 5);
-			assertTrue(5 == newArray.getDouble(0));
+			assertEquals(5, newArray.getDouble(0), 0.0);
 			newArray.setNullDouble(0);
 			assertTrue(newArray.isNullAt(0));
 
@@ -325,7 +326,8 @@ public class BinaryArrayTest {
 			BinaryArrayWriter writer = new BinaryArrayWriter(array, 2, 8);
 			writer.setNullAt(0);
 			writer.writeMap(1, BinaryMap.valueOf(subArray, subArray),
-					new BaseMapSerializer(DataTypes.INT().getLogicalType(), DataTypes.INT().getLogicalType()));
+				new BaseMapSerializer(
+					DataTypes.INT().getLogicalType(), DataTypes.INT().getLogicalType(), new ExecutionConfig()));
 			writer.complete();
 
 			assertTrue(array.isNullAt(0));
@@ -358,7 +360,8 @@ public class BinaryArrayTest {
 		BinaryRow row = new BinaryRow(1);
 		BinaryRowWriter rowWriter = new BinaryRowWriter(row);
 		rowWriter.writeMap(0, binaryMap,
-				new BaseMapSerializer(DataTypes.INT().getLogicalType(), DataTypes.INT().getLogicalType()));
+			new BaseMapSerializer(
+				DataTypes.INT().getLogicalType(), DataTypes.INT().getLogicalType(), new ExecutionConfig()));
 		rowWriter.complete();
 
 		BinaryMap map = (BinaryMap) row.getMap(0);
