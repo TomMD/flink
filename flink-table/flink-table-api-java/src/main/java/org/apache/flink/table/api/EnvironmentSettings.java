@@ -46,8 +46,11 @@ import java.util.Map;
  */
 @PublicEvolving
 public class EnvironmentSettings {
+
 	public static final String STREAMING_MODE = "streaming-mode";
 	public static final String CLASS_NAME = "class-name";
+	public static final String DEFAULT_BUILTIN_CATALOG = "default_catalog";
+	public static final String DEFAULT_BUILTIN_DATABASE = "default_database";
 
 	/**
 	 * Canonical name of the {@link Planner} class to use.
@@ -153,8 +156,8 @@ public class EnvironmentSettings {
 	public static class Builder {
 		private String plannerClass = null;
 		private String executorClass = null;
-		private String builtInCatalogName = "default_catalog";
-		private String builtInDatabaseName = "default_database";
+		private String builtInCatalogName = DEFAULT_BUILTIN_CATALOG;
+		private String builtInDatabaseName = DEFAULT_BUILTIN_DATABASE;
 		private boolean isStreamingMode = true;
 
 		/**
