@@ -42,7 +42,7 @@ import static org.apache.flink.table.descriptors.OldCsvValidator.FORMAT_TYPE_VAL
 /**
  * Format descriptor for comma-separated values (CSV).
  *
- * Note: This descriptor describes Flink's non-standard CSV table source/sink. In the future, the
+ * <p>Note: This descriptor describes Flink's non-standard CSV table source/sink. In the future, the
  * descriptor will be replaced by a proper RFC-compliant version. Use the RFC-compliant `Csv`
  * format in the dedicated `flink-formats/flink-csv` module instead when writing to Kafka. Use the
  * old one for stream/batch filesystem operations for now.
@@ -89,7 +89,7 @@ public class OldCsv extends FormatDescriptor {
 	 * Sets the format schema with field names and the types. Required.
 	 * The table schema must not contain nested fields.
 	 *
-	 * This method overwrites existing fields added with [[field()]].
+	 * <p>This method overwrites existing fields added with [[field()]].
 	 *
 	 * @param schema the table schema
 	 */
