@@ -2207,12 +2207,12 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBaseWithFlink {
 		}
 	}
 
-	private abstract static class TestDeserializer implements
+	private abstract static class AbstractTestDeserializer implements
 			KafkaDeserializationSchema<Tuple3<Integer, Integer, String>> {
 
 		protected final TypeSerializer<Tuple2<Integer, Integer>> ts;
 
-		public TestDeserializer(ExecutionConfig ec) {
+		public AbstractTestDeserializer(ExecutionConfig ec) {
 			ts = TypeInformation.of(new TypeHint<Tuple2<Integer, Integer>>(){}).createSerializer(ec);
 		}
 
@@ -2234,7 +2234,7 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBaseWithFlink {
 		}
 	}
 
-	private static class Tuple2WithTopicSchema extends TestDeserializer
+	private static class Tuple2WithTopicSchema extends AbstractTestDeserializer
 			implements KeyedSerializationSchema<Tuple3<Integer, Integer, String>> {
 
 		public Tuple2WithTopicSchema(ExecutionConfig ec) {
@@ -2264,7 +2264,7 @@ public abstract class KafkaConsumerTestBase extends KafkaTestBaseWithFlink {
 		}
 	}
 
-	private static class TestDeSerializer extends TestDeserializer
+	private static class TestDeSerializer extends AbstractTestDeserializer
 			implements KafkaSerializationSchema<Tuple3<Integer, Integer, String>> {
 
 		public TestDeSerializer(ExecutionConfig ec) {
