@@ -101,6 +101,11 @@ abstract class PartFileWriter<IN, BucketID> implements PartFileInfo<BucketID> {
 		return lastUpdateTime;
 	}
 
+	String getExtension() {
+		return "";
+	}
+
+
 	// ------------------------------------------------------------------------
 
 	/**
