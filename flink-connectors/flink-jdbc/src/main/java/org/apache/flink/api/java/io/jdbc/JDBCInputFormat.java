@@ -23,6 +23,7 @@ import org.apache.flink.api.common.io.DefaultInputSplitAssigner;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.io.RichInputFormat;
 import org.apache.flink.api.common.io.statistics.BaseStatistics;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.io.jdbc.split.ParameterValuesProvider;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
@@ -47,6 +48,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Arrays;
 
 /**
@@ -233,6 +237,12 @@ public class JDBCInputFormat extends RichInputFormat<Row, InputSplit> implements
 						statement.setTime(i + 1, (Time) param);
 					} else if (param instanceof Timestamp) {
 						statement.setTimestamp(i + 1, (Timestamp) param);
+					} else if (param instanceof LocalDate) {
+						statement.setDate(i + 1, Date.valueOf((LocalDate) param));
+					} else if (param instanceof LocalTime) {
+						statement.setTime(i + 1, Time.valueOf((LocalTime) param));
+					} else if (param instanceof LocalDateTime) {
+						statement.setTimestamp(i + 1, Timestamp.valueOf((LocalDateTime) param));
 					} else if (param instanceof Array) {
 						statement.setArray(i + 1, (Array) param);
 					} else {
@@ -292,8 +302,10 @@ public class JDBCInputFormat extends RichInputFormat<Row, InputSplit> implements
 			if (!hasNext) {
 				return null;
 			}
+			TypeInformation[] fieldTypes = rowTypeInfo.getFieldTypes();
 			for (int pos = 0; pos < row.getArity(); pos++) {
-				row.setField(pos, resultSet.getObject(pos + 1));
+				row.setField(pos, JDBCUtils.timeObjectCast(
+					resultSet.getObject(pos + 1), fieldTypes[pos].getTypeClass()));
 			}
 			//update hasNext after we've read the record
 			hasNext = resultSet.next();

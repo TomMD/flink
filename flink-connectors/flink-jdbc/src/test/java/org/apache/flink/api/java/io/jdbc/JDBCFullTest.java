@@ -95,8 +95,12 @@ public class JDBCFullTest extends JDBCTestBase {
 		source.output(JDBCOutputFormat.buildJDBCOutputFormat()
 				.setDrivername(JDBCTestBase.DRIVER_CLASS)
 				.setDBUrl(JDBCTestBase.DB_URL)
-				.setQuery("insert into newbooks (id, title, author, price, qty) values (?,?,?,?,?)")
-				.setSqlTypes(new int[]{Types.INTEGER, Types.VARCHAR, Types.VARCHAR, Types.DOUBLE, Types.INTEGER})
+				.setQuery("insert into newbooks (" +
+					"id, title, author, price, qty, print_date, print_time, print_timestamp) values (" +
+					"?,?,?,?,?,?,?,?)")
+				.setSqlTypes(new int[]{
+					Types.INTEGER, Types.VARCHAR, Types.VARCHAR, Types.DOUBLE, Types.INTEGER,
+					Types.DATE, Types.TIME, Types.TIMESTAMP})
 				.finish());
 
 		environment.execute();
