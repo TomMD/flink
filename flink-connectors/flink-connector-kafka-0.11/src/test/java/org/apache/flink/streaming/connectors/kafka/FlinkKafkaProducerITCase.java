@@ -101,6 +101,62 @@ public class FlinkKafkaProducerITCase extends KafkaTestBase {
 		deleteTestTopic(topicName);
 	}
 
+	@Test(timeout = 30000L)
+	public void testPartitionsForAfterClosed() throws Exception {
+		FlinkKafkaProducer<String, String> kafkaProducer = new FlinkKafkaProducer<>(extraProperties);
+		kafkaProducer.close();
+		assertThrows(() -> kafkaProducer.partitionsFor("Topic"), IllegalStateException.class);
+	}
+
+	@Test(timeout = 30000L)
+	public void testInitTransactionsAfterClosed() throws Exception {
+		FlinkKafkaProducer<String, String> kafkaProducer = new FlinkKafkaProducer<>(extraProperties);
+		kafkaProducer.close();
+		assertThrows(kafkaProducer::initTransactions, IllegalStateException.class);
+	}
+
+	@Test(timeout = 30000L)
+	public void testBeginTransactionAfterClosed() throws Exception {
+		FlinkKafkaProducer<String, String> kafkaProducer = new FlinkKafkaProducer<>(extraProperties);
+		kafkaProducer.initTransactions();
+		kafkaProducer.close();
+		assertThrows(kafkaProducer::beginTransaction, IllegalStateException.class);
+	}
+
+	@Test(timeout = 30000L)
+	public void testCommitTransactionAfterClosed() throws Exception {
+		String topicName = "testCommitTransactionAfterClosed";
+		FlinkKafkaProducer<String, String> kafkaProducer = new FlinkKafkaProducer<>(extraProperties);
+		kafkaProducer.initTransactions();
+		kafkaProducer.beginTransaction();
+		kafkaProducer.send(new ProducerRecord<>(topicName, "42", "42"));
+		kafkaProducer.close();
+		assertThrows(kafkaProducer::commitTransaction, IllegalStateException.class);
+	}
+
+	@Test(timeout = 30000L)
+	public void testAbortOrResumeTransactionAfterClosed() throws Exception {
+		String topicName = "testCommitTransactionAfterClosed";
+		FlinkKafkaProducer<String, String> kafkaProducer = new FlinkKafkaProducer<>(extraProperties);
+		kafkaProducer.initTransactions();
+		kafkaProducer.beginTransaction();
+		kafkaProducer.send(new ProducerRecord<>(topicName, "42", "42"));
+		kafkaProducer.close();
+		assertThrows(kafkaProducer::abortTransaction, IllegalStateException.class);
+		assertThrows(() -> kafkaProducer.resumeTransaction(0L, (short) 1), IllegalStateException.class);
+	}
+
+	@Test(timeout = 30000L)
+	public void testFlushAfterClosed() throws Exception {
+		String topicName = "testCommitTransactionAfterClosed";
+		FlinkKafkaProducer<String, String> kafkaProducer = new FlinkKafkaProducer<>(extraProperties);
+		kafkaProducer.initTransactions();
+		kafkaProducer.beginTransaction();
+		kafkaProducer.send(new ProducerRecord<>(topicName, "42", "42"));
+		kafkaProducer.close();
+		assertThrows(kafkaProducer::flush, IllegalStateException.class);
+	}
+
 	private void assertRecord(String topicName, String expectedKey, String expectedValue) {
 		try (KafkaConsumer<String, String> kafkaConsumer = new KafkaConsumer<>(extraProperties)) {
 			kafkaConsumer.subscribe(Collections.singletonList(topicName));
@@ -109,6 +165,16 @@ public class FlinkKafkaProducerITCase extends KafkaTestBase {
 			ConsumerRecord<String, String> record = Iterables.getOnlyElement(records);
 			assertEquals(expectedKey, record.key());
 			assertEquals(expectedValue, record.value());
+		}
+	}
+
+	private void assertThrows(Runnable action, Class<IllegalStateException> expectedException) throws Exception {
+		try {
+			action.run();
+		} catch (Exception e) {
+			if (!expectedException.isAssignableFrom(e.getClass())) {
+				throw e;
+			}
 		}
 	}
 }
