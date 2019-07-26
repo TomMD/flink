@@ -80,7 +80,7 @@ public class StandaloneResourceManager extends ResourceManager<ResourceID> {
 
 	@Override
 	protected void initialize() throws ResourceManagerException {
-		setFailUnfulfillableRequest(true);
+		// nothing to initialize
 	}
 
 	@Override

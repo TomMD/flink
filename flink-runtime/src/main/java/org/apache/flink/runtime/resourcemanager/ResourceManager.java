@@ -930,6 +930,8 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
 			slotManager.start(getFencingToken(), getMainThreadExecutor(), new ResourceActionsImpl());
 
+			setFailUnfulfillableRequest(true);
+
 			return prepareLeadershipAsync().thenApply(ignored -> true);
 		} else {
 			return CompletableFuture.completedFuture(false);
@@ -952,6 +954,8 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 				slotManager.suspend();
 
 				stopHeartbeatServices();
+
+				setFailUnfulfillableRequest(false);
 			});
 	}
 
