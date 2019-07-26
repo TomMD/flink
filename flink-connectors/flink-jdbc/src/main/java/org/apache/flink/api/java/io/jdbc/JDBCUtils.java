@@ -19,13 +19,20 @@
 package org.apache.flink.api.java.io.jdbc;
 
 import org.apache.flink.types.Row;
+import org.apache.flink.util.Preconditions;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 /**
  * Utils for jdbc connectors.
@@ -110,13 +117,35 @@ public class JDBCUtils {
 						upload.setBigDecimal(index + 1, (java.math.BigDecimal) field);
 						break;
 					case java.sql.Types.DATE:
-						upload.setDate(index + 1, (java.sql.Date) field);
+						if (field instanceof Date) {
+							upload.setDate(index + 1, (Date) field);
+						} else {
+							Preconditions.checkArgument(
+								field instanceof LocalDate,
+								"Field must be either java.sql.Date or java.time.LocalDate");
+							upload.setDate(index + 1, java.sql.Date.valueOf((LocalDate) field));
+						}
 						break;
 					case java.sql.Types.TIME:
-						upload.setTime(index + 1, (java.sql.Time) field);
+						if (field instanceof Time) {
+							upload.setTime(index + 1, (Time) field);
+						} else {
+							Preconditions.checkArgument(
+								field instanceof LocalTime,
+								"Field must be either java.sql.Time or java.time.LocalTime");
+							upload.setTime(index + 1, Time.valueOf((LocalTime) field));
+						}
 						break;
 					case java.sql.Types.TIMESTAMP:
-						upload.setTimestamp(index + 1, (java.sql.Timestamp) field);
+						if (field instanceof Timestamp) {
+							upload.setTimestamp(index + 1, (Timestamp) field);
+						} else {
+							Preconditions.checkArgument(
+								field instanceof LocalDateTime,
+								"Field must be either java.sql.Timestamp or java.time.LocalDateTime");
+							upload.setTimestamp(
+								index + 1, Timestamp.valueOf((LocalDateTime) field));
+						}
 						break;
 					case java.sql.Types.BINARY:
 					case java.sql.Types.VARBINARY:
@@ -212,6 +241,33 @@ public class JDBCUtils {
 			// case java.sql.Types.REF:
 			// case java.sql.Types.ROWID:
 			// case java.sql.Types.STRUC
+		}
+	}
+
+	public static Object timeObjectCast(Object obj, Class<?> newClass) {
+		if (obj == null) {
+			return null;
+		}
+
+		Class<?> oldClass = obj.getClass();
+		if (oldClass.equals(newClass)) {
+			return obj;
+		}
+
+		if (newClass.equals(LocalDate.class)) {
+			Preconditions.checkArgument(
+				oldClass.equals(Date.class), "Expecting java.sql.Date but found " + oldClass.getName());
+			return ((Date) obj).toLocalDate();
+		} else if (newClass.equals(LocalTime.class)) {
+			Preconditions.checkArgument(
+				oldClass.equals(Time.class), "Expecting java.sql.Time but found " + oldClass.getName());
+			return ((Time) obj).toLocalTime();
+		} else if (newClass.equals(LocalDateTime.class)) {
+			Preconditions.checkArgument(
+				oldClass.equals(Timestamp.class), "Expecting java.sql.Timestamp but found " + oldClass.getName());
+			return ((Timestamp) obj).toLocalDateTime();
+		} else {
+			throw new IllegalArgumentException("Unsupported class " + oldClass.getName());
 		}
 	}
 }

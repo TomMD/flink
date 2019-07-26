@@ -33,6 +33,7 @@ import java.io.Serializable;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 
 /**
  * Tests for the {@link JDBCInputFormat}.
@@ -202,7 +203,7 @@ public class JDBCInputFormatTest extends JDBCTestBase {
 		Assert.assertEquals(1, jdbcInputFormat.createInputSplits(1).length);
 		jdbcInputFormat.openInputFormat();
 		jdbcInputFormat.open(null);
-		Row row =  new Row(5);
+		Row row =  new Row(8);
 		int recordCount = 0;
 		while (!jdbcInputFormat.reachedEnd()) {
 			Row next = jdbcInputFormat.nextRecord(row);
@@ -236,7 +237,7 @@ public class JDBCInputFormatTest extends JDBCTestBase {
 		//this query exploit parallelism (1 split for every id)
 		Assert.assertEquals(TEST_DATA.length, splits.length);
 		int recordCount = 0;
-		Row row =  new Row(5);
+		Row row =  new Row(8);
 		for (InputSplit split : splits) {
 			jdbcInputFormat.open(split);
 			while (!jdbcInputFormat.reachedEnd()) {
@@ -272,7 +273,7 @@ public class JDBCInputFormatTest extends JDBCTestBase {
 		//assert that a single split was generated
 		Assert.assertEquals(1, splits.length);
 		int recordCount = 0;
-		Row row =  new Row(5);
+		Row row =  new Row(8);
 		for (InputSplit split : splits) {
 			jdbcInputFormat.open(split);
 			while (!jdbcInputFormat.reachedEnd()) {
@@ -314,10 +315,40 @@ public class JDBCInputFormatTest extends JDBCTestBase {
 		jdbcInputFormat.closeInputFormat();
 	}
 
+	@Test
+	public void testJDBCInputFormatWithParallelismAndTimestampSplitting() throws IOException {
+		Serializable[][] queryParameters = new LocalDateTime[2][2];
+		queryParameters[0] = new LocalDateTime[]{TEST_DATA[0].printTimestamp, TEST_DATA[4].printTimestamp};
+		queryParameters[1] = new LocalDateTime[]{TEST_DATA[5].printTimestamp, TEST_DATA[9].printTimestamp};
+		ParameterValuesProvider paramProvider = new GenericParameterValuesProvider(queryParameters);
+		jdbcInputFormat = JDBCInputFormat.buildJDBCInputFormat()
+			.setDrivername(DRIVER_CLASS)
+			.setDBUrl(DB_URL)
+			.setQuery(JDBCTestBase.SELECT_ALL_BOOKS_SPLIT_BY_TIMESTAMP)
+			.setRowTypeInfo(ROW_TYPE_INFO)
+			.setParametersProvider(paramProvider)
+			.setResultSetType(ResultSet.TYPE_SCROLL_INSENSITIVE)
+			.finish();
+
+		jdbcInputFormat.openInputFormat();
+		InputSplit[] splits = jdbcInputFormat.createInputSplits(1);
+		//this query exploit parallelism (1 split for every queryParameters row)
+		Assert.assertEquals(queryParameters.length, splits.length);
+
+		int[] expectedIDSum = new int[]{0, 0};
+		for (int i = 0; i < 10; i++) {
+			expectedIDSum[i / 5] += TEST_DATA[i].id;
+		}
+		verifySplit(splits[0], expectedIDSum[0]);
+		verifySplit(splits[1], expectedIDSum[1]);
+
+		jdbcInputFormat.closeInputFormat();
+	}
+
 	private void verifySplit(InputSplit split, int expectedIDSum) throws IOException {
 		int sum = 0;
 
-		Row row =  new Row(5);
+		Row row =  new Row(8);
 		jdbcInputFormat.open(split);
 		while (!jdbcInputFormat.reachedEnd()) {
 			row = jdbcInputFormat.nextRecord(row);

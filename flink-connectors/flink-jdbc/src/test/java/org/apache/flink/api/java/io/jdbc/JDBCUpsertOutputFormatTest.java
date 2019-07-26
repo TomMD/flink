@@ -53,7 +53,8 @@ public class JDBCUpsertOutputFormatTest extends JDBCTestBase {
 
 	@Before
 	public void setup() {
-		fieldNames = new String[]{"id", "title", "author", "price", "qty"};
+		fieldNames = new String[]{
+			"id", "title", "author", "price", "qty", "print_date", "print_time", "print_timestamp"};
 		keyFields = new String[]{"id"};
 	}
 
@@ -66,6 +67,7 @@ public class JDBCUpsertOutputFormatTest extends JDBCTestBase {
 						.build())
 				.setFieldNames(fieldNames)
 				.setKeyFields(keyFields)
+				.setFieldTypes(SQL_TYPES)
 				.build();
 		RuntimeContext context = Mockito.mock(RuntimeContext.class);
 		ExecutionConfig config = Mockito.mock(ExecutionConfig.class);
@@ -113,7 +115,17 @@ public class JDBCUpsertOutputFormatTest extends JDBCTestBase {
 			while (resultSet.next()) {
 				Row row = new Row(fields.length);
 				for (int i = 0; i < fields.length; i++) {
-					row.setField(i, resultSet.getObject(fields[i]));
+					// Note that we're directly fetching date/time objects from database,
+					// so their types must be java.sql types
+					Object obj = resultSet.getObject(fields[i]);
+					if (obj instanceof java.sql.Date) {
+						obj = ((java.sql.Date) obj).toLocalDate();
+					} else if (obj instanceof java.sql.Time) {
+						obj = ((java.sql.Time) obj).toLocalTime();
+					} else if (obj instanceof java.sql.Timestamp) {
+						obj = ((java.sql.Timestamp) obj).toLocalDateTime();
+					}
+					row.setField(i, obj);
 				}
 				results.add(row.toString());
 			}
