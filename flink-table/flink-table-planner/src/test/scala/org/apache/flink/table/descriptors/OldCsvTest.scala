@@ -29,6 +29,7 @@ import scala.collection.JavaConverters._
 
 /**
   * Tests for [[OldCsv]].
+  * TODO move to flink-csv.
   */
 class OldCsvTest extends DescriptorTestBase {
 
@@ -50,7 +51,7 @@ class OldCsvTest extends DescriptorTestBase {
   // ----------------------------------------------------------------------------------------------
 
   override def descriptors(): util.List[Descriptor] = {
-    val desc1 = OldCsv()
+    val desc1 = new OldCsv()
       .field("field1", "STRING")
       .field("field2", Types.SQL_TIMESTAMP)
       .field("field3", TypeExtractor.createTypeInfo(classOf[Class[_]]))
@@ -59,7 +60,7 @@ class OldCsvTest extends DescriptorTestBase {
         Array[TypeInformation[_]](Types.INT, Types.STRING)))
       .lineDelimiter("^")
 
-    val desc2 = OldCsv()
+    val desc2 = new OldCsv()
       .schema(new TableSchema(
         Array[String]("test", "row"),
         Array[TypeInformation[_]](Types.INT, Types.STRING)))
