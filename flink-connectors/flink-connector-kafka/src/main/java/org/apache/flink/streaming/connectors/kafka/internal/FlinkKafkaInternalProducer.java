@@ -188,6 +188,7 @@ public class FlinkKafkaInternalProducer<K, V> implements Producer<K, V> {
 	 */
 	public void resumeTransaction(long producerId, short epoch) {
 		synchronized (producerClosingLock) {
+			ensureNotClosed();
 			Preconditions.checkState(producerId >= 0 && epoch >= 0,
 				"Incorrect values for producerId %s and epoch %s",
 				producerId,

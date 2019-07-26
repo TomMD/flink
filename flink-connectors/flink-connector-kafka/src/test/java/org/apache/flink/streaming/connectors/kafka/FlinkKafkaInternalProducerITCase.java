@@ -135,13 +135,14 @@ public class FlinkKafkaInternalProducerITCase extends KafkaTestBase {
 	}
 
 	@Test(timeout = 30000L)
-	public void testAbortTransactionAfterClosed() throws Exception {
+	public void testAbortOrResumeTransactionAfterClosed() throws Exception {
 		String topicName = "testCommitTransactionAfterClosed";
 		FlinkKafkaInternalProducer<String, String> kafkaProducer = new FlinkKafkaInternalProducer<>(extraProperties);
 		kafkaProducer.initTransactions();
 		kafkaProducer.beginTransaction();
 		kafkaProducer.send(new ProducerRecord<>(topicName, "42", "42"));
 		kafkaProducer.close();
+		assertThrows(kafkaProducer::abortTransaction, IllegalStateException.class);
 		assertThrows(() -> kafkaProducer.resumeTransaction(0L, (short) 1), IllegalStateException.class);
 	}
 
