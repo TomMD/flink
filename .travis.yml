@@ -56,6 +56,11 @@ before_install:
    - source ./tools/travis/setup_maven.sh
 
 notifications:
+  email:
+    recipients:
+      secure: Tnf61eG2XC4uH9VOS2FnmDZVKMQqoXxQh1tPBuj7wcXCxSBtRKZtwrLHeQYDaH+cdDvy4rgzInKxq0imUyVnZ3vl3eTJyCtUW33RanUN8g4zZANy1nj9NbyhE7U8MCkIOMEuIkqGrI1XfFU0k+OMKaeLlUWtNUkBxeZVueL0iP0=
+    on_success: change
+    on_pull_requests: false
   slack:
     rooms:
       - secure: ikPQn5JTpkyzxVyOPm/jIl3FPm6hY8xAdG4pSwxGWjBqF+NmmNTp9YZsJ6fD8xPql6T5n1hNDbZSC14jVUw/vvXGvibDXLN+06f25ZQl+4LJBXaiR7gTG6y3nO8G90Vw7XpvCme6n5Md9tvjygb17a4FEgRJFfwzWnnyPA1yvK0=
