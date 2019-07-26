@@ -80,16 +80,7 @@ public class StandaloneResourceManager extends ResourceManager<ResourceID> {
 
 	@Override
 	protected void initialize() throws ResourceManagerException {
-		final long startupPeriodMillis = startupPeriodTime.toMilliseconds();
-
-		if (startupPeriodMillis > 0) {
-			getRpcService().getScheduledExecutor().schedule(
-				() -> getMainThreadExecutor().execute(
-					() -> setFailUnfulfillableRequest(true)),
-				startupPeriodMillis,
-				TimeUnit.MILLISECONDS
-			);
-		}
+		// nothing to initialize
 	}
 
 	@Override
@@ -112,4 +103,21 @@ public class StandaloneResourceManager extends ResourceManager<ResourceID> {
 		return resourceID;
 	}
 
+	@Override
+	protected void setFailUnfulfillableRequest(boolean failUnfulfillableRequest) {
+		if (failUnfulfillableRequest) {
+			final long startupPeriodMillis = startupPeriodTime.toMilliseconds();
+
+			if (startupPeriodMillis > 0) {
+				getRpcService().getScheduledExecutor().schedule(
+					() -> getMainThreadExecutor().execute(
+						() -> super.setFailUnfulfillableRequest(failUnfulfillableRequest)),
+					startupPeriodMillis,
+					TimeUnit.MILLISECONDS
+				);
+			}
+		} else {
+			super.setFailUnfulfillableRequest(failUnfulfillableRequest);
+		}
+	}
 }

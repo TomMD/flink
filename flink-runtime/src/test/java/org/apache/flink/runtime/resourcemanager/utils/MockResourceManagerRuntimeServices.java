@@ -75,4 +75,8 @@ public class MockResourceManagerRuntimeServices {
 		UUID rmLeaderSessionId = UUID.randomUUID();
 		rmLeaderElectionService.isLeader(rmLeaderSessionId).get(timeout.toMilliseconds(), TimeUnit.MILLISECONDS);
 	}
+
+	public void revokeLeadership() {
+		rmLeaderElectionService.notLeader();
+	}
 }
