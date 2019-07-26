@@ -64,7 +64,7 @@ public class BucketTest {
 
 		final TestRecoverableWriter recoverableWriter = getRecoverableWriter(path);
 		final Bucket<String, String> bucketUnderTest =
-				createBucket(recoverableWriter, path, 0, 0);
+				createBucket(recoverableWriter, path, 0, 0, "part-", "");
 
 		bucketUnderTest.write("test-element", 0L);
 
@@ -82,7 +82,7 @@ public class BucketTest {
 
 		final TestRecoverableWriter recoverableWriter = getRecoverableWriter(path);
 		final Bucket<String, String> bucketUnderTest =
-				createBucket(recoverableWriter, path, 0, 0);
+				createBucket(recoverableWriter, path, 0, 0, "part-", "");
 
 		bucketUnderTest.write("test-element", 0L);
 
@@ -105,7 +105,7 @@ public class BucketTest {
 
 		final TestRecoverableWriter recoverableWriter = getRecoverableWriter(path);
 		final Bucket<String, String> bucketUnderTest =
-				createBucket(recoverableWriter, path, 0, 0);
+				createBucket(recoverableWriter, path, 0, 0, "part-", "");
 
 		bucketUnderTest.write("test-element", 0L);
 
@@ -115,7 +115,7 @@ public class BucketTest {
 		bucketUnderTest.onSuccessfulCompletionOfCheckpoint(0L);
 
 		final TestRecoverableWriter newRecoverableWriter = getRecoverableWriter(path);
-		restoreBucket(newRecoverableWriter, 0, 1, state);
+		restoreBucket(newRecoverableWriter, 0, 1, state, "part-", "");
 
 		assertThat(newRecoverableWriter, hasCalledDiscard(1)); // that is for checkpoints 0 and 1
 	}
@@ -127,7 +127,7 @@ public class BucketTest {
 
 		final TestRecoverableWriter recoverableWriter = getRecoverableWriter(path);
 		final Bucket<String, String> bucketUnderTest =
-				createBucket(recoverableWriter, path, 0, 0);
+				createBucket(recoverableWriter, path, 0, 0, "part-", "");
 
 		final BucketState<String> state = bucketUnderTest.onReceptionOfCheckpoint(0L);
 		assertThat(state, hasNoActiveInProgressFile());
@@ -378,7 +378,9 @@ public class BucketTest {
 			final RecoverableWriter writer,
 			final Path bucketPath,
 			final int subtaskIdx,
-			final int initialPartCounter) {
+			final int initialPartCounter,
+			final String partPrefix,
+			final String partSuffix) {
 
 		return Bucket.getNew(
 				writer,
@@ -387,14 +389,18 @@ public class BucketTest {
 				bucketPath,
 				initialPartCounter,
 				partFileFactory,
-				rollingPolicy);
+				rollingPolicy,
+				partPrefix,
+				partSuffix);
 	}
 
 	private static Bucket<String, String> restoreBucket(
 			final RecoverableWriter writer,
 			final int subtaskIndex,
 			final long initialPartCounter,
-			final BucketState<String> bucketState) throws Exception {
+			final BucketState<String> bucketState,
+			final String partPrefix,
+			final String partSuffix) throws Exception {
 
 		return Bucket.restore(
 				writer,
@@ -402,8 +408,9 @@ public class BucketTest {
 				initialPartCounter,
 				partFileFactory,
 				rollingPolicy,
-				bucketState
-		);
+				bucketState,
+				partPrefix,
+				partSuffix);
 	}
 
 	private static TestRecoverableWriter getRecoverableWriter(Path path) {
@@ -422,7 +429,7 @@ public class BucketTest {
 	private Bucket<String, String> getRestoredBucketWithOnlyInProgressPart(final BaseStubWriter writer) throws IOException {
 		final BucketState<String> stateWithOnlyInProgressFile =
 				new BucketState<>("test", new Path(), 12345L, new NoOpRecoverable(), new HashMap<>());
-		return Bucket.restore(writer, 0, 1L, partFileFactory, rollingPolicy, stateWithOnlyInProgressFile);
+		return Bucket.restore(writer, 0, 1L, partFileFactory, rollingPolicy, stateWithOnlyInProgressFile, "part-", "");
 	}
 
 	private Bucket<String, String> getRestoredBucketWithOnlyPendingParts(final BaseStubWriter writer, final int numberOfPendingParts) throws IOException {
@@ -431,7 +438,7 @@ public class BucketTest {
 
 		final BucketState<String> initStateWithOnlyInProgressFile =
 				new BucketState<>("test", new Path(), 12345L, null, completePartsPerCheckpoint);
-		return Bucket.restore(writer, 0, 1L, partFileFactory, rollingPolicy, initStateWithOnlyInProgressFile);
+		return Bucket.restore(writer, 0, 1L, partFileFactory, rollingPolicy, initStateWithOnlyInProgressFile, "part-", "");
 	}
 
 	private Map<Long, List<RecoverableWriter.CommitRecoverable>> createPendingPartsPerCheckpoint(int noOfCheckpoints) {

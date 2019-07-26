@@ -54,8 +54,6 @@ public class Bucket<IN, BucketID> {
 
 	private static final Logger LOG = LoggerFactory.getLogger(Bucket.class);
 
-	private static final String PART_PREFIX = "part";
-
 	private final BucketID bucketId;
 
 	private final Path bucketPath;
@@ -74,6 +72,10 @@ public class Bucket<IN, BucketID> {
 
 	private long partCounter;
 
+	private final String partPrefix;
+
+	private final String partSuffix;
+
 	@Nullable
 	private PartFileWriter<IN, BucketID> inProgressPart;
 
@@ -89,7 +91,10 @@ public class Bucket<IN, BucketID> {
 			final Path bucketPath,
 			final long initialPartCounter,
 			final PartFileWriter.PartFileFactory<IN, BucketID> partFileFactory,
-			final RollingPolicy<IN, BucketID> rollingPolicy) {
+			final RollingPolicy<IN, BucketID> rollingPolicy,
+			final String partPrefix,
+			final String partSuffix
+			) {
 
 		this.fsWriter = checkNotNull(fsWriter);
 		this.subtaskIndex = subtaskIndex;
@@ -102,6 +107,9 @@ public class Bucket<IN, BucketID> {
 		this.pendingPartsForCurrentCheckpoint = new ArrayList<>();
 		this.pendingPartsPerCheckpoint = new TreeMap<>();
 		this.resumablesPerCheckpoint = new TreeMap<>();
+
+		this.partPrefix = checkNotNull(partPrefix);
+		this.partSuffix = checkNotNull(partSuffix);
 	}
 
 	/**
@@ -113,7 +121,9 @@ public class Bucket<IN, BucketID> {
 			final long initialPartCounter,
 			final PartFileWriter.PartFileFactory<IN, BucketID> partFileFactory,
 			final RollingPolicy<IN, BucketID> rollingPolicy,
-			final BucketState<BucketID> bucketState) throws IOException {
+			final BucketState<BucketID> bucketState,
+			final String partPrefix,
+			final String partSuffix) throws IOException {
 
 		this(
 				fsWriter,
@@ -122,7 +132,9 @@ public class Bucket<IN, BucketID> {
 				bucketState.getBucketPath(),
 				initialPartCounter,
 				partFileFactory,
-				rollingPolicy);
+				rollingPolicy,
+				partPrefix,
+				partSuffix);
 
 		restoreInProgressFile(bucketState);
 		commitRecoveredPendingFiles(bucketState);
@@ -230,7 +242,7 @@ public class Bucket<IN, BucketID> {
 	}
 
 	private Path assembleNewPartPath() {
-		return new Path(bucketPath, PART_PREFIX + '-' + subtaskIndex + '-' + partCounter);
+		return new Path(bucketPath, partPrefix + subtaskIndex + '-' + partCounter + partSuffix);
 	}
 
 	private CommitRecoverable closePartFile() throws IOException {
@@ -362,6 +374,8 @@ public class Bucket<IN, BucketID> {
 	 * @param partFileFactory the {@link PartFileWriter.PartFileFactory} the factory creating part file writers.
 	 * @param <IN> the type of input elements to the sink.
 	 * @param <BucketID> the type of the identifier of the bucket, as returned by the {@link BucketAssigner}
+	 * @param partPrefix the part prefix name.
+	 * @param partSuffix the part suffix name.
 	 * @return The new Bucket.
 	 */
 	static <IN, BucketID> Bucket<IN, BucketID> getNew(
@@ -371,8 +385,11 @@ public class Bucket<IN, BucketID> {
 			final Path bucketPath,
 			final long initialPartCounter,
 			final PartFileWriter.PartFileFactory<IN, BucketID> partFileFactory,
-			final RollingPolicy<IN, BucketID> rollingPolicy) {
-		return new Bucket<>(fsWriter, subtaskIndex, bucketId, bucketPath, initialPartCounter, partFileFactory, rollingPolicy);
+			final RollingPolicy<IN, BucketID> rollingPolicy,
+			final String partPrefix,
+			final String partSuffix
+			) {
+		return new Bucket<>(fsWriter, subtaskIndex, bucketId, bucketPath, initialPartCounter, partFileFactory, rollingPolicy, partPrefix, partSuffix);
 	}
 
 	/**
@@ -384,6 +401,8 @@ public class Bucket<IN, BucketID> {
 	 * @param bucketState the initial state of the restored bucket.
 	 * @param <IN> the type of input elements to the sink.
 	 * @param <BucketID> the type of the identifier of the bucket, as returned by the {@link BucketAssigner}
+	 * @param partPrefix the part prefix name.
+	 * @param partSuffix the part suffix name.
 	 * @return The restored Bucket.
 	 */
 	static <IN, BucketID> Bucket<IN, BucketID> restore(
@@ -392,7 +411,9 @@ public class Bucket<IN, BucketID> {
 			final long initialPartCounter,
 			final PartFileWriter.PartFileFactory<IN, BucketID> partFileFactory,
 			final RollingPolicy<IN, BucketID> rollingPolicy,
-			final BucketState<BucketID> bucketState) throws IOException {
-		return new Bucket<>(fsWriter, subtaskIndex, initialPartCounter, partFileFactory, rollingPolicy, bucketState);
+			final BucketState<BucketID> bucketState,
+			final String partPrefix,
+			final String partSuffix) throws IOException {
+		return new Bucket<>(fsWriter, subtaskIndex, initialPartCounter, partFileFactory, rollingPolicy, bucketState, partPrefix, partSuffix);
 	}
 }
