@@ -83,6 +83,24 @@ public class StandaloneResourceManagerTest extends TestLogger {
 		rm.close();
 	}
 
+	@Test
+	public void testStartUpPeriodAfterLeadershipSwitch() throws Exception {
+		final TestingStandaloneResourceManager rm = createResourceManager(Time.milliseconds(1L));
+
+		final Deadline deadline1 = Deadline.fromNow(Duration.ofSeconds(10L));
+		assertHappensUntil(() -> rm.isFailingUnfulfillableRequestAsync().join(), deadline1);
+
+		rm.rmServices.revokeLeadership();
+
+		final Deadline deadline2 = Deadline.fromNow(Duration.ofSeconds(10L));
+		assertHappensUntil(() -> !rm.rmServices.slotManager.isFailingUnfulfillableRequest(), deadline2);
+
+		rm.rmServices.grantLeadership();
+
+		final Deadline deadline3 = Deadline.fromNow(Duration.ofSeconds(10L));
+		assertHappensUntil(() -> rm.isFailingUnfulfillableRequestAsync().join(), deadline3);
+	}
+
 	private TestingStandaloneResourceManager createResourceManager(Time startupPeriod) throws Exception {
 
 		final MockResourceManagerRuntimeServices rmServices = new MockResourceManagerRuntimeServices(
@@ -101,7 +119,8 @@ public class StandaloneResourceManagerTest extends TestLogger {
 			new ClusterInformation("localhost", 1234),
 			fatalErrorHandler,
 			UnregisteredMetricGroups.createUnregisteredJobManagerMetricGroup(),
-			startupPeriod);
+			startupPeriod,
+			rmServices);
 
 		rm.start();
 		rmServices.grantLeadership();
@@ -122,6 +141,7 @@ public class StandaloneResourceManagerTest extends TestLogger {
 
 	private static class TestingStandaloneResourceManager extends StandaloneResourceManager {
 		private final SlotManager slotManagerForTest;
+		private final MockResourceManagerRuntimeServices rmServices;
 
 		private TestingStandaloneResourceManager(
 				RpcService rpcService,
@@ -135,7 +155,8 @@ public class StandaloneResourceManagerTest extends TestLogger {
 				ClusterInformation clusterInformation,
 				FatalErrorHandler fatalErrorHandler,
 				JobManagerMetricGroup jobManagerMetricGroup,
-				Time startupPeriodTime) {
+				Time startupPeriodTime,
+				MockResourceManagerRuntimeServices rmServices) {
 			super(
 				rpcService,
 				resourceManagerEndpointId,
@@ -150,6 +171,7 @@ public class StandaloneResourceManagerTest extends TestLogger {
 				jobManagerMetricGroup,
 				startupPeriodTime);
 			slotManagerForTest = slotManager;
+			this.rmServices = rmServices;
 		}
 
 		private CompletableFuture<Boolean> isFailingUnfulfillableRequestAsync() {
