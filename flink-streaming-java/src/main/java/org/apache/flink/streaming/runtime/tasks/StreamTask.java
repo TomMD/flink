@@ -1283,7 +1283,6 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 					edge,
 					i,
 					environment,
-					environment.getTaskInfo().getTaskName(),
 					chainedConfigs.get(edge.getSourceId()).getBufferTimeout()));
 		}
 		return recordWriters;
@@ -1293,10 +1292,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			StreamEdge edge,
 			int outputIndex,
 			Environment environment,
-			String taskName,
 			long bufferTimeout) {
 		@SuppressWarnings("unchecked")
 		StreamPartitioner<OUT> outputPartitioner = (StreamPartitioner<OUT>) edge.getPartitioner();
+		String taskName = environment.getTaskInfo().getTaskName();
 
 		LOG.debug("Using partitioner {} for output {} of task {}", outputPartitioner, outputIndex, taskName);
 
