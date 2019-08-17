@@ -30,12 +30,11 @@ import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.operators.InputSelectable;
 import org.apache.flink.streaming.api.operators.InputSelection;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.metrics.WatermarkGauge;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.streamstatus.ForwardingValveOutputHandler;
 import org.apache.flink.streaming.runtime.streamstatus.StatusWatermarkValve;
-import org.apache.flink.streaming.runtime.streamstatus.StreamStatus;
 import org.apache.flink.streaming.runtime.streamstatus.StreamStatusMaintainer;
 import org.apache.flink.streaming.runtime.tasks.OperatorChain;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
@@ -80,13 +79,6 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 	 */
 	private final StatusWatermarkValve statusWatermarkValve1;
 	private final StatusWatermarkValve statusWatermarkValve2;
-
-	/**
-	 * Stream status for the two inputs. We need to keep track for determining when
-	 * to forward stream status changes downstream.
-	 */
-	private StreamStatus firstStatus;
-	private StreamStatus secondStatus;
 
 	private int availableInputsMask;
 
@@ -140,15 +132,36 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 
 		this.statusWatermarkValve1 = new StatusWatermarkValve(
 			unionedInputGate1.getNumberOfInputChannels(),
-			new ForwardingValveOutputHandler(streamOperator, lock, streamStatusMaintainer, input1WatermarkGauge, 0));
+			new ForwardingValveOutputHandler(
+				(watermark) -> {
+					synchronized (lock) {
+						input1WatermarkGauge.setCurrentWatermark(watermark.getTimestamp());
+						streamOperator.processWatermark1(watermark);
+					}
+				},
+				(status) -> {
+					synchronized (lock) {
+						streamStatusMaintainer.toggleStreamStatus(status);
+					}
+				}
+			));
 		this.statusWatermarkValve2 = new StatusWatermarkValve(
 			unionedInputGate2.getNumberOfInputChannels(),
-			new ForwardingValveOutputHandler(streamOperator, lock, streamStatusMaintainer, input2WatermarkGauge, 1));
+			new ForwardingValveOutputHandler(
+				(watermark) -> {
+					synchronized (lock) {
+						input2WatermarkGauge.setCurrentWatermark(watermark.getTimestamp());
+						streamOperator.processWatermark2(watermark);
+					}
+				},
+				(status) -> {
+					synchronized (lock) {
+						streamStatusMaintainer.toggleStreamStatus(status);
+					}
+				}
+			));
 
 		this.operatorChain = checkNotNull(operatorChain);
-
-		this.firstStatus = StreamStatus.ACTIVE;
-		this.secondStatus = StreamStatus.ACTIVE;
 
 		this.availableInputsMask = (int) new InputSelection.Builder().select(1).select(2).build().getInputMask();
 
@@ -377,82 +390,5 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 
 	private int getInputId(int inputIndex) {
 		return inputIndex + 1;
-	}
-
-	private class ForwardingValveOutputHandler implements StatusWatermarkValve.ValveOutputHandler {
-
-		private final TwoInputStreamOperator<IN1, IN2, ?> operator;
-
-		private final Object lock;
-
-		private final StreamStatusMaintainer streamStatusMaintainer;
-
-		private final WatermarkGauge inputWatermarkGauge;
-
-		private final int inputIndex;
-
-		private ForwardingValveOutputHandler(
-			TwoInputStreamOperator<IN1, IN2, ?> operator,
-			Object lock,
-			StreamStatusMaintainer streamStatusMaintainer,
-			WatermarkGauge inputWatermarkGauge,
-			int inputIndex) {
-
-			this.operator = checkNotNull(operator);
-			this.lock = checkNotNull(lock);
-
-			this.streamStatusMaintainer = checkNotNull(streamStatusMaintainer);
-
-			this.inputWatermarkGauge = inputWatermarkGauge;
-
-			this.inputIndex = inputIndex;
-		}
-
-		@Override
-		public void handleWatermark(Watermark watermark) {
-			try {
-				synchronized (lock) {
-					inputWatermarkGauge.setCurrentWatermark(watermark.getTimestamp());
-					if (inputIndex == 0) {
-						operator.processWatermark1(watermark);
-					} else {
-						operator.processWatermark2(watermark);
-					}
-				}
-			} catch (Exception e) {
-				throw new RuntimeException("Exception occurred while processing valve output watermark of input"
-					+ (inputIndex + 1) + ": ", e);
-			}
-		}
-
-		@Override
-		public void handleStreamStatus(StreamStatus streamStatus) {
-			try {
-				synchronized (lock) {
-					final StreamStatus anotherStreamStatus;
-					if (inputIndex == 0) {
-						firstStatus = streamStatus;
-						anotherStreamStatus = secondStatus;
-					} else {
-						secondStatus = streamStatus;
-						anotherStreamStatus = firstStatus;
-					}
-
-					// check if we need to toggle the task's stream status
-					if (!streamStatus.equals(streamStatusMaintainer.getStreamStatus())) {
-						if (streamStatus.isActive()) {
-							// we're no longer idle if at least one input has become active
-							streamStatusMaintainer.toggleStreamStatus(StreamStatus.ACTIVE);
-						} else if (anotherStreamStatus.isIdle()) {
-							// we're idle once both inputs are idle
-							streamStatusMaintainer.toggleStreamStatus(StreamStatus.IDLE);
-						}
-					}
-				}
-			} catch (Exception e) {
-				throw new RuntimeException("Exception occurred while processing valve output stream status of input"
-					+ (inputIndex + 1) + ": ", e);
-			}
-		}
 	}
 }

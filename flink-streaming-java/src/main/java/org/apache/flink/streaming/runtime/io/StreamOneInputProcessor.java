@@ -34,6 +34,7 @@ import org.apache.flink.streaming.runtime.metrics.WatermarkGauge;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.streamstatus.StatusWatermarkValve;
+import org.apache.flink.streaming.runtime.streamstatus.ForwardingValveOutputHandler;
 import org.apache.flink.streaming.runtime.streamstatus.StreamStatus;
 import org.apache.flink.streaming.runtime.streamstatus.StreamStatusMaintainer;
 import org.apache.flink.streaming.runtime.tasks.OperatorChain;
@@ -78,13 +79,10 @@ public final class StreamOneInputProcessor<IN> implements StreamInputProcessor {
 	/** Valve that controls how watermarks and stream statuses are forwarded. */
 	private StatusWatermarkValve statusWatermarkValve;
 
-	private final StreamStatusMaintainer streamStatusMaintainer;
-
 	private final OneInputStreamOperator<IN, ?> streamOperator;
 
 	// ---------------- Metrics ------------------
 
-	private final WatermarkGauge watermarkGauge;
 	private Counter numRecordsIn;
 
 	@SuppressWarnings("unchecked")
@@ -116,14 +114,24 @@ public final class StreamOneInputProcessor<IN> implements StreamInputProcessor {
 
 		this.lock = checkNotNull(lock);
 
-		this.streamStatusMaintainer = checkNotNull(streamStatusMaintainer);
 		this.streamOperator = checkNotNull(streamOperator);
 
 		this.statusWatermarkValve = new StatusWatermarkValve(
 			inputGate.getNumberOfInputChannels(),
-			new ForwardingValveOutputHandler(streamOperator, lock));
+			new ForwardingValveOutputHandler(
+				(watermark) -> {
+					synchronized (lock) {
+						watermarkGauge.setCurrentWatermark(watermark.getTimestamp());
+						streamOperator.processWatermark(watermark);
+					}
+				},
+				(status) -> {
+					synchronized (lock) {
+						streamStatusMaintainer.toggleStreamStatus(status);
+					}
+				}
+			));
 
-		this.watermarkGauge = watermarkGauge;
 		metrics.gauge("checkpointAlignmentTime", barrierHandler::getAlignmentDurationNanos);
 
 		this.operatorChain = checkNotNull(operatorChain);
@@ -203,39 +211,5 @@ public final class StreamOneInputProcessor<IN> implements StreamInputProcessor {
 	@Override
 	public void close() throws IOException {
 		input.close();
-	}
-
-	private class ForwardingValveOutputHandler implements StatusWatermarkValve.ValveOutputHandler {
-		private final OneInputStreamOperator<IN, ?> operator;
-		private final Object lock;
-
-		private ForwardingValveOutputHandler(final OneInputStreamOperator<IN, ?> operator, final Object lock) {
-			this.operator = checkNotNull(operator);
-			this.lock = checkNotNull(lock);
-		}
-
-		@Override
-		public void handleWatermark(Watermark watermark) {
-			try {
-				synchronized (lock) {
-					watermarkGauge.setCurrentWatermark(watermark.getTimestamp());
-					operator.processWatermark(watermark);
-				}
-			} catch (Exception e) {
-				throw new RuntimeException("Exception occurred while processing valve output watermark: ", e);
-			}
-		}
-
-		@SuppressWarnings("unchecked")
-		@Override
-		public void handleStreamStatus(StreamStatus streamStatus) {
-			try {
-				synchronized (lock) {
-					streamStatusMaintainer.toggleStreamStatus(streamStatus);
-				}
-			} catch (Exception e) {
-				throw new RuntimeException("Exception occurred while processing valve output stream status: ", e);
-			}
-		}
 	}
 }
