@@ -75,7 +75,7 @@ public class StreamSourceOperatorWatermarksTest {
 		try {
 			operator.run(new Object(), mock(StreamStatusMaintainer.class), new CollectorOutput<String>(output), operatorChain);
 		} finally {
-			operatorChain.releaseOutputs();
+			operator.getContainingTask().releaseOutputs();
 		}
 
 		assertEquals(1, output.size());
@@ -99,7 +99,7 @@ public class StreamSourceOperatorWatermarksTest {
 		try {
 			operator.run(new Object(), mock(StreamStatusMaintainer.class), new CollectorOutput<String>(output), operatorChain);
 		} finally {
-			operatorChain.releaseOutputs();
+			operator.getContainingTask().releaseOutputs();
 		}
 
 		assertTrue(output.isEmpty());
@@ -134,7 +134,7 @@ public class StreamSourceOperatorWatermarksTest {
 		}
 		catch (InterruptedException ignored) {}
 		finally {
-			operatorChain.releaseOutputs();
+			operator.getContainingTask().releaseOutputs();
 		}
 
 		assertTrue(output.isEmpty());
@@ -223,7 +223,7 @@ public class StreamSourceOperatorWatermarksTest {
 	private static OperatorChain<?, ?> createOperatorChain(AbstractStreamOperator<?> operator) {
 		return new OperatorChain<>(
 			operator.getContainingTask(),
-			StreamTask.createRecordWriters(operator.getOperatorConfig(), new MockEnvironmentBuilder().build()));
+			StreamTask.createRecordWriterOutputs(operator.getOperatorConfig(), new MockEnvironmentBuilder().build()));
 	}
 
 	// ------------------------------------------------------------------------

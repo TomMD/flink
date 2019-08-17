@@ -20,6 +20,7 @@ package org.apache.flink.streaming.runtime.tasks;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.accumulators.Accumulator;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.configuration.TaskManagerOptions;
 import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.core.fs.FileSystemSafetyNet;
@@ -30,6 +31,7 @@ import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
 import org.apache.flink.runtime.execution.CancelTaskException;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.io.network.api.CancelCheckpointMarker;
+import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
 import org.apache.flink.runtime.io.network.api.writer.RecordWriter;
 import org.apache.flink.runtime.io.network.api.writer.RecordWriterBuilder;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
@@ -58,11 +60,13 @@ import org.apache.flink.streaming.runtime.partitioner.ConfigurableStreamPartitio
 import org.apache.flink.streaming.runtime.partitioner.StreamPartitioner;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.streamstatus.StreamStatusMaintainer;
+import org.apache.flink.streaming.runtime.streamstatus.StreamStatusMaintainerImpl;
 import org.apache.flink.streaming.runtime.tasks.mailbox.execution.DefaultActionContext;
 import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxProcessor;
 import org.apache.flink.streaming.runtime.tasks.mailbox.execution.SuspendedMailboxDefaultAction;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.flink.util.OutputTag;
 import org.apache.flink.util.Preconditions;
 
 import org.slf4j.Logger;
@@ -71,7 +75,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 
 import java.io.Closeable;
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -190,9 +194,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	/** Handler for exceptions during checkpointing in the stream task. Used in synchronous part of the checkpoint. */
 	private CheckpointExceptionHandler checkpointExceptionHandler;
 
-	private final List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> recordWriters;
-
 	private final SynchronousSavepointLatch syncSavepointLatch;
+
+	private final StreamStatusMaintainer streamStatusMaintainer;
+
+	private final RecordWriterOutput<OUT>[] recordWriterOutputs;
 
 	protected final MailboxProcessor mailboxProcessor;
 
@@ -239,7 +245,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		this.uncaughtExceptionHandler = Preconditions.checkNotNull(uncaughtExceptionHandler);
 		this.configuration = new StreamConfig(getTaskConfiguration());
 		this.accumulatorMap = getEnvironment().getAccumulatorRegistry().getUserMap();
-		this.recordWriters = createRecordWriters(configuration, environment);
+		this.recordWriterOutputs = createRecordWriterOutputs(configuration, environment);
+		this.streamStatusMaintainer = new StreamStatusMaintainerImpl(recordWriterOutputs);
 		this.syncSavepointLatch = new SynchronousSavepointLatch();
 		this.mailboxProcessor = new MailboxProcessor(this::performDefaultAction);
 	}
@@ -346,7 +353,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 				timerService = new SystemProcessingTimeService(this, getCheckpointLock(), timerThreadFactory);
 			}
 
-			operatorChain = new OperatorChain<>(this, recordWriters);
+			operatorChain = new OperatorChain<>(this, recordWriterOutputs, streamStatusMaintainer);
 			headOperator = operatorChain.getHeadOperator();
 
 			// task specific initialization
@@ -418,7 +425,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			LOG.debug("Closed operators for task {}", getName());
 
 			// make sure all buffered data is flushed
-			operatorChain.flushOutputs();
+			flushOutputs();
 
 			// make an attempt to dispose the operators such that failures in the dispose call
 			// still let the computation fail
@@ -467,12 +474,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			}
 
 			// release the output resources. this method should never fail.
-			if (operatorChain != null) {
-				// beware: without synchronization, #performCheckpoint() may run in
-				//         parallel and this call is not thread-safe
-				synchronized (lock) {
-					operatorChain.releaseOutputs();
-				}
+			// beware: without synchronization, #performCheckpoint() may run in
+			// parallel and this call is not thread-safe
+			synchronized (lock) {
+				releaseOutputs();
 			}
 
 			mailboxProcessor.close();
@@ -605,6 +610,50 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		return tc == TimeCharacteristic.EventTime | tc == TimeCharacteristic.IngestionTime;
 	}
 
+	private void broadcastCheckpointBarrier(
+			long id,
+			long timestamp,
+			CheckpointOptions checkpointOptions) throws IOException {
+		CheckpointBarrier barrier = new CheckpointBarrier(id, timestamp, checkpointOptions);
+		for (RecordWriterOutput<?> output : recordWriterOutputs) {
+			output.broadcastEvent(barrier);
+		}
+	}
+
+	private void broadcastCheckpointCancelMarker(long id) throws IOException {
+		CancelCheckpointMarker barrier = new CancelCheckpointMarker(id);
+		for (RecordWriterOutput<?> output : recordWriterOutputs) {
+			output.broadcastEvent(barrier);
+		}
+	}
+
+	/**
+	 * This method should be called before finishing the record emission, to make sure any data
+	 * that is still buffered will be sent. It also ensures that all data sending related
+	 * exceptions are recognized.
+	 *
+	 * @throws IOException Thrown, if the buffered data cannot be pushed into the output streams.
+	 */
+	private void flushOutputs() throws IOException {
+		for (RecordWriterOutput<?> output : recordWriterOutputs) {
+			output.flush();
+		}
+	}
+
+	/**
+	 * This method releases all resources of the record writer output. It stops the output
+	 * flushing thread (if there is one) and releases all buffers currently held by the output
+	 * serializers.
+	 *
+	 * <p>This method should never fail.
+	 */
+	@VisibleForTesting
+	public void releaseOutputs() {
+		for (RecordWriterOutput<?> output : recordWriterOutputs) {
+			output.close();
+		}
+	}
+
 	// ------------------------------------------------------------------------
 	//  Access to properties and utilities
 	// ------------------------------------------------------------------------
@@ -648,11 +697,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	}
 
 	public StreamStatusMaintainer getStreamStatusMaintainer() {
-		return operatorChain;
+		return streamStatusMaintainer;
 	}
 
 	RecordWriterOutput<?>[] getStreamOutputs() {
-		return operatorChain.getStreamOutputs();
+		return recordWriterOutputs;
 	}
 
 	// ------------------------------------------------------------------------
@@ -719,7 +768,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
 		// notify all downstream operators that they should not wait for a barrier from us
 		synchronized (lock) {
-			operatorChain.broadcastCheckpointCancelMarker(checkpointId);
+			broadcastCheckpointCancelMarker(checkpointId);
 		}
 	}
 
@@ -755,7 +804,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 				operatorChain.prepareSnapshotPreBarrier(checkpointId);
 
 				// Step (2): Send the checkpoint barrier downstream
-				operatorChain.broadcastCheckpointBarrier(
+				broadcastCheckpointBarrier(
 						checkpointId,
 						checkpointMetaData.getTimestamp(),
 						checkpointOptions);
@@ -775,9 +824,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 				final CancelCheckpointMarker message = new CancelCheckpointMarker(checkpointMetaData.getCheckpointId());
 				Exception exception = null;
 
-				for (RecordWriter<SerializationDelegate<StreamRecord<OUT>>> recordWriter : recordWriters) {
+				for (RecordWriterOutput output : recordWriterOutputs) {
 					try {
-						recordWriter.broadcastEvent(message);
+						output.broadcastEvent(message);
 					} catch (Exception e) {
 						exception = ExceptionUtils.firstOrSuppressed(
 							new Exception("Could not send cancel checkpoint marker to downstream tasks.", e),
@@ -1269,23 +1318,35 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	}
 
 	@VisibleForTesting
-	public static <OUT> List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> createRecordWriters(
+	public static <OUT> RecordWriterOutput<OUT>[] createRecordWriterOutputs(
 			StreamConfig configuration,
 			Environment environment) {
-		List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> recordWriters = new ArrayList<>();
-		List<StreamEdge> outEdgesInOrder = configuration.getOutEdgesInOrder(environment.getUserClassLoader());
-		Map<Integer, StreamConfig> chainedConfigs = configuration.getTransitiveChainedTaskConfigsWithSelf(environment.getUserClassLoader());
+		ClassLoader userClassLoader = environment.getUserClassLoader();
+		List<StreamEdge> outEdgesInOrder = configuration.getOutEdgesInOrder(userClassLoader);
+		Map<Integer, StreamConfig> chainedConfigs = configuration.getTransitiveChainedTaskConfigsWithSelf(
+			userClassLoader);
+		RecordWriterOutput<OUT>[] outputs = new RecordWriterOutput[outEdgesInOrder.size()];
 
 		for (int i = 0; i < outEdgesInOrder.size(); i++) {
 			StreamEdge edge = outEdgesInOrder.get(i);
-			recordWriters.add(
-				createRecordWriter(
-					edge,
-					i,
-					environment,
-					chainedConfigs.get(edge.getSourceId()).getBufferTimeout()));
+			OutputTag outputTag = edge.getOutputTag();
+			RecordWriter<SerializationDelegate<StreamRecord<OUT>>> recordWriter = createRecordWriter(
+				edge,
+				i,
+				environment,
+				chainedConfigs.get(edge.getSourceId()).getBufferTimeout());
+
+			TypeSerializer<OUT> outSerializer;
+			if (edge.getOutputTag() != null) {
+				// side output
+				outSerializer = configuration.getTypeSerializerSideOut(outputTag, userClassLoader);
+			} else {
+				// main output
+				outSerializer = configuration.getTypeSerializerOut(userClassLoader);
+			}
+			outputs[i] = new RecordWriterOutput<>(recordWriter, outSerializer, outputTag);
 		}
-		return recordWriters;
+		return outputs;
 	}
 
 	private static <OUT> RecordWriter<SerializationDelegate<StreamRecord<OUT>>> createRecordWriter(
