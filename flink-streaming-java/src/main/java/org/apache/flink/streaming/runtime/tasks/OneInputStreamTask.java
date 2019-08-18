@@ -26,10 +26,19 @@ import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
 import org.apache.flink.runtime.metrics.MetricNames;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.runtime.io.CheckpointedInputGate;
+import org.apache.flink.streaming.runtime.io.InputGateUtil;
+import org.apache.flink.streaming.runtime.io.InputProcessorUtil;
 import org.apache.flink.streaming.runtime.io.StreamOneInputProcessor;
+import org.apache.flink.streaming.runtime.io.StreamTaskInput;
+import org.apache.flink.streaming.runtime.io.StreamTaskNetworkInput;
 import org.apache.flink.streaming.runtime.metrics.WatermarkGauge;
+import org.apache.flink.streaming.runtime.streamstatus.ForwardingValveOutputHandler;
+import org.apache.flink.streaming.runtime.streamstatus.StatusWatermarkValve;
 
 import javax.annotation.Nullable;
+
+import java.io.IOException;
 
 /**
  * A {@link StreamTask} for executing a {@link OneInputStreamOperator}.
@@ -67,32 +76,57 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
 
 	@Override
 	public void init() throws Exception {
-		StreamConfig configuration = getConfiguration();
+		initializeStreamInputProcessor();
 
-		TypeSerializer<IN> inSerializer = configuration.getTypeSerializerIn1(getUserCodeClassLoader());
-		int numberOfInputs = configuration.getNumberOfInputs();
-
-		if (numberOfInputs > 0) {
-			InputGate[] inputGates = getEnvironment().getAllInputGates();
-
-			inputProcessor = new StreamOneInputProcessor<>(
-				inputGates,
-				inSerializer,
-				this,
-				configuration.getCheckpointMode(),
-				getCheckpointLock(),
-				getEnvironment().getIOManager(),
-				getEnvironment().getTaskManagerInfo().getConfiguration(),
-				getStreamStatusMaintainer(),
-				headOperator,
-				getEnvironment().getMetricGroup().getIOMetricGroup(),
-				inputWatermarkGauge,
-				getTaskNameWithSubtaskAndId(),
-				operatorChain,
-				setupNumRecordsInCounter(headOperator));
-		}
 		headOperator.getMetricGroup().gauge(MetricNames.IO_CURRENT_INPUT_WATERMARK, this.inputWatermarkGauge);
 		// wrap watermark gauge since registered metrics must be unique
 		getEnvironment().getMetricGroup().gauge(MetricNames.IO_CURRENT_INPUT_WATERMARK, this.inputWatermarkGauge::getValue);
+	}
+
+	private void initializeStreamInputProcessor() throws IOException {
+		StreamConfig configuration = getConfiguration();
+
+		if (configuration.getNumberOfInputs() > 0) {
+			InputGate[] inputGates = getEnvironment().getAllInputGates();
+			InputGate inputGate = InputGateUtil.createInputGate(inputGates);
+
+			CheckpointedInputGate barrierHandler = InputProcessorUtil.createCheckpointedInputGate(
+				this,
+				configuration.getCheckpointMode(),
+				getEnvironment().getIOManager(),
+				inputGate,
+				getEnvironment().getTaskManagerInfo().getConfiguration(),
+				getTaskNameWithSubtaskAndId());
+			getEnvironment().getMetricGroup().getIOMetricGroup().gauge(
+				"checkpointAlignmentTime", barrierHandler::getAlignmentDurationNanos);
+
+			StatusWatermarkValve statusWatermarkValve = new StatusWatermarkValve(
+				inputGate.getNumberOfInputChannels(),
+				new ForwardingValveOutputHandler(
+					(watermark) -> {
+						synchronized (getCheckpointLock()) {
+							inputWatermarkGauge.setCurrentWatermark(watermark.getTimestamp());
+							headOperator.processWatermark(watermark);
+						}
+					},
+					(status) -> {
+						synchronized (getCheckpointLock()) {
+							getStreamStatusMaintainer().toggleStreamStatus(status);
+						}
+					}
+				));
+
+			TypeSerializer<IN> inputSerializer = configuration.getTypeSerializerIn1(getUserCodeClassLoader());
+			StreamTaskInput input = new StreamTaskNetworkInput(
+				barrierHandler, inputSerializer, getEnvironment().getIOManager(), 0);
+
+			inputProcessor = new StreamOneInputProcessor<>(
+				input,
+				getCheckpointLock(),
+				headOperator,
+				statusWatermarkValve,
+				operatorChain,
+				setupNumRecordsInCounter(headOperator));
+		}
 	}
 }
