@@ -26,6 +26,7 @@ import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.expressions.resolver.rules.ResolveCallByArgumentsRule;
 import org.apache.flink.table.functions.BuiltInFunctionDefinition;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
+import org.apache.flink.table.planner.expressions.converter.ExpressionConverter;
 import org.apache.flink.table.types.DataType;
 
 import org.apache.calcite.rex.RexNode;
@@ -46,7 +47,7 @@ public class UnresolvedCallExpressionToRexNode {
 	public static RexNode toRexNode(
 		RelBuilder relBuilder, Expression expressions) {
 		return resolveWithoutCatalog(Collections.singletonList(expressions)).get(0)
-			.accept(new RexNodeConverter(relBuilder));
+			.accept(new ExpressionConverter(relBuilder));
 	}
 
 	private static List<ResolvedExpression> resolveWithoutCatalog(List<Expression> expressions) {

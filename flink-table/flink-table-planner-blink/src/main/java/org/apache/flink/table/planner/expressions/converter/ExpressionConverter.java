@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.planner.expressions;
+package org.apache.flink.table.planner.expressions.converter;
 
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.dataformat.Decimal;
@@ -48,6 +48,11 @@ import org.apache.flink.table.planner.calcite.FlinkRelBuilder;
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory;
 import org.apache.flink.table.planner.calcite.RexAggLocalVariable;
 import org.apache.flink.table.planner.calcite.RexDistinctKeyVariable;
+import org.apache.flink.table.planner.expressions.ResolvedAggInputReference;
+import org.apache.flink.table.planner.expressions.ResolvedAggLocalReference;
+import org.apache.flink.table.planner.expressions.ResolvedDistinctKeyReference;
+import org.apache.flink.table.planner.expressions.RexNodeExpression;
+import org.apache.flink.table.planner.expressions.SqlAggFunctionVisitor;
 import org.apache.flink.table.planner.functions.InternalFunctionDefinitions;
 import org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable;
 import org.apache.flink.table.planner.functions.sql.SqlThrowExceptionFunction;
@@ -122,7 +127,7 @@ import static org.apache.flink.table.types.utils.TypeConversions.fromLegacyInfoT
  * <p>TODO remove blink expressions(like {@link ResolvedAggInputReference}) and use
  * {@link ResolvedExpressionVisitor}.
  */
-public class RexNodeConverter implements ExpressionVisitor<RexNode> {
+public class ExpressionConverter implements ExpressionVisitor<RexNode> {
 
 	private final RelBuilder relBuilder;
 	private final FlinkTypeFactory typeFactory;
@@ -130,7 +135,7 @@ public class RexNodeConverter implements ExpressionVisitor<RexNode> {
 	// store mapping from BuiltInFunctionDefinition to it's RexNodeConversion.
 	private final Map<FunctionDefinition, RexNodeConversion> conversionsOfBuiltInFunc = new IdentityHashMap<>();
 
-	public RexNodeConverter(RelBuilder relBuilder) {
+	public ExpressionConverter(RelBuilder relBuilder) {
 		this.relBuilder = relBuilder;
 		this.typeFactory = (FlinkTypeFactory) relBuilder.getRexBuilder().getTypeFactory();
 
@@ -363,7 +368,7 @@ public class RexNodeConverter implements ExpressionVisitor<RexNode> {
 
 	private List<RexNode> convertCallChildren(List<Expression> children) {
 		return children.stream()
-				.map(expression -> expression.accept(RexNodeConverter.this))
+				.map(expression -> expression.accept(ExpressionConverter.this))
 				.collect(Collectors.toList());
 	}
 

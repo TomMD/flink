@@ -22,14 +22,14 @@ import org.apache.flink.table.expressions.utils.ApiExpressionUtils
 import org.apache.flink.table.planner.codegen.CodeGenUtils.primitiveTypeTermForType
 import org.apache.flink.table.planner.codegen.agg.AggsHandlerCodeGenerator.DISTINCT_KEY_TERM
 import org.apache.flink.table.planner.codegen.{CodeGeneratorContext, ExprCodeGenerator, GeneratedExpression}
-import org.apache.flink.table.planner.expressions.{ResolvedAggInputReference, ResolvedAggLocalReference, ResolvedDistinctKeyReference, RexNodeConverter, UnresolvedCallExpressionToRexNode}
+import org.apache.flink.table.planner.expressions.UnresolvedCallExpressionToRexNode.toRexNode
+import org.apache.flink.table.planner.expressions.{ResolvedAggInputReference, ResolvedAggLocalReference, ResolvedDistinctKeyReference}
 import org.apache.flink.table.planner.functions.aggfunctions.DeclarativeAggregateFunction
 import org.apache.flink.table.planner.plan.utils.AggregateInfo
 import org.apache.flink.table.runtime.types.LogicalTypeDataTypeConverter.fromDataTypeToLogicalType
 import org.apache.flink.table.types.logical.LogicalType
 
 import org.apache.calcite.tools.RelBuilder
-import org.apache.flink.table.planner.expressions.UnresolvedCallExpressionToRexNode.toRexNode
 
 import scala.collection.JavaConverters._
 
