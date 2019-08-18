@@ -153,6 +153,10 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 
 			List<RexNode> groupings = convertToRexNodes(aggregate.getGroupingExpressions());
 			GroupKey groupKey = relBuilder.groupKey(groupings);
+			// The groupings order will be changed by calcite.
+			// So the output fields order will be changed too.
+			// See RelBuilder.aggregate, it use ImmutableBitSet to store groupings,
+			// so the order will be changed.
 			return relBuilder.aggregate(groupKey, aggregations).build();
 		}
 

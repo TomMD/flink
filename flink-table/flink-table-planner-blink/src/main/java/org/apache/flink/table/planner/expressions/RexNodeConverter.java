@@ -865,6 +865,9 @@ public class RexNodeConverter implements ExpressionVisitor<RexNode> {
 
 	@Override
 	public RexNode visit(FieldReferenceExpression fieldReference) {
+		// We can not use inputCount+inputIndex+FieldIndex to construct field of calcite.
+		// See QueryOperationConverter.SingleRelVisitor.visit(AggregateQueryOperation).
+		// Calcite will shuffle the output order of groupings.
 		return relBuilder.field(fieldReference.getName());
 	}
 
