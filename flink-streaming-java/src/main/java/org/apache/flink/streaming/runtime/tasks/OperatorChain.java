@@ -90,7 +90,7 @@ public class OperatorChain<OUT, OP extends StreamOperator<OUT>> {
 
 	@VisibleForTesting
 	public OperatorChain (StreamTask<OUT, OP> containingTask, RecordWriterOutput<OUT>[] recordWriterOutputs) {
-		this(containingTask, recordWriterOutputs, new StreamStatusMaintainerImpl(recordWriterOutputs));
+		this(containingTask, recordWriterOutputs, new StreamStatusMaintainerImpl(recordWriterOutputs, containingTask.getNumberOfInputs()));
 	}
 
 	public OperatorChain(

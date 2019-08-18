@@ -21,6 +21,7 @@ package org.apache.flink.streaming.runtime.streamstatus;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.runtime.io.RecordWriterOutput;
 
+import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
@@ -34,8 +35,17 @@ public class StreamStatusMaintainerImpl implements StreamStatusMaintainer {
 
 	private StreamStatus currentStatus;
 
-	public StreamStatusMaintainerImpl(RecordWriterOutput<?>[] recordWriterOutputs) {
+	private final StreamStatus[] streamStatuses;
+
+	public StreamStatusMaintainerImpl(RecordWriterOutput<?>[] recordWriterOutputs, int numberOfInputs) {
 		this.recordWriterOutputs = checkNotNull(recordWriterOutputs);
+
+		checkArgument(numberOfInputs > 0);
+		this.streamStatuses = new StreamStatus[numberOfInputs];
+		for (int i = 0; i < numberOfInputs; i++) {
+			streamStatuses[i] = StreamStatus.ACTIVE;
+		}
+
 		this.currentStatus = StreamStatus.ACTIVE;
 	}
 
@@ -46,14 +56,28 @@ public class StreamStatusMaintainerImpl implements StreamStatusMaintainer {
 
 	@Override
 	public void toggleStreamStatus(StreamStatus streamStatus) {
+		if (shouldToggleStreamStatus(streamStatus)) {
+			currentStatus = streamStatus;
+
+			// try and forward the stream status change to all outgoing connections
+			for (RecordWriterOutput<?> output : recordWriterOutputs) {
+				output.emitStreamStatus(streamStatus);
+			}
+		}
+	}
+
+	private boolean shouldToggleStreamStatus(StreamStatus streamStatus) {
 		if (streamStatus.equals(currentStatus)) {
-			return;
+			return false;
 		}
 
-		currentStatus = streamStatus;
-		// try and forward the stream status change to all outgoing connections
-		for (RecordWriterOutput<?> output : recordWriterOutputs) {
-			output.emitStreamStatus(streamStatus);
+		if (streamStatus.isIdle()) {
+			for (StreamStatus status : streamStatuses) {
+				if (status.isActive()) {
+					return false;
+				}
+			}
 		}
+		return true;
 	}
 }
