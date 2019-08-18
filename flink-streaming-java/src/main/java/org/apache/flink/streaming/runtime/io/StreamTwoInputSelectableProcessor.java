@@ -22,10 +22,8 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
-import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.runtime.metrics.WatermarkGauge;
@@ -81,7 +79,7 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 
 	private int lastReadInputIndex;
 
-	private Counter numRecordsIn;
+	private final Counter numRecordsIn;
 
 	private boolean isPrepared;
 
@@ -101,7 +99,8 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 		WatermarkGauge input2WatermarkGauge,
 		String taskName,
 		OperatorChain<?, ?> operatorChain,
-		InputSelectionHandler inputSelectionHandler) throws IOException {
+		InputSelectionHandler inputSelectionHandler,
+		Counter numRecordsIn) throws IOException {
 
 		this.streamOperator = checkNotNull(streamOperator);
 		this.inputSelectionHandler = checkNotNull(inputSelectionHandler);
@@ -156,6 +155,8 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 			));
 
 		this.operatorChain = checkNotNull(operatorChain);
+
+		this.numRecordsIn = checkNotNull(numRecordsIn);
 
 		this.lastReadInputIndex = 1; // always try to read from the first input
 
@@ -334,14 +335,6 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 		// is opened to ensure that any changes about the input selection in its open()
 		// method take effect.
 		inputSelectionHandler.nextSelection();
-
-		try {
-			numRecordsIn = ((OperatorMetricGroup) streamOperator
-				.getMetricGroup()).getIOMetricGroup().getNumRecordsInCounter();
-		} catch (Exception e) {
-			LOG.warn("An exception occurred during the metrics setup.", e);
-			numRecordsIn = new SimpleCounter();
-		}
 
 		isPrepared = true;
 	}
