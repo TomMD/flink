@@ -246,7 +246,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		this.configuration = new StreamConfig(getTaskConfiguration());
 		this.accumulatorMap = getEnvironment().getAccumulatorRegistry().getUserMap();
 		this.recordWriterOutputs = createRecordWriterOutputs(configuration, environment);
-		this.streamStatusMaintainer = new StreamStatusMaintainerImpl(recordWriterOutputs);
+		this.streamStatusMaintainer = new StreamStatusMaintainerImpl(recordWriterOutputs, getNumberOfInputs());
 		this.syncSavepointLatch = new SynchronousSavepointLatch();
 		this.mailboxProcessor = new MailboxProcessor(this::performDefaultAction);
 	}
@@ -499,6 +499,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			mailboxProcessor.allActionsCompleted();
 			cancelables.close();
 		}
+	}
+
+	protected int getNumberOfInputs() {
+		return 1;
 	}
 
 	public MailboxExecutor getTaskMailboxExecutor() {
