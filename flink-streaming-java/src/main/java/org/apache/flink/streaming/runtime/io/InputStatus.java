@@ -15,25 +15,30 @@
  * limitations under the License.
  */
 
-package org.apache.flink.runtime.io;
+package org.apache.flink.streaming.runtime.io;
 
 import org.apache.flink.annotation.Internal;
 
-import javax.annotation.Nullable;
-
 /**
- * The variant of {@link AsyncDataInput} that for performance reasons returns {@code null} from
- * {@link #pollNextNullable()} instead returning {@code Optional.empty()} from
- * {@link AsyncDataInput#pollNext()}.
+ * The status returned by the {@link StreamTaskInput} when emitting next element.
  */
 @Internal
-public interface NullableAsyncDataInput<T> extends AvailabilityListener {
+public enum InputStatus {
+
 	/**
-	 * Poll the next element. This method should be non blocking.
-	 *
-	 * @return {@code null} will be returned if there is no data to return or
-	 * if {@link #isFinished()} returns true. Otherwise return {@code element}.
+	 * Indicator that more data is available and the input can be called immediately again
+	 * to emit more data.
 	 */
-	@Nullable
-	T pollNextNullable() throws Exception;
+	MORE_AVAILABLE,
+
+	/**
+	 * Indicator that no data is currently available, but more data will be available in the
+	 * future again.
+	 */
+	NOTHING_AVAILABLE,
+
+	/**
+	 * Indicator that the input has reached the end of the data.
+	 */
+	END_OF_INPUT
 }
