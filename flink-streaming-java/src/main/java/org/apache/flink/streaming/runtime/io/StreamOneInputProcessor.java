@@ -19,11 +19,8 @@
 package org.apache.flink.streaming.runtime.io;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
-import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
-import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.streamstatus.StatusWatermarkValve;
 import org.apache.flink.streaming.runtime.streamstatus.StreamStatus;
 import org.apache.flink.streaming.runtime.tasks.OperatorChain;
@@ -47,48 +44,31 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>Forwarding elements, watermarks, or status status elements must be protected by synchronizing
  * on the given lock object. This ensures that we don't call methods on a
  * {@link OneInputStreamOperator} concurrently with the timer callback or other things.
- *
- * @param <IN> The type of the record that can be read with this record reader.
  */
 @Internal
-public final class StreamOneInputProcessor<IN> implements StreamInputProcessor {
+public final class StreamOneInputProcessor implements StreamInputProcessor {
 
 	private static final Logger LOG = LoggerFactory.getLogger(StreamOneInputProcessor.class);
 
 	private final StreamTaskInput input;
 
-	private final Object lock;
+	private final PushBasedAsyncDataInput.DataOutput output;
 
 	private final OperatorChain<?, ?> operatorChain;
 
-	/** Valve that controls how watermarks and stream statuses are forwarded. */
-	private final StatusWatermarkValve statusWatermarkValve;
+	private final Object lock;
 
-	private final OneInputStreamOperator<IN, ?> streamOperator;
-
-	// ---------------- Metrics ------------------
-
-	private final Counter numRecordsIn;
-
-	@SuppressWarnings("unchecked")
 	public StreamOneInputProcessor(
 			StreamTaskInput input,
-			Object lock,
-			OneInputStreamOperator<IN, ?> streamOperator,
-			StatusWatermarkValve statusWatermarkValve,
+			PushBasedAsyncDataInput.DataOutput output,
 			OperatorChain<?, ?> operatorChain,
-			Counter numRecordsIn) {
+			Object lock) {
 		this.input = checkNotNull(input);
-
-		this.lock = checkNotNull(lock);
-
-		this.streamOperator = checkNotNull(streamOperator);
-
-		this.statusWatermarkValve = checkNotNull(statusWatermarkValve);
+		this.output = checkNotNull(output);
 
 		this.operatorChain = checkNotNull(operatorChain);
 
-		this.numRecordsIn = checkNotNull(numRecordsIn);
+		this.lock = checkNotNull(lock);
 	}
 
 	@Override
@@ -102,40 +82,12 @@ public final class StreamOneInputProcessor<IN> implements StreamInputProcessor {
 	}
 
 	@Override
-	public boolean processInput() throws Exception {
-		StreamElement recordOrMark = input.pollNextNullable();
-		if (recordOrMark != null) {
-			processElement(recordOrMark, input.getLastChannel());
-		}
+	public InputStatus processInput() throws Exception {
+		InputStatus status = input.emitNext(output);
+
 		checkFinished();
 
-		return recordOrMark != null;
-	}
-
-	private void processElement(StreamElement recordOrMark, int channel) throws Exception {
-		if (recordOrMark.isRecord()) {
-			// now we can do the actual processing
-			StreamRecord<IN> record = recordOrMark.asRecord();
-			synchronized (lock) {
-				numRecordsIn.inc();
-				streamOperator.setKeyContextElement1(record);
-				streamOperator.processElement(record);
-			}
-		}
-		else if (recordOrMark.isWatermark()) {
-			// handle watermark
-			statusWatermarkValve.inputWatermark(recordOrMark.asWatermark(), channel);
-		} else if (recordOrMark.isStreamStatus()) {
-			// handle stream status
-			statusWatermarkValve.inputStreamStatus(recordOrMark.asStreamStatus(), channel);
-		} else if (recordOrMark.isLatencyMarker()) {
-			// handle latency marker
-			synchronized (lock) {
-				streamOperator.processLatencyMarker(recordOrMark.asLatencyMarker());
-			}
-		} else {
-			throw new UnsupportedOperationException("Unknown type of StreamElement");
-		}
+		return status;
 	}
 
 	private void checkFinished() throws Exception {
