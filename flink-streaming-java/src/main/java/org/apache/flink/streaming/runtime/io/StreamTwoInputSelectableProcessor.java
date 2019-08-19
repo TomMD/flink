@@ -19,11 +19,6 @@
 package org.apache.flink.streaming.runtime.io;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.metrics.Counter;
-import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
-import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
-import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.flink.streaming.runtime.streamstatus.StatusWatermarkValve;
 import org.apache.flink.streaming.runtime.tasks.OperatorChain;
 import org.apache.flink.util.ExceptionUtils;
 
@@ -38,18 +33,13 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Input reader for {@link org.apache.flink.streaming.runtime.tasks.TwoInputSelectableStreamTask}
  * in the case that the operator is InputSelectable.
- *
- * @param <IN1> The type of the records that arrive on the first input
- * @param <IN2> The type of the records that arrive on the second input
  */
 @Internal
-public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements StreamInputProcessor {
+public final class StreamTwoInputSelectableProcessor implements StreamInputProcessor {
 
 	private static final Logger LOG = LoggerFactory.getLogger(StreamTwoInputSelectableProcessor.class);
 
 	private static final CompletableFuture<?> UNAVAILABLE = new CompletableFuture<>();
-
-	private final TwoInputStreamOperator<IN1, IN2, ?> streamOperator;
 
 	private final InputSelectionHandler inputSelectionHandler;
 
@@ -58,46 +48,36 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 	private final StreamTaskInput input1;
 	private final StreamTaskInput input2;
 
-	private final OperatorChain<?, ?> operatorChain;
+	private final PushBasedAsyncDataInput.DataOutput output1;
+	private final PushBasedAsyncDataInput.DataOutput output2;
 
-	/**
-	 * Valves that control how watermarks and stream statuses from the 2 inputs are forwarded.
-	 */
-	private final StatusWatermarkValve statusWatermarkValve1;
-	private final StatusWatermarkValve statusWatermarkValve2;
+	private final OperatorChain<?, ?> operatorChain;
 
 	/** always try to read from the first input. */
 	private int lastReadInputIndex = 1;
-
-	private final Counter numRecordsIn;
 
 	private boolean isPrepared = false;
 
 	public StreamTwoInputSelectableProcessor(
 			StreamTaskInput input1,
 			StreamTaskInput input2,
-			StatusWatermarkValve statusWatermarkValve1,
-			StatusWatermarkValve statusWatermarkValve2,
+			PushBasedAsyncDataInput.DataOutput output1,
+			PushBasedAsyncDataInput.DataOutput output2,
 			Object lock,
-			TwoInputStreamOperator<IN1, IN2, ?> streamOperator,
 			OperatorChain<?, ?> operatorChain,
-			InputSelectionHandler inputSelectionHandler,
-			Counter numRecordsIn) {
+			InputSelectionHandler inputSelectionHandler) {
 
 		this.input1 = checkNotNull(input1);
 		this.input2 = checkNotNull(input2);
 
-		this.statusWatermarkValve1 = checkNotNull(statusWatermarkValve1);
-		this.statusWatermarkValve2 = checkNotNull(statusWatermarkValve2);
+		this.output1 = checkNotNull(output1);
+		this.output2 = checkNotNull(output2);
 
 		this.lock = checkNotNull(lock);
 
-		this.streamOperator = checkNotNull(streamOperator);
 		this.operatorChain = checkNotNull(operatorChain);
 
 		this.inputSelectionHandler = checkNotNull(inputSelectionHandler);
-
-		this.numRecordsIn = checkNotNull(numRecordsIn);
 	}
 
 	@Override
@@ -116,7 +96,7 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 	}
 
 	@Override
-	public boolean processInput() throws Exception {
+	public InputStatus processInput() throws Exception {
 		if (!isPrepared) {
 			// the preparations here are not placed in the constructor because all work in it
 			// must be executed after all operators are opened.
@@ -125,30 +105,24 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 
 		int readingInputIndex = selectNextReadingInputIndex();
 		if (readingInputIndex == -1) {
-			return false;
+			return InputStatus.NOTHING_AVAILABLE;
 		}
 		lastReadInputIndex = readingInputIndex;
 
-		StreamElement recordOrMark;
+		InputStatus status;
 		if (readingInputIndex == 0) {
-			recordOrMark = input1.pollNextNullable();
-			if (recordOrMark != null) {
-				processElement1(recordOrMark, input1.getLastChannel());
-			}
+			status = input1.emitNext(output1);
 			checkFinished(input1, lastReadInputIndex);
 		} else {
-			recordOrMark = input2.pollNextNullable();
-			if (recordOrMark != null) {
-				processElement2(recordOrMark, input2.getLastChannel());
-			}
+			status = input2.emitNext(output2);
 			checkFinished(input2, lastReadInputIndex);
 		}
 
-		if (recordOrMark == null) {
+		if (status != InputStatus.MORE_AVAILABLE) {
 			inputSelectionHandler.setUnavailableInput(readingInputIndex);
 		}
 
-		return recordOrMark != null;
+		return status;
 	}
 
 	private void checkFinished(StreamTaskInput input, int inputIndex) throws Exception {
@@ -218,52 +192,6 @@ public final class StreamTwoInputSelectableProcessor<IN1, IN2> implements Stream
 		}
 		if (!input2.isFinished() && input2.isAvailable() == AVAILABLE) {
 			inputSelectionHandler.setAvailableInput(input2.getInputIndex());
-		}
-	}
-
-	private void processElement1(StreamElement recordOrMark, int channel) throws Exception {
-		if (recordOrMark.isRecord()) {
-			StreamRecord<IN1> record = recordOrMark.asRecord();
-			synchronized (lock) {
-				numRecordsIn.inc();
-				streamOperator.setKeyContextElement1(record);
-				streamOperator.processElement1(record);
-				inputSelectionHandler.nextSelection();
-			}
-		}
-		else if (recordOrMark.isWatermark()) {
-			statusWatermarkValve1.inputWatermark(recordOrMark.asWatermark(), channel);
-		} else if (recordOrMark.isStreamStatus()) {
-			statusWatermarkValve1.inputStreamStatus(recordOrMark.asStreamStatus(), channel);
-		} else if (recordOrMark.isLatencyMarker()) {
-			synchronized (lock) {
-				streamOperator.processLatencyMarker1(recordOrMark.asLatencyMarker());
-			}
-		} else {
-			throw new UnsupportedOperationException("Unknown type of StreamElement on input1");
-		}
-	}
-
-	private void processElement2(StreamElement recordOrMark, int channel) throws Exception {
-		if (recordOrMark.isRecord()) {
-			StreamRecord<IN2> record = recordOrMark.asRecord();
-			synchronized (lock) {
-				numRecordsIn.inc();
-				streamOperator.setKeyContextElement2(record);
-				streamOperator.processElement2(record);
-				inputSelectionHandler.nextSelection();
-			}
-		}
-		else if (recordOrMark.isWatermark()) {
-			statusWatermarkValve2.inputWatermark(recordOrMark.asWatermark(), channel);
-		} else if (recordOrMark.isStreamStatus()) {
-			statusWatermarkValve2.inputStreamStatus(recordOrMark.asStreamStatus(), channel);
-		} else if (recordOrMark.isLatencyMarker()) {
-			synchronized (lock) {
-				streamOperator.processLatencyMarker2(recordOrMark.asLatencyMarker());
-			}
-		} else {
-			throw new UnsupportedOperationException("Unknown type of StreamElement on input2");
 		}
 	}
 

@@ -19,8 +19,8 @@ package org.apache.flink.streaming.runtime.tasks;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.metrics.Counter;
 import org.apache.flink.runtime.execution.Environment;
-import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
 import org.apache.flink.streaming.api.operators.InputSelectable;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
@@ -28,8 +28,10 @@ import org.apache.flink.streaming.runtime.io.CheckpointedInputGate;
 import org.apache.flink.streaming.runtime.io.InputGateUtil;
 import org.apache.flink.streaming.runtime.io.InputProcessorUtil;
 import org.apache.flink.streaming.runtime.io.InputSelectionHandler;
+import org.apache.flink.streaming.runtime.io.PushBasedAsyncDataInput;
 import org.apache.flink.streaming.runtime.io.StreamTaskInput;
 import org.apache.flink.streaming.runtime.io.StreamTaskNetworkInput;
+import org.apache.flink.streaming.runtime.io.StreamTaskNetworkOutput;
 import org.apache.flink.streaming.runtime.io.StreamTwoInputSelectableProcessor;
 import org.apache.flink.streaming.runtime.metrics.WatermarkGauge;
 import org.apache.flink.streaming.runtime.streamstatus.ForwardingValveOutputHandler;
@@ -64,36 +66,45 @@ public class TwoInputSelectableStreamTask<IN1, IN2, OUT> extends AbstractTwoInpu
 		InputGate unionedInputGate1 = InputGateUtil.createInputGate(inputGates1.toArray(new InputGate[0]));
 		InputGate unionedInputGate2 = InputGateUtil.createInputGate(inputGates2.toArray(new InputGate[0]));
 
-		IOManager ioManager = getEnvironment().getIOManager();
 		// create a Input instance for each input
 		CheckpointedInputGate[] checkpointedInputGates = InputProcessorUtil.createCheckpointedInputGatePair(
 			this,
 			getConfiguration().getCheckpointMode(),
-			ioManager,
+			getEnvironment().getIOManager(),
 			unionedInputGate1,
 			unionedInputGate2,
 			getEnvironment().getTaskManagerInfo().getConfiguration(),
 			getTaskNameWithSubtaskAndId());
 		checkState(checkpointedInputGates.length == 2);
 
-		StreamTaskInput input1 = new StreamTaskNetworkInput(checkpointedInputGates[0], inputDeserializer1, ioManager, 0);
-		StreamTaskInput input2 = new StreamTaskNetworkInput(checkpointedInputGates[1], inputDeserializer2, ioManager, 1);
-		inputProcessor = new StreamTwoInputSelectableProcessor<>(
-			input1,
-			input2,
-			createStatusWatermarkValve(unionedInputGate1.getNumberOfInputChannels(), input1WatermarkGauge, true),
-			createStatusWatermarkValve(unionedInputGate2.getNumberOfInputChannels(), input2WatermarkGauge, false),
+		inputProcessor = new StreamTwoInputSelectableProcessor(
+			createDataInput(checkpointedInputGates[0], inputDeserializer1, 0),
+			createDataInput(checkpointedInputGates[1], inputDeserializer2, 1),
+			createDataOutput(inputSelectionHandler, 0),
+			createDataOutput(inputSelectionHandler, 1),
 			getCheckpointLock(),
-			headOperator,
 			operatorChain,
-			inputSelectionHandler,
-			setupNumRecordsInCounter(headOperator));
+			inputSelectionHandler);
+	}
+
+	private StreamTaskInput createDataInput(
+			CheckpointedInputGate checkpointedInputGate,
+			TypeSerializer<?> inputSerializer,
+			int inputIndex) {
+
+		return new StreamTaskNetworkInput(
+			checkpointedInputGate,
+			inputSerializer,
+			getEnvironment().getIOManager(),
+			createStatusWatermarkValve(checkpointedInputGate.getNumberOfInputChannels(), inputIndex),
+			inputIndex);
 	}
 
 	private StatusWatermarkValve createStatusWatermarkValve(
 			int numberOfInputChannels,
-			WatermarkGauge watermarkGauge,
-			boolean first) {
+			int inputIndex) {
+
+		WatermarkGauge watermarkGauge = (inputIndex == 0) ? input1WatermarkGauge : input2WatermarkGauge;
 
 		return new StatusWatermarkValve(
 			numberOfInputChannels,
@@ -101,7 +112,7 @@ public class TwoInputSelectableStreamTask<IN1, IN2, OUT> extends AbstractTwoInpu
 				(watermark) -> {
 					synchronized (getCheckpointLock()) {
 						watermarkGauge.setCurrentWatermark(watermark.getTimestamp());
-						if (first) {
+						if (inputIndex == 0) {
 							headOperator.processWatermark1(watermark);
 						} else {
 							headOperator.processWatermark2(watermark);
@@ -114,5 +125,35 @@ public class TwoInputSelectableStreamTask<IN1, IN2, OUT> extends AbstractTwoInpu
 					}
 				}
 			));
+	}
+
+	private PushBasedAsyncDataInput.DataOutput createDataOutput(
+			InputSelectionHandler inputSelectionHandler,
+			int inputIndex) {
+		Counter numRecordsIn = setupNumRecordsInCounter(headOperator);
+
+		return new StreamTaskNetworkOutput(
+			(record) -> {
+				synchronized (getCheckpointLock()) {
+					numRecordsIn.inc();
+					if (inputIndex == 0) {
+						headOperator.setKeyContextElement1(record);
+						headOperator.processElement1(record);
+					} else {
+						headOperator.setKeyContextElement2(record);
+						headOperator.processElement2(record);
+					}
+					inputSelectionHandler.nextSelection();
+				}
+			},
+			(latencyMarker) -> {
+				synchronized (getCheckpointLock()) {
+					if (inputIndex == 0) {
+						headOperator.processLatencyMarker1(latencyMarker);
+					} else {
+						headOperator.processLatencyMarker2(latencyMarker);
+					}
+				}
+			});
 	}
 }

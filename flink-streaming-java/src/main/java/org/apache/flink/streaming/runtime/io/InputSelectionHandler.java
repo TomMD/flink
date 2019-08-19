@@ -42,7 +42,7 @@ public class InputSelectionHandler {
 		this.availableInputsMask = (int) new InputSelection.Builder().select(1).select(2).build().getInputMask();
 	}
 
-	void nextSelection() {
+	public void nextSelection() {
 		inputSelection = inputSelector.nextSelection();
 	}
 
