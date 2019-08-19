@@ -25,7 +25,8 @@ import org.apache.flink.table.planner.codegen.GenerateUtils.generateFieldAccess
 import org.apache.flink.table.planner.codegen.agg.AggsHandlerCodeGenerator._
 import org.apache.flink.table.planner.codegen.{CodeGenException, CodeGeneratorContext, ExprCodeGenerator, GeneratedExpression}
 import org.apache.flink.table.planner.dataview.DataViewSpec
-import org.apache.flink.table.planner.expressions.{ResolvedAggInputReference, ResolvedDistinctKeyReference, RexNodeConverter}
+import org.apache.flink.table.planner.expressions.UnresolvedCallExpressionToRexNode.toRexNode
+import org.apache.flink.table.planner.expressions.{ResolvedAggInputReference, ResolvedDistinctKeyReference}
 import org.apache.flink.table.planner.functions.utils.UserDefinedFunctionUtils.{getAggFunctionUDIMethod, getAggUserDefinedInputTypes, getUserDefinedMethod, internalTypesToClasses, signatureToString}
 import org.apache.flink.table.planner.plan.utils.AggregateInfo
 import org.apache.flink.table.planner.utils.SingleElementIterator
@@ -111,8 +112,6 @@ class ImperativeAggCodeGen(
   private val externalResultType = aggInfo.externalResultType
   private val internalResultType = fromDataTypeToLogicalType(externalResultType)
 
-  private val rexNodeGen = new RexNodeConverter(relBuilder)
-
   val viewSpecs: Array[DataViewSpec] = aggInfo.viewSpecs
   // add reusable dataviews to context
   addReusableStateDataViews(ctx, viewSpecs, hasNamespace, !mergedAccOnHeap)
@@ -186,7 +185,7 @@ class ImperativeAggCodeGen(
            |$call
          """.stripMargin
       case Some(expr) =>
-        val generated = generator.generateExpression(expr.accept(rexNodeGen))
+        val generated = generator.generateExpression(toRexNode(relBuilder, expr))
         s"""
            |if (${generated.resultTerm}) {
            |  $code
@@ -206,7 +205,7 @@ class ImperativeAggCodeGen(
            |$call
          """.stripMargin
       case Some(expr) =>
-        val generated = generator.generateExpression(expr.accept(rexNodeGen))
+        val generated = generator.generateExpression(toRexNode(relBuilder, expr))
         s"""
            |if (${generated.resultTerm}) {
            |  $code
@@ -291,7 +290,7 @@ class ImperativeAggCodeGen(
           // called from accumulate
           new ResolvedAggInputReference(f.toString, f, inputTypes(f))
         }
-        var inputExpr = generator.generateExpression(inputRef.accept(rexNodeGen))
+        var inputExpr = generator.generateExpression(toRexNode(relBuilder, inputRef))
         if (inputFieldCopy) inputExpr = inputExpr.deepCopy(ctx)
         codes += inputExpr.code
         val term = s"${genToExternal(ctx, externalInputTypes(index), inputExpr.resultTerm)}"
