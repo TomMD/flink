@@ -31,6 +31,7 @@ import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.expressions.resolver.lookups.FieldReferenceLookup;
 import org.apache.flink.table.expressions.resolver.lookups.TableReferenceLookup;
+import org.apache.flink.table.expressions.resolver.rules.ResolveCallByArgumentsRule;
 import org.apache.flink.table.expressions.resolver.rules.ResolverRule;
 import org.apache.flink.table.expressions.resolver.rules.ResolverRules;
 import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor;
@@ -289,7 +290,7 @@ public class ExpressionResolver {
 	 * <p>Note: Further resolution or validation will not happen anymore, therefore the created
 	 * expressions must be valid.
 	 */
-	public class PostResolverFactory {
+	public class PostResolverFactory implements ResolveCallByArgumentsRule.PostResolveCallByArguments {
 
 		public CallExpression as(ResolvedExpression expression, String alias) {
 			final FunctionLookup.Result lookupOfAs = functionLookup
@@ -302,6 +303,7 @@ public class ExpressionResolver {
 				expression.getOutputDataType());
 		}
 
+		@Override
 		public CallExpression cast(ResolvedExpression expression, DataType dataType) {
 			final FunctionLookup.Result lookupOfCast = functionLookup
 				.lookupBuiltInFunction(BuiltInFunctionDefinitions.CAST);
@@ -324,6 +326,7 @@ public class ExpressionResolver {
 				expression.getOutputDataType()); // the output type is equal to the input type
 		}
 
+		@Override
 		public CallExpression get(ResolvedExpression composite, ValueLiteralExpression key, DataType dataType) {
 			final FunctionLookup.Result lookupOfGet = functionLookup
 				.lookupBuiltInFunction(BuiltInFunctionDefinitions.GET);

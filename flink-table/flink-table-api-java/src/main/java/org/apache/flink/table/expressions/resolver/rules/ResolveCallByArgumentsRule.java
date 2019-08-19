@@ -30,6 +30,7 @@ import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
+import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor;
 import org.apache.flink.table.functions.BuiltInFunctionDefinition;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
@@ -62,21 +63,56 @@ import static org.apache.flink.table.types.utils.TypeConversions.fromLegacyInfoT
  * be casted, a {@link BuiltInFunctionDefinitions#CAST} expression is inserted.
  */
 @Internal
-final class ResolveCallByArgumentsRule implements ResolverRule {
+public final class ResolveCallByArgumentsRule implements ResolverRule {
 
 	@Override
 	public List<Expression> apply(List<Expression> expression, ResolutionContext context) {
+		return resolve(
+				expression,
+				context.postResolutionFactory(),
+				context.functionLookup().getPlannerTypeInferenceUtil())
+			.stream()
+			.map(e -> (Expression) e).collect(Collectors.toList());
+	}
+
+	public static List<ResolvedExpression> resolve(
+		List<Expression> expression,
+		PostResolveCallByArguments post,
+		PlannerTypeInferenceUtil typeInferenceUtil) {
 		return expression.stream()
-			.flatMap(expr -> expr.accept(new ResolvingCallVisitor(context)).stream())
+			.flatMap(expr -> expr.accept(new ResolvingCallVisitor(
+				post, typeInferenceUtil)).stream())
 			.collect(Collectors.toList());
 	}
 
 	// --------------------------------------------------------------------------------------------
 
-	private class ResolvingCallVisitor extends RuleExpressionVisitor<List<ResolvedExpression>> {
+	/**
+	 * For creating resolved expressions after the resolving call by arguments has happened.
+	 */
+	public interface PostResolveCallByArguments {
 
-		ResolvingCallVisitor(ResolutionContext context) {
-			super(context);
+		/**
+		 * Create cast {@link CallExpression}.
+		 */
+		CallExpression cast(ResolvedExpression expression, DataType dataType);
+
+		/**
+		 * Create get {@link CallExpression}.
+		 */
+		CallExpression get(ResolvedExpression composite, ValueLiteralExpression key, DataType dataType);
+	}
+
+	private static class ResolvingCallVisitor extends ApiExpressionDefaultVisitor<List<ResolvedExpression>> {
+
+		private final PostResolveCallByArguments post;
+		private final PlannerTypeInferenceUtil typeInferenceUtil;
+
+		private ResolvingCallVisitor(
+			PostResolveCallByArguments post,
+			PlannerTypeInferenceUtil typeInferenceUtil) {
+			this.post = post;
+			this.typeInferenceUtil = typeInferenceUtil;
 		}
 
 		@Override
@@ -131,11 +167,10 @@ final class ResolveCallByArgumentsRule implements ResolverRule {
 		private List<ResolvedExpression> flattenCompositeType(ResolvedExpression composite, CompositeType<?> resultType) {
 			return IntStream.range(0, resultType.getArity())
 				.mapToObj(idx ->
-					resolutionContext.postResolutionFactory()
-						.get(
-							composite,
-							valueLiteral(resultType.getFieldNames()[idx]),
-							fromLegacyInfoToDataType(resultType.getTypeAt(idx)))
+					post.get(
+						composite,
+						valueLiteral(resultType.getFieldNames()[idx]),
+						fromLegacyInfoToDataType(resultType.getTypeAt(idx)))
 				)
 				.collect(Collectors.toList());
 		}
@@ -162,9 +197,7 @@ final class ResolveCallByArgumentsRule implements ResolverRule {
 				UnresolvedCallExpression unresolvedCall,
 				List<ResolvedExpression> resolvedArgs) {
 
-			final PlannerTypeInferenceUtil util = resolutionContext.functionLookup().getPlannerTypeInferenceUtil();
-
-			final TypeInferenceUtil.Result inferenceResult = util.runTypeInference(
+			final TypeInferenceUtil.Result inferenceResult = typeInferenceUtil.runTypeInference(
 				unresolvedCall,
 				resolvedArgs);
 
@@ -186,9 +219,7 @@ final class ResolveCallByArgumentsRule implements ResolverRule {
 					final DataType argumentType = argument.getOutputDataType();
 					final DataType expectedType = inferenceResult.getExpectedArgumentTypes().get(pos);
 					if (!argumentType.equals(expectedType)) {
-						return resolutionContext
-							.postResolutionFactory()
-							.cast(argument, expectedType);
+						return post.cast(argument, expectedType);
 					}
 					return argument;
 				})
@@ -198,7 +229,7 @@ final class ResolveCallByArgumentsRule implements ResolverRule {
 
 	// --------------------------------------------------------------------------------------------
 
-	private class TableApiCallContext implements CallContext {
+	private static class TableApiCallContext implements CallContext {
 
 		private final String name;
 
