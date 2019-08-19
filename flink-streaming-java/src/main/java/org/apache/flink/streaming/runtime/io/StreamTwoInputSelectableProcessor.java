@@ -53,6 +53,9 @@ public final class StreamTwoInputSelectableProcessor implements StreamInputProce
 
 	private final OperatorChain<?, ?> operatorChain;
 
+	private InputStatus status1;
+	private InputStatus status2;
+
 	/** always try to read from the first input. */
 	private int lastReadInputIndex = 1;
 
@@ -78,11 +81,6 @@ public final class StreamTwoInputSelectableProcessor implements StreamInputProce
 		this.operatorChain = checkNotNull(operatorChain);
 
 		this.inputSelectionHandler = checkNotNull(inputSelectionHandler);
-	}
-
-	@Override
-	public boolean isFinished() {
-		return input1.isFinished() && input2.isFinished();
 	}
 
 	@Override
@@ -112,11 +110,13 @@ public final class StreamTwoInputSelectableProcessor implements StreamInputProce
 		InputStatus status;
 		if (readingInputIndex == 0) {
 			status = input1.emitNext(output1);
-			checkFinished(input1, lastReadInputIndex);
+			status1 = status;
 		} else {
 			status = input2.emitNext(output2);
-			checkFinished(input2, lastReadInputIndex);
+			status2 = status;
 		}
+
+		checkFinished(status, lastReadInputIndex);
 
 		if (status != InputStatus.MORE_AVAILABLE) {
 			inputSelectionHandler.setUnavailableInput(readingInputIndex);
@@ -125,8 +125,8 @@ public final class StreamTwoInputSelectableProcessor implements StreamInputProce
 		return status;
 	}
 
-	private void checkFinished(StreamTaskInput input, int inputIndex) throws Exception {
-		if (input.isFinished()) {
+	private void checkFinished(InputStatus status, int inputIndex) throws Exception {
+		if (status == InputStatus.END_OF_INPUT) {
 			synchronized (lock) {
 				operatorChain.endInput(getInputId(inputIndex));
 				inputSelectionHandler.nextSelection();
@@ -178,19 +178,19 @@ public final class StreamTwoInputSelectableProcessor implements StreamInputProce
 		if (inputSelectionHandler.isALLInputsSelected()) {
 			return;
 		}
-		if (inputSelectionHandler.isFirstInputSelected() && input1.isFinished()) {
+		if (inputSelectionHandler.isFirstInputSelected() && status1 == InputStatus.END_OF_INPUT) {
 			throw new IOException("Can not make a progress: only first input is selected but it is already finished");
 		}
-		if (inputSelectionHandler.isSecondInputSelected() && input2.isFinished()) {
+		if (inputSelectionHandler.isSecondInputSelected() && status2 == InputStatus.END_OF_INPUT) {
 			throw new IOException("Can not make a progress: only second input is selected but it is already finished");
 		}
 	}
 
 	private void updateAvailability() {
-		if (!input1.isFinished() && input1.isAvailable() == AVAILABLE) {
+		if (status1 != InputStatus.END_OF_INPUT && input1.isAvailable() == AVAILABLE) {
 			inputSelectionHandler.setAvailableInput(input1.getInputIndex());
 		}
-		if (!input2.isFinished() && input2.isAvailable() == AVAILABLE) {
+		if (status2 != InputStatus.END_OF_INPUT && input2.isAvailable() == AVAILABLE) {
 			inputSelectionHandler.setAvailableInput(input2.getInputIndex());
 		}
 	}
@@ -206,17 +206,17 @@ public final class StreamTwoInputSelectableProcessor implements StreamInputProce
 
 	private void checkAndSetAvailable(int inputIndex) {
 		StreamTaskInput input = getInput(inputIndex);
-		if (!input.isFinished() && input.isAvailable().isDone()) {
+		if (status1 != InputStatus.END_OF_INPUT && input.isAvailable().isDone()) {
 			inputSelectionHandler.setAvailableInput(inputIndex);
 		}
 	}
 
 	private CompletableFuture<?> isAnyInputAvailable() {
-		if (input1.isFinished()) {
-			return input2.isFinished() ? AVAILABLE : input2.isAvailable();
+		if (status1 == InputStatus.END_OF_INPUT) {
+			return status2 == InputStatus.END_OF_INPUT ? AVAILABLE : input2.isAvailable();
 		}
 
-		if (input2.isFinished()) {
+		if (status2 == InputStatus.END_OF_INPUT) {
 			return input1.isAvailable();
 		}
 
