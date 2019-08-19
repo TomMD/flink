@@ -33,5 +33,5 @@ public interface StreamInputProcessor extends AvailabilityListener, Closeable {
 	 * immediately. Otherwise false, which means that there are no more records available at the
 	 * moment and the caller should check {@link #isFinished()} and/or {@link #isAvailable()}.
 	 */
-	boolean processInput() throws Exception;
+	InputStatus processInput() throws Exception;
 }
