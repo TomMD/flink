@@ -49,7 +49,7 @@ public class UnresolvedCallExpressionToRexNode {
 			.accept(new RexNodeConverter(relBuilder));
 	}
 
-	private static List<ResolvedExpression> resolveWithoutCatalog(List<Expression> expressions) {
+	public static List<ResolvedExpression> resolveWithoutCatalog(List<Expression> expressions) {
 		return ResolveCallByArgumentsRule.resolve(expressions,
 			new ResolveCallByArgumentsRule.PostResolveCallByArguments() {
 				@Override

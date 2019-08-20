@@ -101,7 +101,9 @@ class PushFilterIntoTableSourceScanRule extends RelOptRule(
     }
 
     val remainingPredicates = new util.LinkedList[Expression]()
-    predicates.foreach(e => remainingPredicates.add(e))
+    UnresolvedCallExpressionToRexNode
+        .resolveWithoutCatalog(predicates.toList)
+        .foreach(e => remainingPredicates.add(e))
 
     val newRelOptTable = applyPredicate(remainingPredicates, relOptTable, relBuilder.getTypeFactory)
 
