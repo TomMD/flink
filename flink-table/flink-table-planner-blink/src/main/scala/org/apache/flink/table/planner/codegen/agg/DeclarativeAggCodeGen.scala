@@ -22,13 +22,14 @@ import org.apache.flink.table.expressions.utils.ApiExpressionUtils
 import org.apache.flink.table.planner.codegen.CodeGenUtils.primitiveTypeTermForType
 import org.apache.flink.table.planner.codegen.agg.AggsHandlerCodeGenerator.DISTINCT_KEY_TERM
 import org.apache.flink.table.planner.codegen.{CodeGeneratorContext, ExprCodeGenerator, GeneratedExpression}
-import org.apache.flink.table.planner.expressions.{ResolvedAggInputReference, ResolvedAggLocalReference, ResolvedDistinctKeyReference, RexNodeConverter}
+import org.apache.flink.table.planner.expressions.UnresolvedCallExpressionToRexNode.toRexNode
+import org.apache.flink.table.planner.expressions.{ResolvedAggInputReference, ResolvedAggLocalReference, ResolvedDistinctKeyReference}
 import org.apache.flink.table.planner.functions.aggfunctions.DeclarativeAggregateFunction
 import org.apache.flink.table.planner.plan.utils.AggregateInfo
 import org.apache.flink.table.runtime.types.LogicalTypeDataTypeConverter.fromDataTypeToLogicalType
 import org.apache.flink.table.types.logical.LogicalType
+
 import org.apache.calcite.tools.RelBuilder
-import org.apache.flink.table.functions.BuiltInFunctionDefinitions
 
 import scala.collection.JavaConverters._
 
@@ -72,11 +73,10 @@ class DeclarativeAggCodeGen(
     val types = inputTypes ++ constantExprs.map(_.resultType)
     argIndexes.map(types(_))
   }
-  private val rexNodeGen = new RexNodeConverter(relBuilder)
 
   def createAccumulator(generator: ExprCodeGenerator): Seq[GeneratedExpression] = {
     function.initialValuesExpressions
-      .map(expr => generator.generateExpression(expr.accept(rexNodeGen)))
+      .map(expr => generator.generateExpression(toRexNode(relBuilder, expr)))
   }
 
   def setAccumulator(generator: ExprCodeGenerator): String = {
@@ -85,7 +85,7 @@ class DeclarativeAggCodeGen(
         new ResolvedAggInputReference(
           attr.getName, bufferIndexes(index), bufferTypes(index))
       }
-      .map(expr => generator.generateExpression(expr.accept(rexNodeGen)))
+      .map(expr => generator.generateExpression(toRexNode(relBuilder, expr)))
 
     val setters = aggBufferAccesses.zipWithIndex.map {
       case (access, index) =>
@@ -105,7 +105,7 @@ class DeclarativeAggCodeGen(
 
   override def resetAccumulator(generator: ExprCodeGenerator): String = {
     val initialExprs = function.initialValuesExpressions
-      .map(expr => generator.generateExpression(expr.accept(rexNodeGen)))
+      .map(expr => generator.generateExpression(toRexNode(relBuilder, expr)))
     val codes = initialExprs.zipWithIndex.map {
       case (init, index) =>
         val memberName = bufferTerms(index)
@@ -132,7 +132,7 @@ class DeclarativeAggCodeGen(
       .map(_.accept(ResolveReference(isDistinctMerge = isDistinctMerge)))
 
     val exprs = resolvedExprs
-      .map(_.accept(rexNodeGen)) // rex nodes
+      .map(toRexNode(relBuilder, _)) // rex nodes
       .map(generator.generateExpression) // generated expressions
 
     val codes = exprs.zipWithIndex.map { case (expr, index) =>
@@ -145,7 +145,7 @@ class DeclarativeAggCodeGen(
 
     filterExpression match {
       case Some(expr) =>
-        val generated = generator.generateExpression(expr.accept(rexNodeGen))
+        val generated = generator.generateExpression(toRexNode(relBuilder, expr))
         s"""
            |if (${generated.resultTerm}) {
            |  ${codes.mkString("\n")}
@@ -162,7 +162,7 @@ class DeclarativeAggCodeGen(
       .map(_.accept(ResolveReference(isDistinctMerge = isDistinctMerge)))
 
     val exprs = resolvedExprs
-      .map(_.accept(rexNodeGen)) // rex nodes
+      .map(toRexNode(relBuilder, _)) // rex nodes
       .map(generator.generateExpression) // generated expressions
 
     val codes = exprs.zipWithIndex.map { case (expr, index) =>
@@ -175,7 +175,7 @@ class DeclarativeAggCodeGen(
 
     filterExpression match {
       case Some(expr) =>
-        val generated = generator.generateExpression(expr.accept(rexNodeGen))
+        val generated = generator.generateExpression(toRexNode(relBuilder, expr))
         s"""
            |if (${generated.resultTerm}) {
            |  ${codes.mkString("\n")}
@@ -189,7 +189,7 @@ class DeclarativeAggCodeGen(
   def merge(generator: ExprCodeGenerator): String = {
     val exprs = function.mergeExpressions
       .map(_.accept(ResolveReference(isMerge = true)))
-      .map(_.accept(rexNodeGen)) // rex nodes
+      .map(toRexNode(relBuilder, _)) // rex nodes
       .map(generator.generateExpression) // generated expressions
 
     val codes = exprs.zipWithIndex.map { case (expr, index) =>
@@ -206,7 +206,7 @@ class DeclarativeAggCodeGen(
   def getValue(generator: ExprCodeGenerator): GeneratedExpression = {
     val resolvedGetValueExpression = function.getValueExpression
       .accept(ResolveReference())
-    generator.generateExpression(resolvedGetValueExpression.accept(rexNodeGen))
+    generator.generateExpression(toRexNode(relBuilder, resolvedGetValueExpression))
   }
 
   /**

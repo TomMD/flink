@@ -30,7 +30,7 @@ import org.apache.flink.table.planner.calcite.FlinkRelBuilder.PlannerNamedWindow
 import org.apache.flink.table.planner.calcite.{FlinkTypeFactory, FlinkTypeSystem}
 import org.apache.flink.table.planner.dataview.DataViewUtils.useNullSerializerForStateViewFieldsFromAccType
 import org.apache.flink.table.planner.dataview.{DataViewSpec, MapViewSpec}
-import org.apache.flink.table.planner.expressions.{PlannerProctimeAttribute, PlannerRowtimeAttribute, PlannerWindowEnd, PlannerWindowStart, RexNodeConverter}
+import org.apache.flink.table.planner.expressions.{PlannerProctimeAttribute, PlannerRowtimeAttribute, PlannerWindowEnd, PlannerWindowStart}
 import org.apache.flink.table.planner.functions.aggfunctions.DeclarativeAggregateFunction
 import org.apache.flink.table.planner.functions.sql.{FlinkSqlOperatorTable, SqlListAggFunction, SqlFirstLastValueAggFunction}
 import org.apache.flink.table.planner.functions.utils.AggSqlFunction
@@ -687,8 +687,7 @@ object AggregateUtil extends Enumeration {
     */
   def timeFieldIndex(
       inputType: RelDataType, relBuilder: RelBuilder, timeField: FieldReferenceExpression): Int = {
-    timeField.accept(new RexNodeConverter(relBuilder.values(inputType)))
-        .asInstanceOf[RexInputRef].getIndex
+    relBuilder.values(inputType).field(timeField.getName).getIndex
   }
 
   /**

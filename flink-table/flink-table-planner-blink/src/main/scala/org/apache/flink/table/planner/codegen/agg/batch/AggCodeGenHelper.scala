@@ -28,7 +28,8 @@ import org.apache.flink.table.functions.{AggregateFunction, UserDefinedFunction}
 import org.apache.flink.table.planner.codegen.CodeGenUtils._
 import org.apache.flink.table.planner.codegen.OperatorCodeGenerator.STREAM_RECORD
 import org.apache.flink.table.planner.codegen._
-import org.apache.flink.table.planner.expressions.{ResolvedAggInputReference, ResolvedAggLocalReference, RexNodeConverter}
+import org.apache.flink.table.planner.expressions.UnresolvedCallExpressionToRexNode.toRexNode
+import org.apache.flink.table.planner.expressions.{ResolvedAggInputReference, ResolvedAggLocalReference}
 import org.apache.flink.table.planner.functions.aggfunctions.DeclarativeAggregateFunction
 import org.apache.flink.table.planner.functions.utils.UserDefinedFunctionUtils.{getAccumulatorTypeOfAggregateFunction, getAggUserDefinedInputTypes}
 import org.apache.flink.table.runtime.context.ExecutionContextImpl
@@ -38,6 +39,7 @@ import org.apache.flink.table.runtime.types.LogicalTypeDataTypeConverter.fromDat
 import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
 import org.apache.flink.table.types.logical.{LogicalType, RowType}
+
 import org.apache.calcite.rel.core.AggregateCall
 import org.apache.calcite.rex.RexNode
 import org.apache.calcite.tools.RelBuilder
@@ -323,11 +325,10 @@ object AggCodeGenHelper {
       aggBufferNames: Array[Array[String]],
       aggBufferTypes: Array[Array[LogicalType]]): Seq[GeneratedExpression] = {
     val exprCodegen = new ExprCodeGenerator(ctx, false)
-    val converter = new RexNodeConverter(builder)
 
     val accessAuxGroupingExprs = auxGrouping.indices.map {
       idx => newLocalReference(ctx, aggBufferNames(idx)(0), aggBufferTypes(idx)(0))
-    }.map(_.accept(converter)).map(exprCodegen.generateExpression)
+    }.map(toRexNode(builder, _)).map(exprCodegen.generateExpression)
 
     val aggCallExprs = aggregates.zipWithIndex.flatMap {
       case (agg: DeclarativeAggregateFunction, aggIndex: Int) =>
@@ -338,7 +339,7 @@ object AggCodeGenHelper {
         val idx = auxGrouping.length + aggIndex
         val variableName = aggBufferNames(idx)(0)
         Some(newLocalReference(ctx, variableName, aggBufferTypes(idx)(0)))
-    }.map(_.accept(converter)).map(exprCodegen.generateExpression)
+    }.map(toRexNode(builder, _)).map(exprCodegen.generateExpression)
 
     accessAuxGroupingExprs ++ aggCallExprs
   }
@@ -378,7 +379,7 @@ object AggCodeGenHelper {
       case (agg: AggregateFunction[_, _]) =>
         Some(agg)
     }.map {
-      case (expr: Expression) => expr.accept(new RexNodeConverter(builder))
+      case (expr: Expression) => toRexNode(builder, expr)
       case t@_ => t
     }.map {
       case (rex: RexNode) => exprCodegen.generateExpression(rex)
@@ -530,7 +531,7 @@ object AggCodeGenHelper {
         val idx = auxGrouping.length + aggIndex
         (agg, idx)
     }.map {
-      case (expr: Expression) => expr.accept(new RexNodeConverter(builder))
+      case (expr: Expression) => toRexNode(builder, expr)
       case t@_ => t
     }.map {
       case (rex: RexNode) => exprCodegen.generateExpression(rex)
@@ -575,7 +576,7 @@ object AggCodeGenHelper {
     }.zip(aggBufferExprs.slice(auxGrouping.length, aggBufferExprs.size)).map {
       // DeclarativeAggregateFunction
       case ((expr: Expression), aggBufVar) =>
-        val mergeExpr = exprCodegen.generateExpression(expr.accept(new RexNodeConverter(builder)))
+        val mergeExpr = exprCodegen.generateExpression(toRexNode(builder, expr))
         s"""
            |${mergeExpr.code}
            |${aggBufVar.nullTerm} = ${mergeExpr.nullTerm};
@@ -587,8 +588,7 @@ object AggCodeGenHelper {
       case ((agg: AggregateFunction[_, _], aggIndex: Int), aggBufVar) =>
         val (inputIndex, inputType) = argsMapping(aggIndex)(0)
         val inputRef = new ResolvedAggInputReference(inputTerm, inputIndex, inputType)
-        val inputExpr = exprCodegen.generateExpression(
-          inputRef.accept(new RexNodeConverter(builder)))
+        val inputExpr = exprCodegen.generateExpression(toRexNode(builder, inputRef))
         val singleIterableClass = classOf[SingleElementIterator[_]].getCanonicalName
 
         val externalAccT = getAccumulatorTypeOfAggregateFunction(agg)
@@ -639,7 +639,7 @@ object AggCodeGenHelper {
     }.zip(aggBufferExprs.slice(auxGrouping.length, aggBufferExprs.size)).map {
       // DeclarativeAggregateFunction
       case ((expr: Expression, aggCall: AggregateCall), aggBufVar) =>
-        val accExpr = exprCodegen.generateExpression(expr.accept(new RexNodeConverter(builder)))
+        val accExpr = exprCodegen.generateExpression(toRexNode(builder, expr))
         (s"""
             |${accExpr.code}
             |${aggBufVar.nullTerm} = ${accExpr.nullTerm};
@@ -656,7 +656,7 @@ object AggCodeGenHelper {
         val inputExprs = inFields.map {
           f =>
             val inputRef = new ResolvedAggInputReference(inputTerm, f._1, f._2)
-            exprCodegen.generateExpression(inputRef.accept(new RexNodeConverter(builder)))
+            exprCodegen.generateExpression(toRexNode(builder, inputRef))
         }
 
         val externalUDITypes = getAggUserDefinedInputTypes(

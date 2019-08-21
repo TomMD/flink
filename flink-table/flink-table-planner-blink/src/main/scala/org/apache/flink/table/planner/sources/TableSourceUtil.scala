@@ -25,7 +25,7 @@ import org.apache.flink.table.expressions.ResolvedFieldReference
 import org.apache.flink.table.expressions.utils.ApiExpressionUtils.{typeLiteral, unresolvedCall, valueLiteral}
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory
-import org.apache.flink.table.planner.expressions.RexNodeConverter
+import org.apache.flink.table.planner.expressions.UnresolvedCallExpressionToRexNode
 import org.apache.flink.table.runtime.types.LogicalTypeDataTypeConverter
 import org.apache.flink.table.runtime.types.PlannerTypeUtils.isAssignable
 import org.apache.flink.table.runtime.types.TypeInfoDataTypeConverter.fromDataTypeToTypeInfo
@@ -290,7 +290,7 @@ object TableSourceUtil {
         expression,
         typeLiteral(DataTypes.TIMESTAMP(3).bridgedTo(classOf[Timestamp])),
         valueLiteral(false))
-      val rexExpression = castExpression.accept(new RexNodeConverter(relBuilder))
+      val rexExpression = UnresolvedCallExpressionToRexNode.toRexNode(relBuilder, castExpression)
       relBuilder.clear()
       rexExpression
     }
