@@ -51,7 +51,6 @@ public class StreamingCustomInputSplitProgram {
 
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-		env.getConfig().disableSysoutLogging();
 
 		DataStream<Integer> data = env.createInput(new CustomInputFormat());
 

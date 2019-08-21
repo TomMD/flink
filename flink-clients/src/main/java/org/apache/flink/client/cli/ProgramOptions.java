@@ -57,8 +57,6 @@ public abstract class ProgramOptions extends CommandLineOptions {
 
 	private final int parallelism;
 
-	private final boolean stdoutLogging;
-
 	private final boolean detachedMode;
 
 	private final boolean shutdownOnAttachedExit;
@@ -171,7 +169,6 @@ public abstract class ProgramOptions extends CommandLineOptions {
 			parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
 		}
 
-		stdoutLogging = !line.hasOption(LOGGING_OPTION.getOpt());
 		detachedMode = line.hasOption(DETACHED_OPTION.getOpt()) || line.hasOption(
 			YARN_DETACHED_OPTION.getOpt());
 		shutdownOnAttachedExit = line.hasOption(SHUTDOWN_IF_ATTACHED_OPTION.getOpt());
@@ -197,10 +194,6 @@ public abstract class ProgramOptions extends CommandLineOptions {
 
 	public int getParallelism() {
 		return parallelism;
-	}
-
-	public boolean getStdoutLogging() {
-		return stdoutLogging;
 	}
 
 	public boolean getDetachedMode() {
