@@ -38,13 +38,13 @@ To use the connector, add the following Maven dependency to your project:
 </dependency>
 {% endhighlight %}
 
-**The `flink-connector-kinesis{{ site.scala_version_suffix }}` has a dependency on code licensed under the [Amazon Software License](https://aws.amazon.com/asl/) (ASL).
-Linking to the flink-connector-kinesis will include ASL licensed code into your application.**
 
-The `flink-connector-kinesis{{ site.scala_version_suffix }}` artifact is not deployed to Maven central as part of
-Flink releases because of the licensing issue. Therefore, you need to build the connector yourself from the source.
+<span class="label label-danger">Attention</span> Prior to Flink version 1.10.0 the `flink-connector-kinesis{{ site.scala_version_suffix }}` has a dependency on code licensed under the [Amazon Software License](https://aws.amazon.com/asl/) (ASL).
+Linking to the flink-connector-kinesis for the prior versions will include ASL licensed code into your application.
 
-Download the Flink source or check it out from the git repository. Then, use the following Maven command to build the module:
+Due to the licensing issue, the `flink-connector-kinesis{{ site.scala_version_suffix }}` artifact is not deployed to Maven central for the prior versions. Therefore, you need to build the connector yourself from the source.
+
+Download the Flink source or check it out from the git repository for the prior version that you require. Then, use the following Maven command to build the module:
 {% highlight bash %}
 mvn clean install -Pinclude-kinesis -DskipTests
 # In Maven 3.3 the shading of flink-dist doesn't work properly in one run, so we need to run mvn for flink-dist again.

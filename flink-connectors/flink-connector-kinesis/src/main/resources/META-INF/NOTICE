@@ -12,15 +12,11 @@ This project bundles the following dependencies under the Apache Software Licens
 - com.amazonaws:jmespath-java:1.11.319
 - org.apache.httpcomponents:httpclient:4.5.3
 - org.apache.httpcomponents:httpcore:4.4.6
+- com.amazonaws:amazon-kinesis-client:1.10.0
+- com.amazonaws:amazon-kinesis-producer:0.13.1
+- com.amazonaws:dynamodb-streams-kinesis-adapter:1.5.0
 
 This project bundles the following dependencies under the BSD license.
 See bundled license files for details.
 
 - com.google.protobuf:protobuf-java:2.6.1
-
-This project bundles the following dependencies under the Amazon Softward License.
-See bundled license files for details.
-
-- com.amazonaws:amazon-kinesis-client:1.9.0
-- com.amazonaws:amazon-kinesis-producer:0.12.9
-
