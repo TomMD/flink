@@ -19,7 +19,6 @@
 package org.apache.flink.streaming.runtime.io;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.event.AbstractEvent;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
@@ -33,13 +32,13 @@ import org.apache.flink.runtime.plugable.DeserializationDelegate;
 import org.apache.flink.runtime.plugable.NonReusingDeserializationDelegate;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
-
-import javax.annotation.Nullable;
+import org.apache.flink.streaming.runtime.streamstatus.StatusWatermarkValve;
 
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
+import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
@@ -54,19 +53,21 @@ public final class StreamTaskNetworkInput implements StreamTaskInput {
 
 	private final RecordDeserializer<DeserializationDelegate<StreamElement>>[] recordDeserializers;
 
+	/** Handler that controls how watermarks and stream statuses are forwarded. */
+	private final StatusWatermarkValve statusWatermarkValve;
+
 	private final int inputIndex;
 
 	private int lastChannel = UNSPECIFIED;
 
 	private RecordDeserializer<DeserializationDelegate<StreamElement>> currentRecordDeserializer = null;
 
-	private boolean isFinished = false;
-
 	@SuppressWarnings("unchecked")
 	public StreamTaskNetworkInput(
 			CheckpointedInputGate checkpointedInputGate,
 			TypeSerializer<?> inputSerializer,
 			IOManager ioManager,
+			StatusWatermarkValve statusWatermarkValve,
 			int inputIndex) {
 		this.checkpointedInputGate = checkpointedInputGate;
 		this.deserializationDelegate = new NonReusingDeserializationDelegate<>(
@@ -79,28 +80,13 @@ public final class StreamTaskNetworkInput implements StreamTaskInput {
 				ioManager.getSpillingDirectoriesPaths());
 		}
 
-		this.inputIndex = inputIndex;
-	}
+		this.statusWatermarkValve = checkNotNull(statusWatermarkValve);
 
-	@VisibleForTesting
-	StreamTaskNetworkInput(
-		CheckpointedInputGate checkpointedInputGate,
-		TypeSerializer<?> inputSerializer,
-		IOManager ioManager,
-		int inputIndex,
-		RecordDeserializer<DeserializationDelegate<StreamElement>>[] recordDeserializers) {
-
-		this.checkpointedInputGate = checkpointedInputGate;
-		this.deserializationDelegate = new NonReusingDeserializationDelegate<>(
-			new StreamElementSerializer<>(inputSerializer));
-		this.recordDeserializers = recordDeserializers;
 		this.inputIndex = inputIndex;
 	}
 
 	@Override
-	@Nullable
-	public StreamElement pollNextNullable() throws Exception {
-
+	public InputStatus emitNext(DataOutput output) throws Exception {
 		while (true) {
 			// get the stream element from the deserializer
 			if (currentRecordDeserializer != null) {
@@ -111,7 +97,8 @@ public final class StreamTaskNetworkInput implements StreamTaskInput {
 				}
 
 				if (result.isFullRecord()) {
-					return deserializationDelegate.getInstance();
+					processElement(deserializationDelegate.getInstance(), output);
+					return InputStatus.MORE_AVAILABLE;
 				}
 			}
 
@@ -120,20 +107,35 @@ public final class StreamTaskNetworkInput implements StreamTaskInput {
 				processBufferOrEvent(bufferOrEvent.get());
 			} else {
 				if (checkpointedInputGate.isFinished()) {
-					isFinished = true;
 					checkState(checkpointedInputGate.isAvailable().isDone(), "Finished BarrierHandler should be available");
 					if (!checkpointedInputGate.isEmpty()) {
 						throw new IllegalStateException("Trailing data in checkpoint barrier handler.");
 					}
+					return InputStatus.END_OF_INPUT;
 				}
-				return null;
+				return InputStatus.NOTHING_AVAILABLE;
 			}
+		}
+	}
+
+	private void processElement(StreamElement recordOrMark, DataOutput output) throws Exception {
+		if (recordOrMark.isWatermark()) {
+			statusWatermarkValve.inputWatermark(recordOrMark.asWatermark(), lastChannel);
+		} else if (recordOrMark.isStreamStatus()) {
+			statusWatermarkValve.inputStreamStatus(recordOrMark.asStreamStatus(), lastChannel);
+		} else if (recordOrMark.isRecord()){
+			output.emitRecord(recordOrMark.asRecord());
+		} else if (recordOrMark.isLatencyMarker()) {
+			output.emitLatencyMarker(recordOrMark.asLatencyMarker());
+		} else {
+			throw new UnsupportedOperationException("Unknown type of StreamElement");
 		}
 	}
 
 	private void processBufferOrEvent(BufferOrEvent bufferOrEvent) throws IOException {
 		if (bufferOrEvent.isBuffer()) {
 			lastChannel = bufferOrEvent.getChannelIndex();
+			checkState(lastChannel != StreamTaskInput.UNSPECIFIED);
 			currentRecordDeserializer = recordDeserializers[lastChannel];
 			checkState(currentRecordDeserializer != null,
 				"currentRecordDeserializer has already been released");
@@ -162,11 +164,6 @@ public final class StreamTaskNetworkInput implements StreamTaskInput {
 	@Override
 	public int getInputIndex() {
 		return inputIndex;
-	}
-
-	@Override
-	public boolean isFinished() {
-		return isFinished;
 	}
 
 	@Override

@@ -94,6 +94,11 @@ public abstract class AbstractTwoInputStreamTask<IN1, IN2, OUT> extends StreamTa
 		getEnvironment().getMetricGroup().gauge(MetricNames.IO_CURRENT_INPUT_WATERMARK, minInputWatermarkGauge::getValue);
 	}
 
+	@Override
+	public int getNumberOfInputs() {
+		return 2;
+	}
+
 	protected abstract void createInputProcessor(
 		Collection<InputGate> inputGates1,
 		Collection<InputGate> inputGates2,

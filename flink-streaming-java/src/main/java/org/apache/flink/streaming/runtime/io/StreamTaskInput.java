@@ -18,7 +18,6 @@
 package org.apache.flink.streaming.runtime.io;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.runtime.io.NullableAsyncDataInput;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 
 import java.io.Closeable;
@@ -27,7 +26,7 @@ import java.io.Closeable;
  * Basic interface for inputs of stream operators.
  */
 @Internal
-public interface StreamTaskInput extends NullableAsyncDataInput<StreamElement>, Closeable {
+public interface StreamTaskInput extends PushBasedAsyncDataInput<StreamElement>, Closeable {
 	int UNSPECIFIED = -1;
 
 	/**
