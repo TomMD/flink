@@ -28,7 +28,8 @@ import org.apache.flink.table.planner.codegen.CodeGenUtils.{binaryRowFieldSetAcc
 import org.apache.flink.table.planner.codegen._
 import org.apache.flink.table.planner.codegen.agg.batch.AggCodeGenHelper.buildAggregateArgsMapping
 import org.apache.flink.table.planner.codegen.sort.SortCodeGenerator
-import org.apache.flink.table.planner.expressions.{ResolvedAggInputReference, RexNodeConverter}
+import org.apache.flink.table.planner.expressions.ResolvedAggInputReference
+import org.apache.flink.table.planner.expressions.UnresolvedCallExpressionToRexNode.toRexNode
 import org.apache.flink.table.planner.functions.aggfunctions.DeclarativeAggregateFunction
 import org.apache.flink.table.planner.plan.utils.SortUtil
 import org.apache.flink.table.runtime.generated.{NormalizedKeyComputer, RecordComparator}
@@ -37,6 +38,7 @@ import org.apache.flink.table.runtime.operators.sort.BufferedKVExternalSorter
 import org.apache.flink.table.runtime.typeutils.BinaryRowSerializer
 import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.logical.{LogicalType, RowType}
+
 import org.apache.calcite.rel.core.AggregateCall
 import org.apache.calcite.tools.RelBuilder
 
@@ -205,7 +207,7 @@ object HashAggCodeGenHelper {
 
     val initAggCallBufferExprs = aggregates.flatMap(a =>
       a.asInstanceOf[DeclarativeAggregateFunction].initialValuesExpressions)
-        .map(_.accept(new RexNodeConverter(builder)))
+        .map(toRexNode(builder, _))
         .map(exprCodegen.generateExpression)
 
     val initAggBufferExprs = initAuxGroupingExprs ++ initAggCallBufferExprs
@@ -287,14 +289,14 @@ object HashAggCodeGenHelper {
       val getAuxGroupingExprs = auxGrouping.indices.map { idx =>
         val (_, resultType) = aggBuffMapping(idx)(0)
         new ResolvedAggInputReference("aux_group", bindRefOffset + idx, resultType)
-      }.map(_.accept(new RexNodeConverter(builder))).map(exprCodegen.generateExpression)
+      }.map(toRexNode(builder, _)).map(exprCodegen.generateExpression)
 
       val getAggValueExprs = aggregates.zipWithIndex.map {
         case (agg: DeclarativeAggregateFunction, aggIndex) =>
           val idx = auxGrouping.length + aggIndex
           agg.getValueExpression.accept(
             ResolveReference(ctx, isMerge, bindRefOffset, agg, idx, argsMapping, aggBuffMapping))
-      }.map(_.accept(new RexNodeConverter(builder))).map(exprCodegen.generateExpression)
+      }.map(toRexNode(builder, _)).map(exprCodegen.generateExpression)
 
       val getValueExprs = getAuxGroupingExprs ++ getAggValueExprs
       val aggValueTerm = CodeGenUtils.newName("aggVal")
@@ -408,7 +410,7 @@ object HashAggCodeGenHelper {
         agg.mergeExpressions.map(
           _.accept(ResolveReference(
             ctx, isMerge = true, bindRefOffset, agg, idx, argsMapping, aggBuffMapping)))
-    }.map(_.accept(new RexNodeConverter(builder))).map(exprCodegen.generateExpression)
+    }.map(toRexNode(builder, _)).map(exprCodegen.generateExpression)
 
     val aggBufferTypeWithoutAuxGrouping = if (auxGrouping.nonEmpty) {
       // auxGrouping does not need merge-code
@@ -471,7 +473,7 @@ object HashAggCodeGenHelper {
         }
     }.map {
       case (expr: Expression, aggCall: AggregateCall) =>
-        (exprCodegen.generateExpression(expr.accept(new RexNodeConverter(builder))),
+        (exprCodegen.generateExpression(toRexNode(builder, expr)),
             aggCall.filterArg)
     }
 
