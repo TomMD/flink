@@ -706,7 +706,6 @@ public class SlotManagerImplTest extends TestLogger {
 	 * Tests that a slot request is retried if it times out on the task manager side.
 	 */
 	@Test
-	@SuppressWarnings("unchecked")
 	public void testTaskManagerSlotRequestTimeoutHandling() throws Exception {
 		final ResourceManagerId resourceManagerId = ResourceManagerId.generate();
 		final ResourceActions resourceManagerActions = new TestingResourceActionsBuilder().build();
@@ -770,7 +769,6 @@ public class SlotManagerImplTest extends TestLogger {
 	 * is received.
 	 */
 	@Test
-	@SuppressWarnings("unchecked")
 	public void testSlotReportWhileActiveSlotRequest() throws Exception {
 		final ResourceManagerId resourceManagerId = ResourceManagerId.generate();
 		final ResourceActions resourceManagerActions = new TestingResourceActionsBuilder().build();
