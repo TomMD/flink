@@ -1867,7 +1867,7 @@ public final class ConfigConstants {
 	public static final int DEFAULT_LOCAL_NUMBER_RESOURCE_MANAGER = 1;
 
 	/**
-	 * Ineffective any more. Will be removed in 2.0.
+	 * @deprecated Has no effect; the web-server is always started. Will be removed in 2.0.
 	 */
 	@Deprecated
 	public static final String LOCAL_START_WEBSERVER = "local.start-webserver";

@@ -102,6 +102,8 @@ public class WebFrontendITCase extends TestLogger {
 		} catch (Exception e) {
 			throw new AssertionError("Could not setup test.", e);
 		}
+
+		// !!DO NOT REMOVE!! next line is required for tests
 		config.setString(TaskManagerOptions.MANAGED_MEMORY_SIZE, "12m");
 
 		return config;
@@ -227,7 +229,6 @@ public class WebFrontendITCase extends TestLogger {
 		String expected = CLUSTER_CONFIGURATION.getString(TaskManagerOptions.MANAGED_MEMORY_SIZE);
 		String actual = conf.get(TaskManagerOptions.MANAGED_MEMORY_SIZE.key());
 
-		assertNotNull(actual);
 		assertEquals(expected, actual);
 	}
 
