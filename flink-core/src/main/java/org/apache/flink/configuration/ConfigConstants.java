@@ -93,7 +93,12 @@ public final class ConfigConstants {
 	 * It can be specified using Scala's FiniteDuration notation: "1 min", "20 s".
 	 */
 	@PublicEvolving
-	public static final String RESTART_STRATEGY_FAILURE_RATE_DELAY = "restart-strategy.failure-rate.delay";
+	public static final ConfigOption<String> RESTART_STRATEGY_FAILURE_RATE_DELAY =
+		key("restart-strategy.failure-rate.delay")
+			.defaultValue("0 s")
+			.withDescription(
+				"Delay between two consecutive restart attempts in FailureRateRestartStrategy. " +
+				"It can be specified using Scala's FiniteDuration notation: \"1 min\", \"20 s\"");
 
 	/**
 	 * Config parameter for the number of re-tries for failed tasks. Setting this
@@ -858,7 +863,7 @@ public final class ConfigConstants {
 	/**
 	 * Heartbeat interval of watch failure detector.
 	 *
-	 * @deprecated Use {@link AkkaOptions#WATCH_HEARTBEAT_INTERVAL} instead.
+	 * @deprecated This option is no longer used and has no effect on Flink.
 	 */
 	@Deprecated
 	public static final String AKKA_WATCH_HEARTBEAT_INTERVAL = "akka.watch.heartbeat.interval";
@@ -866,7 +871,7 @@ public final class ConfigConstants {
 	/**
 	 * Allowed heartbeat pause for the watch failure detector.
 	 *
-	 * @deprecated Use {@link AkkaOptions#WATCH_HEARTBEAT_PAUSE} instead.
+	 * @deprecated This option is no longer used and has no effect on Flink.
 	 */
 	@Deprecated
 	public static final String AKKA_WATCH_HEARTBEAT_PAUSE = "akka.watch.heartbeat.pause";
@@ -874,7 +879,7 @@ public final class ConfigConstants {
 	/**
 	 * Detection threshold for the phi accrual watch failure detector.
 	 *
-	 * @deprecated Use {@link AkkaOptions#WATCH_THRESHOLD} instead.
+	 * @deprecated This option is no longer used and has no effect on Flink.
 	 */
 	@Deprecated
 	public static final String AKKA_WATCH_THRESHOLD = "akka.watch.threshold";
@@ -1764,7 +1769,7 @@ public final class ConfigConstants {
 	public static final double DEFAULT_AKKA_TRANSPORT_THRESHOLD = 300.0;
 
 	/**
-	 * @deprecated Use {@link AkkaOptions#WATCH_THRESHOLD} instead.
+	 * @deprecated This default value is no longer used and has no effect on Flink.
 	 */
 	@Deprecated
 	public static final double DEFAULT_AKKA_WATCH_THRESHOLD = 12;
