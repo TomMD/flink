@@ -87,15 +87,6 @@ public class HighAvailabilityOptions {
 			.withDeprecatedKeys("recovery.jobmanager.port")
 			.withDescription("Optional port (range) used by the job manager in high-availability mode.");
 
-	/**
-	 * The time before a JobManager after a fail over recovers the current jobs.
-	 */
-	public static final ConfigOption<String> HA_JOB_DELAY =
-			key("high-availability.job.delay")
-			.noDefaultValue()
-			.withDeprecatedKeys("recovery.job.delay")
-			.withDescription("The time before a JobManager after a fail over recovers the current jobs.");
-
 	// ------------------------------------------------------------------------
 	//  ZooKeeper Options
 	// ------------------------------------------------------------------------
