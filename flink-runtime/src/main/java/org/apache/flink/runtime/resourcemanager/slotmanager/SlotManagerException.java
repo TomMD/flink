@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,26 +16,23 @@
  * limitations under the License.
  */
 
-package org.apache.flink.runtime.resourcemanager.exceptions;
+package org.apache.flink.runtime.resourcemanager.slotmanager;
 
-import org.apache.flink.runtime.resourcemanager.ResourceManager;
-import org.apache.flink.util.FlinkException;
+import org.apache.flink.runtime.resourcemanager.exceptions.ResourceManagerException;
 
 /**
- * Base class for {@link ResourceManager} exceptions.
+ * Base class for exceptions thrown by the {@link SlotManager}.
  */
-public class ResourceManagerException extends FlinkException {
-	private static final long serialVersionUID = -5503307426519195160L;
-
-	public ResourceManagerException(String message) {
+public class SlotManagerException extends ResourceManagerException {
+	public SlotManagerException(String message) {
 		super(message);
 	}
 
-	public ResourceManagerException(String message, Throwable cause) {
+	public SlotManagerException(String message, Throwable cause) {
 		super(message, cause);
 	}
 
-	public ResourceManagerException(Throwable cause) {
+	public SlotManagerException(Throwable cause) {
 		super(cause);
 	}
 }
