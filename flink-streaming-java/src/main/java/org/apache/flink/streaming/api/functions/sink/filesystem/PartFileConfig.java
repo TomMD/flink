@@ -18,36 +18,81 @@
 
 package org.apache.flink.streaming.api.functions.sink.filesystem;
 
+import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.util.Preconditions;
+
+import java.io.Serializable;
 
 /**
  * Part file name configuration.
  * This allow to define a prefix and a suffix to the part file name.
  */
-class PartFileConfig {
-
-	public static final String DEFAULT_PART_PREFIX = "part";
-
-	public static final String DEFAULT_PART_SUFFIX = "";
+public class PartFileConfig implements Serializable {
 
 	private final String partPrefix;
 
 	private final String partSuffix;
 
-	PartFileConfig() {
-		this(DEFAULT_PART_PREFIX, DEFAULT_PART_SUFFIX);
-	}
-
-	PartFileConfig(final String partPrefix, final String partSuffix) {
+	/**
+	 *	Initiates the {@code PartFileConfig} with values passed as parameters.
+	 *
+	 * @param partPrefix - the beginning of part file name
+	 * @param partSuffix - the ending of part file name
+	 */
+	public PartFileConfig(final String partPrefix, final String partSuffix) {
 		this.partPrefix = Preconditions.checkNotNull(partPrefix);
 		this.partSuffix = Preconditions.checkNotNull(partSuffix);
 	}
 
+	/**
+	 * The prefix for the part name.
+	 */
 	String getPartPrefix() {
 		return partPrefix;
 	}
 
+	/**
+	 * The suffix for the part name.
+	 */
 	String getPartSuffix() {
 		return partSuffix;
+	}
+
+	public static PartFileConfigBuilder builder() {
+		return new PartFileConfigBuilder();
+	}
+
+	/**
+	 * A builder to create the part file configuration.
+	 */
+	@PublicEvolving
+	public static class PartFileConfigBuilder {
+
+		private static final String DEFAULT_PART_PREFIX = "part";
+
+		private static final String DEFAULT_PART_SUFFIX = "";
+
+		private String partPrefix;
+
+		private String partSuffix;
+
+		public PartFileConfigBuilder() {
+			this.partPrefix = DEFAULT_PART_PREFIX;
+			this.partSuffix = DEFAULT_PART_SUFFIX;
+		}
+
+		public PartFileConfigBuilder withPartPrefix(String prefix) {
+			this.partPrefix = prefix;
+			return this;
+		}
+
+		public PartFileConfigBuilder withPartSuffix(String suffix) {
+			this.partSuffix = suffix;
+			return this;
+		}
+
+		public PartFileConfig build() {
+			return new PartFileConfig(partPrefix, partSuffix);
+		}
 	}
 }
