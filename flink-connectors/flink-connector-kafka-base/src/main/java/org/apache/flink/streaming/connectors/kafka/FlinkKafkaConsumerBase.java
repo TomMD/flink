@@ -297,7 +297,7 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
 			throw new IllegalStateException("A periodic watermark emitter has already been set.");
 		}
 		try {
-			ClosureCleaner.clean(assigner, ExecutionConfig.ClosureCleanerLevel.RECURSIVE, true);
+			ClosureCleaner.clean(assigner, true);
 			this.punctuatedWatermarkAssigner = new SerializedValue<>(assigner);
 			return this;
 		} catch (Exception e) {
@@ -332,7 +332,7 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
 			throw new IllegalStateException("A punctuated watermark emitter has already been set.");
 		}
 		try {
-			ClosureCleaner.clean(assigner, ExecutionConfig.ClosureCleanerLevel.RECURSIVE, true);
+			ClosureCleaner.clean(assigner, true);
 			this.periodicWatermarkAssigner = new SerializedValue<>(assigner);
 			return this;
 		} catch (Exception e) {

@@ -615,7 +615,7 @@ public class FlinkKafkaProducer<IN>
 			this.kafkaSchema = kafkaSchema;
 			this.flinkKafkaPartitioner = null;
 			ClosureCleaner.clean(
-					this.kafkaSchema, ExecutionConfig.ClosureCleanerLevel.RECURSIVE, true);
+					this.kafkaSchema, true);
 
 			if (customPartitioner != null) {
 				throw new IllegalArgumentException("Customer partitioner can only be used when" +
@@ -627,10 +627,9 @@ public class FlinkKafkaProducer<IN>
 			this.flinkKafkaPartitioner = customPartitioner;
 			ClosureCleaner.clean(
 					this.flinkKafkaPartitioner,
-					ExecutionConfig.ClosureCleanerLevel.RECURSIVE,
 					true);
 			ClosureCleaner.clean(
-					this.keyedSchema, ExecutionConfig.ClosureCleanerLevel.RECURSIVE, true);
+					this.keyedSchema, true);
 		} else {
 			throw new IllegalArgumentException(
 					"You must provide either a KafkaSerializationSchema or a" +

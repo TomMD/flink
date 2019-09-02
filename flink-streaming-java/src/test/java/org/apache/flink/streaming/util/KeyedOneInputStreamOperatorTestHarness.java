@@ -44,7 +44,7 @@ public class KeyedOneInputStreamOperatorTestHarness<K, IN, OUT>
 			int subtaskIndex) throws Exception {
 		super(operator, maxParallelism, numSubtasks, subtaskIndex);
 
-		ClosureCleaner.clean(keySelector, ExecutionConfig.ClosureCleanerLevel.RECURSIVE, false);
+		ClosureCleaner.clean(keySelector, false);
 		config.setStatePartitioner(0, keySelector);
 		config.setStateKeySerializer(keyType.createSerializer(executionConfig));
 	}
@@ -64,7 +64,7 @@ public class KeyedOneInputStreamOperatorTestHarness<K, IN, OUT>
 
 		super(operator, environment);
 
-		ClosureCleaner.clean(keySelector, ExecutionConfig.ClosureCleanerLevel.RECURSIVE, false);
+		ClosureCleaner.clean(keySelector, false);
 		config.setStatePartitioner(0, keySelector);
 		config.setStateKeySerializer(keyType.createSerializer(executionConfig));
 	}
