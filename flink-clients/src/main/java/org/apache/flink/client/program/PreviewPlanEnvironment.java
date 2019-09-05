@@ -47,15 +47,6 @@ public final class PreviewPlanEnvironment extends ExecutionEnvironment {
 		throw new OptimizerPlanEnvironment.ProgramAbortException();
 	}
 
-	@Override
-	public String getExecutionPlan() throws Exception {
-		Plan plan = createProgramPlan("unused");
-		this.previewPlan = Optimizer.createPreOptimizedPlan(plan);
-
-		// do not go on with anything now!
-		throw new OptimizerPlanEnvironment.ProgramAbortException();
-	}
-
 	public void setAsContext() {
 		ExecutionEnvironmentFactory factory = new ExecutionEnvironmentFactory() {
 			@Override
