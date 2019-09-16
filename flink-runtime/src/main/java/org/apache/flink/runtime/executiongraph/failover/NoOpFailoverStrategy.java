@@ -17,42 +17,37 @@
  * under the License.
  */
 
-package org.apache.flink.runtime.executiongraph.failover.flip1;
+package org.apache.flink.runtime.executiongraph.failover;
+
+import org.apache.flink.runtime.executiongraph.Execution;
+import org.apache.flink.runtime.executiongraph.ExecutionGraph;
+import org.apache.flink.runtime.executiongraph.ExecutionJobVertex;
+
+import java.util.List;
 
 /**
- * A RestartBackoffTimeStrategy implementation for tests.
+ * FailoverStrategy that does not do anything.
  */
-public class TestRestartBackoffTimeStrategy implements RestartBackoffTimeStrategy {
+public class NoOpFailoverStrategy extends FailoverStrategy {
 
-	private boolean canRestart;
-
-	private long backoffTime;
-
-	public TestRestartBackoffTimeStrategy(boolean canRestart, long backoffTime) {
-		this.canRestart = canRestart;
-		this.backoffTime = backoffTime;
+	@Override
+	public void onTaskFailure(final Execution taskExecution, final Throwable cause) {
 	}
 
 	@Override
-	public boolean canRestart() {
-		return canRestart;
+	public void notifyNewVertices(final List<ExecutionJobVertex> newJobVerticesTopological) {
 	}
 
 	@Override
-	public long getBackoffTime() {
-		return backoffTime;
+	public String getStrategyName() {
+		return "NoOp failover strategy";
 	}
 
-	@Override
-	public void notifyFailure(Throwable cause) {
-		// ignore
-	}
+	public static class Factory implements FailoverStrategy.Factory {
 
-	public void setCanRestart(final boolean canRestart) {
-		this.canRestart = canRestart;
-	}
-
-	public void setBackoffTime(final long backoffTime) {
-		this.backoffTime = backoffTime;
+		@Override
+		public FailoverStrategy create(final ExecutionGraph executionGraph) {
+			return new NoOpFailoverStrategy();
+		}
 	}
 }

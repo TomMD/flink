@@ -63,6 +63,7 @@ import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkException;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.OptionalFailure;
+import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.function.ThrowingRunnable;
 
 import org.slf4j.Logger;
@@ -295,8 +296,7 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	 * @param logicalSlot to assign to this execution
 	 * @return true if the slot could be assigned to the execution, otherwise false
 	 */
-	@VisibleForTesting
-	boolean tryAssignResource(final LogicalSlot logicalSlot) {
+	public boolean tryAssignResource(final LogicalSlot logicalSlot) {
 
 		assertRunningInJobMasterMainThread();
 
@@ -597,12 +597,19 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 		}
 	}
 
-	@VisibleForTesting
-	CompletableFuture<Execution> registerProducedPartitions(TaskManagerLocation location) {
+	public CompletableFuture<Execution> registerProducedPartitions(TaskManagerLocation location) {
+		Preconditions.checkState(isLegacyScheduling());
+		return registerProducedPartitions(location, vertex.getExecutionGraph().getScheduleMode().allowLazyDeployment());
+	}
+
+	public CompletableFuture<Execution> registerProducedPartitions(
+			TaskManagerLocation location,
+			boolean sendScheduleOrUpdateConsumersMessage) {
+
 		assertRunningInJobMasterMainThread();
 
 		return FutureUtils.thenApplyAsyncIfNotDone(
-			registerProducedPartitions(vertex, location, attemptId),
+			registerProducedPartitions(vertex, location, attemptId, sendScheduleOrUpdateConsumersMessage),
 			vertex.getExecutionGraph().getJobMasterMainThreadExecutor(),
 			producedPartitionsCache -> {
 				producedPartitions = producedPartitionsCache;
@@ -615,10 +622,10 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	static CompletableFuture<Map<IntermediateResultPartitionID, ResultPartitionDeploymentDescriptor>> registerProducedPartitions(
 			ExecutionVertex vertex,
 			TaskManagerLocation location,
-			ExecutionAttemptID attemptId) {
-		ProducerDescriptor producerDescriptor = ProducerDescriptor.create(location, attemptId);
+			ExecutionAttemptID attemptId,
+			boolean sendScheduleOrUpdateConsumersMessage) {
 
-		boolean lazyScheduling = vertex.getExecutionGraph().getScheduleMode().allowLazyDeployment();
+		ProducerDescriptor producerDescriptor = ProducerDescriptor.create(location, attemptId);
 
 		Collection<IntermediateResultPartition> partitions = vertex.getProducedPartitions().values();
 		Collection<CompletableFuture<ResultPartitionDeploymentDescriptor>> partitionRegistrations =
@@ -637,7 +644,7 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 					partitionDescriptor,
 					shuffleDescriptor,
 					maxParallelism,
-					lazyScheduling));
+					sendScheduleOrUpdateConsumersMessage));
 			partitionRegistrations.add(partitionRegistration);
 		}
 
@@ -753,7 +760,10 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 		}
 		catch (Throwable t) {
 			markFailed(t);
-			ExceptionUtils.rethrow(t);
+
+			if (isLegacyScheduling()) {
+				ExceptionUtils.rethrow(t);
+			}
 		}
 	}
 
@@ -845,6 +855,10 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	}
 
 	private void scheduleConsumer(ExecutionVertex consumerVertex) {
+		if (!isLegacyScheduling()) {
+			return;
+		}
+
 		try {
 			final ExecutionGraph executionGraph = consumerVertex.getExecutionGraph();
 			consumerVertex.scheduleForExecution(
@@ -1028,7 +1042,11 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	 * @param t The exception that caused the task to fail.
 	 */
 	void markFailed(Throwable t) {
-		processFail(t, true);
+		if (isLegacyScheduling()) {
+			processFail(t, true);
+		} else {
+			vertex.getExecutionGraph().notifyTaskFailed(getAttemptId(), t);
+		}
 	}
 
 	void markFailed(Throwable t, Map<String, Accumulator<?, ?>> userAccumulators, IOMetrics metrics) {
@@ -1179,6 +1197,10 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	//  Internal Actions
 	// --------------------------------------------------------------------------------------------
 
+	private boolean isLegacyScheduling() {
+		return getVertex().isLegacyScheduling();
+	}
+
 	private boolean processFail(Throwable t, boolean isCallback) {
 		return processFail(t, isCallback, null, null, true);
 	}
@@ -1211,7 +1233,10 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 				return false;
 			}
 
-			if (transitionState(current, FAILED, t)) {
+			if (!isCallback && !isLegacyScheduling()) {
+				vertex.getExecutionGraph().notifyTaskFailed(attemptId, t);
+				return true;
+			} else if (transitionState(current, FAILED, t)) {
 				// success (in a manner of speaking)
 				this.failureCause = t;
 
@@ -1262,20 +1287,14 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 				// or it was canceled really fast
 			}
 			else if (currentState == CANCELING || currentState == FAILED) {
-				if (LOG.isDebugEnabled()) {
-					// this log statement is guarded because the 'getVertexWithAttempt()' method
-					// performs string concatenations
-					LOG.debug("Concurrent canceling/failing of {} while deployment was in progress.", getVertexWithAttempt());
-				}
+				LOG.debug("Concurrent canceling/failing of {} while deployment was in progress.", getVertexWithAttempt());
 				sendCancelRpcCall(NUM_CANCEL_CALL_TRIES);
 			}
 			else {
 				String message = String.format("Concurrent unexpected state transition of task %s to %s while deployment was in progress.",
 						getVertexWithAttempt(), currentState);
 
-				if (LOG.isDebugEnabled()) {
-					LOG.debug(message);
-				}
+				LOG.debug(message);
 
 				// undo the deployment
 				sendCancelRpcCall(NUM_CANCEL_CALL_TRIES);
@@ -1472,6 +1491,10 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 		}
 
 		return preferredLocationsFuture;
+	}
+
+	public void transitionState(ExecutionState targetState) {
+		transitionState(state, targetState);
 	}
 
 	private boolean transitionState(ExecutionState currentState, ExecutionState targetState) {

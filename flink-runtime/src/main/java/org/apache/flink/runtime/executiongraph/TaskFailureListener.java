@@ -17,42 +17,15 @@
  * under the License.
  */
 
-package org.apache.flink.runtime.executiongraph.failover.flip1;
+package org.apache.flink.runtime.executiongraph;
 
 /**
- * A RestartBackoffTimeStrategy implementation for tests.
+ * Sometimes the TaskManager is not able to update the task state via RPC, e.g., task is not
+ * running. For such cases task failures can be propagated through implementations of this
+ * interface.
  */
-public class TestRestartBackoffTimeStrategy implements RestartBackoffTimeStrategy {
+public interface TaskFailureListener {
 
-	private boolean canRestart;
+	void notifyFailed(ExecutionAttemptID attemptId, Throwable t);
 
-	private long backoffTime;
-
-	public TestRestartBackoffTimeStrategy(boolean canRestart, long backoffTime) {
-		this.canRestart = canRestart;
-		this.backoffTime = backoffTime;
-	}
-
-	@Override
-	public boolean canRestart() {
-		return canRestart;
-	}
-
-	@Override
-	public long getBackoffTime() {
-		return backoffTime;
-	}
-
-	@Override
-	public void notifyFailure(Throwable cause) {
-		// ignore
-	}
-
-	public void setCanRestart(final boolean canRestart) {
-		this.canRestart = canRestart;
-	}
-
-	public void setBackoffTime(final long backoffTime) {
-		this.backoffTime = backoffTime;
-	}
 }
