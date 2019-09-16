@@ -23,6 +23,7 @@ import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -86,4 +87,19 @@ public class ConfigOptionTest extends TestLogger {
 		assertThat(fallbackKeys, containsInAnyOrder("fallback1", "fallback2"));
 		assertThat(deprecatedKeys, containsInAnyOrder("deprecated1", "deprecated2"));
 	}
+
+	@Test
+	public void testDeprecationForDeprecatedKeys() {
+		String[] deprecatedKeys = new String[] { "deprecated1", "deprecated2" };
+		final ConfigOption<Integer> optionWithDeprecatedKeys = ConfigOptions
+			.key("key")
+			.defaultValue(0)
+			.withDeprecatedKeys(deprecatedKeys);
+
+		assertTrue(optionWithDeprecatedKeys.hasDeprecatedKeys());
+		for (final String deprecatedKey : optionWithDeprecatedKeys.deprecatedKeys()) {
+			assertTrue(Arrays.stream(deprecatedKeys).anyMatch(item -> item.equals(deprecatedKey)));
+		}
+	}
+
 }
