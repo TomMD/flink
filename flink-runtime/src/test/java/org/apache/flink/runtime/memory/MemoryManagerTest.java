@@ -29,9 +29,14 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.number.OrderingComparison.lessThanOrEqualTo;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 /**
@@ -53,7 +58,12 @@ public class MemoryManagerTest {
 
 	@Before
 	public void setUp() {
-		this.memoryManager = new MemoryManager(MEMORY_SIZE, 1, PAGE_SIZE, MemoryType.HEAP, true);
+		this.memoryManager = MemoryManagerBuilder
+			.newBuilder()
+			.setMemorySize(MemoryType.HEAP, MEMORY_SIZE / 2)
+			.setMemorySize(MemoryType.OFF_HEAP, MEMORY_SIZE / 2)
+			.setPageSize(PAGE_SIZE)
+			.build();
 		this.random = new Random(RANDOM_SEED);
 	}
 
@@ -192,5 +202,61 @@ public class MemoryManagerTest {
 			}
 		}
 		return true;
+	}
+
+	@Test
+	@SuppressWarnings("NumericCastThatLosesPrecision")
+	public void testAllocateMixedMemoryType() throws MemoryAllocationException {
+		int totalHeapPages = (int) memoryManager.getMemorySizeByType(MemoryType.HEAP) / PAGE_SIZE;
+		int totalOffHeapPages = (int) memoryManager.getMemorySizeByType(MemoryType.OFF_HEAP) / PAGE_SIZE;
+		int pagesToAllocate =  totalHeapPages + totalOffHeapPages / 2;
+
+		Object owner = new Object();
+		List<MemorySegment> segments = memoryManager.allocatePages(owner, pagesToAllocate);
+		Map<MemoryType, Integer> split = calcMemoryTypeSplitForSegments(segments);
+
+		assertThat(split.get(MemoryType.HEAP), lessThanOrEqualTo(totalHeapPages));
+		assertThat(split.get(MemoryType.OFF_HEAP), lessThanOrEqualTo(totalOffHeapPages));
+		assertThat(split.get(MemoryType.HEAP) + split.get(MemoryType.OFF_HEAP), is(pagesToAllocate));
+
+		memoryManager.release(segments);
+	}
+
+	private static Map<MemoryType, Integer> calcMemoryTypeSplitForSegments(Iterable<MemorySegment> segments) {
+		int heapPages = 0;
+		int offHeapPages = 0;
+		for (MemorySegment memorySegment : segments) {
+			if (memorySegment.isOffHeap()) {
+				offHeapPages++;
+			} else {
+				heapPages++;
+			}
+		}
+		Map<MemoryType, Integer> split = new EnumMap<>(MemoryType.class);
+		split.put(MemoryType.HEAP, heapPages);
+		split.put(MemoryType.OFF_HEAP, offHeapPages);
+		return split;
+	}
+
+	@Test
+	public void testMemoryReservation() throws MemoryAllocationException {
+		Object owner = new Object();
+
+		memoryManager.reserveMemory(owner, MemoryType.HEAP, PAGE_SIZE);
+		memoryManager.reserveMemory(owner, MemoryType.OFF_HEAP, memoryManager.getMemorySizeByType(MemoryType.OFF_HEAP));
+
+		memoryManager.releaseMemory(owner, MemoryType.HEAP, PAGE_SIZE);
+		memoryManager.releaseAllMemory(owner, MemoryType.OFF_HEAP);
+	}
+
+	@Test
+	public void testMemoryTooBigReservation() {
+		Object owner = new Object();
+		try {
+			memoryManager.reserveMemory(owner, MemoryType.HEAP, memoryManager.getMemorySizeByType(MemoryType.HEAP) + PAGE_SIZE);
+			fail("Expected MemoryAllocationException.");
+		} catch (MemoryAllocationException e) {
+			// expected
+		}
 	}
 }
