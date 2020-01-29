@@ -32,7 +32,11 @@ import org.apache.flink.yarn.configuration.YarnConfigOptions;
 import org.apache.flink.yarn.testjob.YarnTestCacheJob;
 import org.apache.flink.yarn.util.YarnTestUtils;
 
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -47,6 +51,7 @@ import java.util.concurrent.CompletableFuture;
 import static org.apache.flink.yarn.configuration.YarnConfigOptions.CLASSPATH_INCLUDE_USER_JAR;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -64,32 +69,41 @@ public class YARNITCase extends YarnTestBase {
 	@BeforeClass
 	public static void setup() {
 		YARN_CONFIGURATION.set(YarnTestBase.TEST_CLUSTER_NAME_KEY, "flink-yarn-tests-per-job");
-		startYARNWithConfig(YARN_CONFIGURATION);
+		startYARNWithConfig(YARN_CONFIGURATION, true);
 	}
 
 	@Test
 	public void testPerJobModeWithEnableSystemClassPathIncludeUserJar() throws Exception {
-		runTest(() -> deployPerjob(YarnConfigOptions.UserJarInclusion.FIRST, getTestingJobGraph()));
+		runTest(() -> deployPerjob(
+			createDefaultConfiguration(YarnConfigOptions.UserJarInclusion.FIRST),
+			getTestingJobGraph()));
 	}
 
 	@Test
 	public void testPerJobModeWithDisableSystemClassPathIncludeUserJar() throws Exception {
-		runTest(() -> deployPerjob(YarnConfigOptions.UserJarInclusion.DISABLED, getTestingJobGraph()));
+		runTest(() -> deployPerjob(
+			createDefaultConfiguration(YarnConfigOptions.UserJarInclusion.DISABLED),
+			getTestingJobGraph()));
 	}
 
 	@Test
 	public void testPerJobModeWithDistributedCache() throws Exception {
 		runTest(() -> deployPerjob(
-			YarnConfigOptions.UserJarInclusion.DISABLED,
+			createDefaultConfiguration(YarnConfigOptions.UserJarInclusion.DISABLED),
 			YarnTestCacheJob.getDistributedCacheJobGraph(tmp.newFolder())));
 	}
 
-	private void deployPerjob(YarnConfigOptions.UserJarInclusion userJarInclusion, JobGraph jobGraph) throws Exception {
+	@Test
+	public void testPerJobModeWithCustomizedFileReplication() throws Exception {
+		Configuration configuration = createDefaultConfiguration(YarnConfigOptions.UserJarInclusion.DISABLED);
+		configuration.setInteger(YarnConfigOptions.FILE_REPLICATION, 4);
 
-		Configuration configuration = new Configuration();
-		configuration.set(TaskManagerOptions.TOTAL_PROCESS_MEMORY, MemorySize.parse("1g"));
-		configuration.setString(AkkaOptions.ASK_TIMEOUT, "30 s");
-		configuration.setString(CLASSPATH_INCLUDE_USER_JAR, userJarInclusion.toString());
+		runTest(() -> deployPerjob(
+			configuration,
+			getTestingJobGraph()));
+	}
+
+	private void deployPerjob(Configuration configuration, JobGraph jobGraph) throws Exception {
 
 		try (final YarnClusterDescriptor yarnClusterDescriptor = createYarnClusterDescriptor(configuration)) {
 
@@ -122,6 +136,32 @@ public class YARNITCase extends YarnTestBase {
 				assertThat(jobResult, is(notNullValue()));
 				assertThat(jobResult.getSerializedThrowable().isPresent(), is(false));
 
+				if (configuration.getInteger(YarnConfigOptions.FILE_REPLICATION) != -1) {
+					final FileSystem fs = FileSystem.get(getYarnConfiguration());
+
+					String suffix = ".flink/" + applicationId.toString() + "/" + flinkUberjar.getName();
+
+					Path uberJarHDFSPath = new Path(fs.getHomeDirectory(), suffix);
+					FileStatus fsStatus = fs.getFileStatus(uberJarHDFSPath);
+					assertEquals(4, fsStatus.getReplication());
+
+					Path appPath = uberJarHDFSPath.getParent();
+					FileStatus[] fileStatuses = fs.listStatus(appPath, new PathFilter() {
+						@Override
+						public boolean accept(Path path) {
+							return path.getName().endsWith("taskmanager-conf.yaml");
+						}
+					});
+
+					final int replication = getYarnConfiguration().getInt(DFSConfigKeys.DFS_REPLICATION_KEY,
+						DFSConfigKeys.DFS_REPLICATION_DEFAULT);
+
+					// All of the task manager confs are used by single TM, the replica number should be DFS_REPLICATION_DEFAULT.
+					for (FileStatus fileStatus : fileStatuses) {
+						assertEquals(replication, fileStatus.getReplication());
+					}
+				}
+
 				waitApplicationFinishedElseKillIt(
 					applicationId, yarnAppTerminateTimeout, yarnClusterDescriptor, sleepIntervalInMS);
 			}
@@ -137,5 +177,14 @@ public class YARNITCase extends YarnTestBase {
 			.addSink(new DiscardingSink<>());
 
 		return env.getStreamGraph().getJobGraph();
+	}
+
+	private Configuration createDefaultConfiguration(YarnConfigOptions.UserJarInclusion userJarInclusion) {
+		Configuration configuration = new Configuration();
+		configuration.set(TaskManagerOptions.TOTAL_PROCESS_MEMORY, MemorySize.parse("1g"));
+		configuration.setString(AkkaOptions.ASK_TIMEOUT, "30 s");
+		configuration.setString(CLASSPATH_INCLUDE_USER_JAR, userJarInclusion.toString());
+
+		return configuration;
 	}
 }
