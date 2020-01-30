@@ -39,6 +39,7 @@ import java.io.File;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.apache.flink.kubernetes.configuration.KubernetesConfigOptions.KUBERNETES_TASKMANAGER_ANNOTATION_PREFIX;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -74,7 +75,10 @@ public class TaskManagerPodDecorator extends Decorator<Pod, KubernetesPod> {
 			.withTaskManagerComponent()
 			.toLabels();
 
+		final Map<String, String> annotations = KubernetesUtils.parsePrefixedKVPairs(flinkConfig, KUBERNETES_TASKMANAGER_ANNOTATION_PREFIX);
+
 		pod.getMetadata().setLabels(labels);
+		pod.getMetadata().setAnnotations(annotations);
 		pod.getMetadata().setName(this.parameter.getPodName());
 
 		final Volume configMapVolume = KubernetesUtils.getConfigMapVolume(clusterId, hasLogback, hasLog4j);
