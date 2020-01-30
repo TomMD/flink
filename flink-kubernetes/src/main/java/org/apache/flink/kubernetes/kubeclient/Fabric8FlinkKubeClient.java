@@ -58,6 +58,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -313,7 +314,12 @@ public class Fabric8FlinkKubeClient implements FlinkKubeClient {
 			flinkConfig.get(KubernetesConfigOptions.SERVICE_CREATE_TIMEOUT));
 
 		return CompletableFuture.supplyAsync(() -> {
-			final Service createdService = watcher.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+			final Service createdService;
+			try {
+				createdService = watcher.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+			} catch (InterruptedException e) {
+				throw new CompletionException("Failed to create Kubernetes service.", e);
+			}
 			watchConnectionManager.close();
 
 			return new KubernetesService(this.flinkConfig, createdService);
