@@ -37,10 +37,12 @@ import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -82,6 +84,21 @@ public class KubernetesUtilsTest extends TestLogger {
 	private static final String tmJvmMem = "-Xmx111 -Xms111 -XX:MaxDirectMemorySize=222 -XX:MaxMetaspaceSize=333";
 	private static final String tmMemDynamicProperties =
 		TaskExecutorProcessUtils.generateDynamicConfigsStr(TASK_EXECUTOR_PROCESS_SPEC).trim();
+
+	@Test
+	public void testParsePrefixedKVPairs() {
+		final Configuration cfg = new Configuration();
+		cfg.setString("kubernetes.jobmanager.annotation.a1", "value1");
+		cfg.setString("kubernetes.jobmanager.annotation.a2", "value2");
+
+		final Map<String, String> ret = KubernetesUtils.parsePrefixedKVPairs(cfg, "kubernetes.jobmanager.annotation.");
+
+		assertEquals(2, ret.size());
+		assertTrue(ret.containsKey("a1"));
+		assertTrue(ret.containsKey("a2"));
+		assertEquals("value1", ret.get("a1"));
+		assertEquals("value2", ret.get("a2"));
+	}
 
 	@Test
 	public void testGetJobManagerStartCommand() {
