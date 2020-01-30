@@ -36,6 +36,7 @@ import org.apache.flink.kubernetes.kubeclient.resources.KubernetesDeployment;
 import org.apache.flink.kubernetes.kubeclient.resources.KubernetesPod;
 import org.apache.flink.kubernetes.kubeclient.resources.KubernetesService;
 import org.apache.flink.kubernetes.utils.Constants;
+import org.apache.flink.runtime.util.ExecutorThreadFactory;
 import org.apache.flink.util.TimeUtils;
 
 import io.fabric8.kubernetes.api.model.ConfigMap;
@@ -59,6 +60,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -81,6 +84,8 @@ public class Fabric8FlinkKubeClient implements FlinkKubeClient {
 	private final List<Decorator<Service, KubernetesService>> restServiceDecorators = new ArrayList<>();
 	private final List<Decorator<Deployment, KubernetesDeployment>> flinkMasterDeploymentDecorators = new ArrayList<>();
 	private final List<Decorator<Pod, KubernetesPod>> taskManagerPodDecorators = new ArrayList<>();
+
+	private final ExecutorService executorService = Executors.newFixedThreadPool(4, new ExecutorThreadFactory("Flink-KubeClient-IO"));
 
 	public Fabric8FlinkKubeClient(Configuration flinkConfig, KubernetesClient client) {
 		this.flinkConfig = checkNotNull(flinkConfig);
@@ -323,7 +328,7 @@ public class Fabric8FlinkKubeClient implements FlinkKubeClient {
 			watchConnectionManager.close();
 
 			return new KubernetesService(this.flinkConfig, createdService);
-		});
+		}, executorService);
 	}
 
 	private KubernetesService getService(String serviceName) {
