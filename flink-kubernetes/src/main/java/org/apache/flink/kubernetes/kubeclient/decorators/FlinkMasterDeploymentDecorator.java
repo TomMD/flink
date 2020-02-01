@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.apache.flink.kubernetes.configuration.KubernetesConfigOptions.KUBERNETES_JOBMANAGER_ANNOTATION_PREFIX;
 import static org.apache.flink.kubernetes.utils.Constants.API_VERSION;
 import static org.apache.flink.kubernetes.utils.Constants.ENV_FLINK_POD_IP_ADDRESS;
 import static org.apache.flink.kubernetes.utils.Constants.POD_IP_FIELD_PATH;
@@ -92,6 +93,8 @@ public class FlinkMasterDeploymentDecorator extends Decorator<Deployment, Kubern
 
 		deployment.getMetadata().setLabels(labels);
 
+		final Map<String, String> annotations = KubernetesUtils.parsePrefixedKVPairs(flinkConfig, KUBERNETES_JOBMANAGER_ANNOTATION_PREFIX);
+
 		final Volume configMapVolume = KubernetesUtils.getConfigMapVolume(clusterId, hasLogback, hasLog4j);
 
 		final Container container = createJobManagerContainer(flinkConfig, mainClass, hasLogback, hasLog4j, blobServerPort);
@@ -105,9 +108,17 @@ public class FlinkMasterDeploymentDecorator extends Decorator<Deployment, Kubern
 
 		deployment.setSpec(new DeploymentSpecBuilder()
 			.withReplicas(1)
-			.withNewTemplate().withNewMetadata().withLabels(labels).endMetadata()
-			.withSpec(podSpec).endTemplate()
-			.withNewSelector().addToMatchLabels(labels).endSelector().build());
+			.withNewTemplate()
+				.withNewMetadata()
+					.withLabels(labels)
+					.withAnnotations(annotations)
+					.endMetadata()
+				.withSpec(podSpec)
+				.endTemplate()
+			.withNewSelector()
+				.addToMatchLabels(labels)
+				.endSelector()
+			.build());
 		return deployment;
 	}
 
