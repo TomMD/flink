@@ -55,6 +55,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationResponse;
@@ -682,6 +683,9 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 				// add user code jars from the provided JobGraph
 				: jobGraph.getUserJars().stream().map(f -> f.toUri()).map(File::new).collect(Collectors.toSet());
 
+		int fileReplication = yarnConfiguration.getInt(DFSConfigKeys.DFS_REPLICATION_KEY, DFSConfigKeys.DFS_REPLICATION_DEFAULT);
+		fileReplication = flinkConfiguration.getInteger(YarnConfigOptions.FILE_REPLICATION, fileReplication);
+
 		// only for per job mode
 		if (jobGraph != null) {
 			for (Map.Entry<String, DistributedCache.DistributedCacheEntry> entry : jobGraph.getUserArtifacts().entrySet()) {
@@ -690,7 +694,7 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 				if (!path.getFileSystem().isDistributedFS()) {
 					Path localPath = new Path(path.getPath());
 					Tuple2<Path, Long> remoteFileInfo =
-						Utils.uploadLocalFileToRemote(fs, appId.toString(), localPath, homeDir, entry.getKey());
+						Utils.uploadLocalFileToRemote(fs, appId.toString(), localPath, homeDir, entry.getKey(), fileReplication);
 					jobGraph.setUserArtifactRemotePath(entry.getKey(), remoteFileInfo.f0.toString());
 				}
 			}
@@ -714,7 +718,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 			paths,
 			localResources,
 			Path.CUR_DIR,
-			envShipFileList);
+			envShipFileList,
+			fileReplication);
 
 		// upload and register ship-only files
 		uploadAndRegisterFiles(
@@ -725,7 +730,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 			paths,
 			localResources,
 			Path.CUR_DIR,
-			envShipFileList);
+			envShipFileList,
+			fileReplication);
 
 		final List<String> userClassPaths = uploadAndRegisterFiles(
 			userJarFiles,
@@ -736,7 +742,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 			localResources,
 			userJarInclusion == YarnConfigOptions.UserJarInclusion.DISABLED ?
 				ConfigConstants.DEFAULT_FLINK_USR_LIB_DIR : Path.CUR_DIR,
-			envShipFileList);
+			envShipFileList,
+			fileReplication);
 
 		if (userJarInclusion == YarnConfigOptions.UserJarInclusion.ORDER) {
 			systemClassPaths.addAll(userClassPaths);
@@ -765,7 +772,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 				flinkJarPath,
 				localResources,
 				homeDir,
-				"");
+				"",
+				fileReplication);
 
 		paths.add(remotePathJar);
 		classPathBuilder.append(flinkJarPath.getName()).append(File.pathSeparator);
@@ -785,7 +793,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 				new Path(tmpConfigurationFile.getAbsolutePath()),
 				localResources,
 				homeDir,
-				"");
+				"",
+				fileReplication);
 			envShipFileList.append(flinkConfigKey).append("=").append(remotePathConf).append(",");
 			paths.add(remotePathConf);
 			classPathBuilder.append("flink-conf.yaml").append(File.pathSeparator);
@@ -822,7 +831,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 						new Path(tmpJobGraphFile.toURI()),
 						localResources,
 						homeDir,
-						"");
+						"",
+						fileReplication);
 				paths.add(pathFromYarnURL);
 				classPathBuilder.append(jobGraphFilename).append(File.pathSeparator);
 			} catch (Exception e) {
@@ -857,7 +867,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 					yarnSitePath,
 					localResources,
 					homeDir,
-					"");
+					"",
+					fileReplication);
 
 			String krb5Config = System.getProperty("java.security.krb5.conf");
 			if (krb5Config != null && krb5Config.length() != 0) {
@@ -871,7 +882,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 						krb5ConfPath,
 						localResources,
 						homeDir,
-						"");
+						"",
+						fileReplication);
 				hasKrb5 = true;
 			}
 		}
@@ -888,7 +900,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 					new Path(keytab),
 					localResources,
 					homeDir,
-					"");
+					"",
+					fileReplication);
 		}
 
 		final boolean hasLogback = logConfigFilePath != null && logConfigFilePath.endsWith(CONFIG_FILE_LOGBACK_NAME);
@@ -1050,6 +1063,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 	 * 		local path to the file
 	 * @param localResources
 	 * 		map of resources
+     * @param replication
+	 * 	    number of replications of a remote file to be created
 	 *
 	 * @return the remote path to the uploaded resource
 	 */
@@ -1060,13 +1075,15 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 			Path localSrcPath,
 			Map<String, LocalResource> localResources,
 			Path targetHomeDir,
-			String relativeTargetPath) throws IOException {
+			String relativeTargetPath,
+			int replication) throws IOException {
 		Tuple2<Path, LocalResource> resource = Utils.setupLocalResource(
 				fs,
 				appId.toString(),
 				localSrcPath,
 				targetHomeDir,
-				relativeTargetPath);
+				relativeTargetPath,
+				replication);
 
 		localResources.put(key, resource.f1);
 
@@ -1103,6 +1120,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 	 *		the directory the localResources are uploaded to
 	 * @param envShipFileList
 	 * 		list of shipped files in a format understood by {@link Utils#createTaskExecutorContext}
+	 * @param replication
+	 * 	     number of replications of a remote file to be created
 	 *
 	 * @return list of class paths with the the proper resource keys from the registration
 	 */
@@ -1114,7 +1133,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 			List<Path> remotePaths,
 			Map<String, LocalResource> localResources,
 			String localResourcesDirectory,
-			StringBuilder envShipFileList) throws IOException {
+			StringBuilder envShipFileList,
+			int replication) throws IOException {
 		final List<Path> localPaths = new ArrayList<>();
 		final List<Path> relativePaths = new ArrayList<>();
 		for (File shipFile : shipFiles) {
@@ -1150,7 +1170,8 @@ public class YarnClusterDescriptor implements ClusterDescriptor<ApplicationId> {
 						localPath,
 						localResources,
 						targetHomeDir,
-						relativePath.getParent().toString());
+						relativePath.getParent().toString(),
+						replication);
 				remotePaths.add(remotePath);
 				envShipFileList.append(key).append("=").append(remotePath).append(",");
 				// add files to the classpath
