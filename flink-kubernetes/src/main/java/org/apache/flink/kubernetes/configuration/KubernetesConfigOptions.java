@@ -29,6 +29,14 @@ import static org.apache.flink.configuration.ConfigOptions.key;
 @PublicEvolving
 public class KubernetesConfigOptions {
 
+	public static final ConfigOption<String> CONTEXT =
+		key("kubernetes.context")
+		.stringType()
+		.noDefaultValue()
+		.withDescription("The desired context from your K8s config file used to configure the K8s client for " +
+			"interacting with the cluster. This could be helpful if one has multiple contexts configured and " +
+			"wants to administrate different Flink clusters on different K8s clusters/contexts.");
+
 	public static final ConfigOption<String> REST_SERVICE_EXPOSED_TYPE =
 		key("kubernetes.rest-service.exposed.type")
 		.stringType()
@@ -62,6 +70,12 @@ public class KubernetesConfigOptions {
 		.defaultValue("IfNotPresent")
 		.withDescription("Kubernetes image pull policy. Valid values are Always, Never, and IfNotPresent. " +
 			"The default policy is IfNotPresent to avoid putting pressure to image repository.");
+
+	public static final ConfigOption<String> CONTAINER_IMAGE_PULL_SECRETES =
+		key("kubernetes.container.image.pull-secretes")
+		.stringType()
+		.noDefaultValue()
+		.withDescription("Comma separated list of the Kubernetes secrets used to access private image registries.");
 
 	public static final ConfigOption<String> KUBE_CONFIG_FILE =
 		key("kubernetes.config.file")
