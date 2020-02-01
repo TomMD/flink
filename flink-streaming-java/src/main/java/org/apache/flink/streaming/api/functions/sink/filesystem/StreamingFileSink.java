@@ -45,6 +45,9 @@ import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.io.Serializable;
 
@@ -98,6 +101,8 @@ import java.io.Serializable;
 public class StreamingFileSink<IN>
 		extends RichSinkFunction<IN>
 		implements CheckpointedFunction, CheckpointListener, ProcessingTimeCallback {
+
+	private static final Logger LOG = LoggerFactory.getLogger(StreamingFileSink.class);
 
 	private static final long serialVersionUID = 1L;
 
@@ -269,7 +274,7 @@ public class StreamingFileSink<IN>
 
 		public <ID> StreamingFileSink.RowFormatBuilder<IN, ID, ? extends RowFormatBuilder<IN, ID, ?>> withNewBucketAssignerAndPolicy(final BucketAssigner<IN, ID> assigner, final RollingPolicy<IN, ID> policy) {
 			Preconditions.checkState(bucketFactory.getClass() == DefaultBucketFactoryImpl.class, "newBuilderWithBucketAssignerAndPolicy() cannot be called after specifying a customized bucket factory");
-			return new RowFormatBuilder(basePath, encoder, Preconditions.checkNotNull(assigner), Preconditions.checkNotNull(policy), bucketCheckInterval, new DefaultBucketFactoryImpl<>(), outputFileConfig);
+			return new RowFormatBuilder<>(basePath, encoder, Preconditions.checkNotNull(assigner), Preconditions.checkNotNull(policy), bucketCheckInterval, new DefaultBucketFactoryImpl<>(), outputFileConfig);
 		}
 
 		/** Creates the actual sink. */
@@ -338,6 +343,18 @@ public class StreamingFileSink<IN>
 			this.bucketCheckInterval = bucketCheckInterval;
 			this.bucketFactory = Preconditions.checkNotNull(bucketFactory);
 			this.outputFileConfig = Preconditions.checkNotNull(outputFileConfig);
+
+			String scheme = basePath.toUri().getScheme();
+
+			if ("s3p".equals(scheme) || "s3".equals(scheme)) {
+				LOG.warn("The StreamingFileSink only supports bulk output formats on S3" +
+					"with the flink-s3-fs-hadoop filesystem. The scheme `s3://` is" +
+					"ambiguous when multiple S3 filesystems are loaded by Flink and `s3p://`" +
+					"always loads flink-s3-fs-presto. It is strongly recommended when using " +
+					"this sink that users specify the scheme `s3a://`. For more information on the different" +
+					"S3 filesystems, please reference the official Apache Flink" +
+					"documentation: https://ci.apache.org/projects/flink/flink-docs-stable/ops/filesystems/s3.html");
+			}
 		}
 
 		public long getBucketCheckInterval() {
